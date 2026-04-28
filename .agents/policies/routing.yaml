@@ -1,0 +1,49 @@
+# Routing rules: complexity × risk → profile → level assignment
+rules:
+  - match: {complexity: atomic, risk: low}
+    profile: light
+    executor_level: 0
+    reviewer_required: false
+
+  - match: {complexity: atomic, risk: medium}
+    profile: standard
+    executor_level: 0
+    reviewer_required: true
+
+  - match: {complexity: compound, risk: low}
+    profile: standard
+    executor_level: 0
+    reviewer_required: true
+
+  - match: {complexity: atomic, risk: high}
+    profile: full
+    executor_level: 0
+    reviewer_required: true
+    architect_required: true
+
+  - match: {complexity: compound, risk: medium}
+    profile: full
+    executor_level: 0
+    reviewer_required: true
+    architect_required: true
+
+  - match: {complexity: compound, risk: high}
+    profile: full
+    executor_level: 0
+    reviewer_required: true
+    architect_required: true
+
+# Task type overrides (applied after complexity×risk)
+type_overrides:
+  migration:
+    reviewer_required: true
+    min_profile: standard
+  security:
+    min_profile: full
+    architect_required: true
+
+# Routes by profile
+routes:
+  light:    [context, executor_L0, verify, before_merge]
+  standard: [context, executor_L0, verify, reviewer_L1, before_merge]
+  full:     [context, architect_L2, after_plan_gate, subtasks, executor_L0, verify, reviewer_L1, before_merge]

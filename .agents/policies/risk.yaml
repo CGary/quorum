@@ -1,0 +1,39 @@
+# Risk scoring heuristics — used as reference for Fase 0 human decision
+# These are guidelines, not automatic rules. The human assigns risk.
+
+high_risk_signals:
+  - Touches authentication or authorization code
+  - Touches payment or financial logic
+  - Touches database migrations
+  - Touches shared infrastructure (CI/CD, secrets, permissions)
+  - Touches public API contracts
+  - Removes or renames exported symbols used across packages
+  - Modifies core data models or schemas
+  - Changes that affect multiple teams or services
+
+medium_risk_signals:
+  - Touches business logic
+  - Touches external integrations (third-party APIs, webhooks)
+  - Adds new runtime dependencies
+  - Changes to shared utilities used in >3 features
+  - Touches test infrastructure
+
+low_risk_signals:
+  - UI-only changes with no logic impact
+  - Localization / copy changes
+  - Internal renaming within a single feature
+  - Adding or updating tests (no production code change)
+  - Documentation updates
+  - Removing dead code
+
+# Sensitivity paths — any touch triggers reviewer_required
+sensitive_paths:
+  - "**/auth/**"
+  - "**/permissions/**"
+  - "**/payment/**"
+  - "**/migrations/**"
+  - "**/*.schema.*"
+  - "**/middleware/**"
+  - ".env*"
+  - "package.json"
+  - "*.lock"

@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "trace.schema.json",
+  "title": "Task Trace",
+  "type": "object",
+  "required": ["task_id", "profile", "risk", "complexity", "execution_mode", "started_at", "attempts", "violations", "context_overflows"],
+  "additionalProperties": false,
+  "properties": {
+    "task_id":         {"type": "string"},
+    "profile":         {"type": "string", "enum": ["light", "standard", "full"]},
+    "risk":            {"type": "string", "enum": ["low", "medium", "high"]},
+    "complexity":      {"type": "string", "enum": ["atomic", "compound"]},
+    "execution_mode":  {"type": "string", "enum": ["patch_only", "worktree_edit"]},
+    "started_at":      {"type": "string", "format": "date-time"},
+    "completed_at":    {"type": ["string", "null"], "format": "date-time"},
+    "outcome": {
+      "type": ["string", "null"],
+      "enum": ["merged", "failed", "aborted", null]
+    },
+    "human_minutes":   {"type": ["number", "null"]},
+    "attempts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["phase", "result"],
+        "additionalProperties": false,
+        "properties": {
+          "phase": {
+            "type": "string",
+            "enum": ["execute", "review", "validate_limits", "verify", "architect", "escalate"]
+          },
+          "level":          {"type": "integer", "minimum": 0, "maximum": 2},
+          "model":          {"type": "string"},
+          "tokens_in":      {"type": "integer"},
+          "tokens_out":     {"type": "integer"},
+          "cost_usd":       {"type": "number"},
+          "duration_s":     {"type": "number"},
+          "result": {
+            "type": "string",
+            "enum": [
+              "verify_passed", "verify_failed",
+              "approve", "revise", "reject",
+              "passed", "failed",
+              "escalated", "aborted"
+            ]
+          },
+          "failure_reason": {"type": "string"},
+          "stop_early":     {"type": "boolean"}
+        }
+      }
+    },
+    "total_cost_usd":     {"type": ["number", "null"]},
+    "violations":         {"type": "array", "items": {"type": "string"}},
+    "context_overflows":  {"type": "array", "items": {"type": "string"}}
+  }
+}

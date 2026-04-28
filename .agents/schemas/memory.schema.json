@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "memory.schema.json",
+  "title": "Memory Entry",
+  "type": "object",
+  "required": ["id", "source_task", "type", "title", "context", "content", "created_at"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^(PAT|DEC|LES)-[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]+"
+    },
+    "source_task": {"type": "string"},
+    "type": {
+      "type": "string",
+      "enum": ["pattern", "decision", "lesson"]
+    },
+    "title":   {"type": "string", "minLength": 5},
+    "context": {"type": "string"},
+    "content": {"type": "string", "minLength": 20},
+    "related": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date"
+    },
+    "supersedes": {
+      "type": "string",
+      "description": "ID of the memory entry this one corrects or replaces"
+    }
+  }
+}

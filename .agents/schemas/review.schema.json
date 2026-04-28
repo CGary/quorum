@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "review.schema.json",
+  "title": "Review Output",
+  "type": "object",
+  "required": ["verdict", "contract_compliance", "forbidden_files_touched", "unrequested_refactor", "missing_tests", "functional_risk", "notes"],
+  "additionalProperties": false,
+  "properties": {
+    "verdict": {
+      "type": "string",
+      "enum": ["approve", "revise", "reject"]
+    },
+    "contract_compliance": {"type": "boolean"},
+    "forbidden_files_touched": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "unrequested_refactor": {"type": "boolean"},
+    "missing_tests": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "functional_risk": {
+      "type": "string",
+      "enum": ["low", "medium", "high"]
+    },
+    "notes": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "fix_tasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["slug", "scope"],
+        "properties": {
+          "slug":  {"type": "string"},
+          "scope": {"type": "string"}
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "contract.schema.json",
+  "title": "Task Contract",
+  "type": "object",
+  "required": ["task_id", "type", "profile", "risk", "complexity", "goal", "acceptance", "verify", "touch", "forbid", "limits", "execution", "retry_policy", "human_gates"],
+  "additionalProperties": false,
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "pattern": "^[A-Z]+-[0-9]+"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["feature", "bugfix", "refactor", "test", "migration", "doc"]
+    },
+    "profile": {
+      "type": "string",
+      "enum": ["light", "standard", "full"]
+    },
+    "risk": {
+      "type": "string",
+      "enum": ["low", "medium", "high"]
+    },
+    "complexity": {
+      "type": "string",
+      "enum": ["atomic", "compound"]
+    },
+    "goal": {
+      "type": "string",
+      "minLength": 10
+    },
+    "required_behavior": {
+      "type": "array",
+      "items": {"type": "string"},
+      "minItems": 1
+    },
+    "acceptance": {
+      "type": "array",
+      "items": {"type": "string"},
+      "minItems": 1
+    },
+    "verify": {
+      "type": "object",
+      "required": ["commands"],
+      "additionalProperties": false,
+      "properties": {
+        "commands": {
+          "type": "array",
+          "items": {"type": "string"},
+          "minItems": 1
+        }
+      }
+    },
+    "read": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "touch": {
+      "type": "array",
+      "items": {"type": "string"},
+      "minItems": 1
+    },
+    "forbid": {
+      "type": "object",
+      "required": ["files"],
+      "additionalProperties": false,
+      "properties": {
+        "files": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "behaviors": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      }
+    },
+    "limits": {
+      "type": "object",
+      "required": ["max_files_changed", "max_diff_lines", "max_context_tokens", "max_tokens_per_file", "max_neighbor_hops"],
+      "additionalProperties": false,
+      "properties": {
+        "max_files_changed": {"type": "integer", "minimum": 1},
+        "max_diff_lines":    {"type": "integer", "minimum": 1},
+        "max_context_tokens":{"type": "integer", "minimum": 1000},
+        "max_tokens_per_file":{"type": "integer", "minimum": 100},
+        "max_neighbor_hops": {"type": "integer", "minimum": 0, "maximum": 3}
+      }
+    },
+    "execution": {
+      "type": "object",
+      "required": ["mode", "fallback_mode", "max_attempts_per_mode"],
+      "additionalProperties": false,
+      "properties": {
+        "mode":                   {"type": "string", "enum": ["patch_only", "worktree_edit"]},
+        "fallback_mode":          {"type": "string", "enum": ["patch_only", "worktree_edit"]},
+        "max_attempts_per_mode":  {"type": "integer", "minimum": 1, "maximum": 5},
+        "allow_new_files":        {"type": "boolean"}
+      }
+    },
+    "retry_policy": {
+      "type": "object",
+      "required": ["level0_max_retries", "level1_max_retries", "level2_max_retries", "stop_on_same_error_twice"],
+      "additionalProperties": false,
+      "properties": {
+        "level0_max_retries":        {"type": "integer", "minimum": 0},
+        "level1_max_retries":        {"type": "integer", "minimum": 0},
+        "level2_max_retries":        {"type": "integer", "minimum": 0},
+        "stop_on_same_error_twice":  {"type": "boolean"}
+      }
+    },
+    "review": {
+      "type": "object",
+      "required": ["required"],
+      "additionalProperties": false,
+      "properties": {
+        "required": {"type": "boolean"},
+        "reason":   {"type": "string"}
+      }
+    },
+    "human_gates": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["before_merge", "after_plan", "before_level2_escalation"]
+      },
+      "contains": {"const": "before_merge"}
+    },
+    "promote_to_memory": {
+      "type": "boolean"
+    },
+    "subtasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["task_id", "goal"],
+        "properties": {
+          "task_id":    {"type": "string"},
+          "goal":       {"type": "string"},
+          "depends_on": {
+            "type": "array",
+            "items": {"type": "string"}
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"profile": {"const": "full"}}},
+      "then": {
+        "required": ["required_behavior", "review"],
+        "properties": {
+          "human_gates": {
+            "contains": {"const": "after_plan"}
+          }
+        }
+      }
+    },
+    {
+      "if": {"properties": {"risk": {"const": "high"}}},
+      "then": {
+        "properties": {
+          "review": {
+            "properties": {"required": {"const": true}}
+          }
+        }
+      }
+    }
+  ]
+}
