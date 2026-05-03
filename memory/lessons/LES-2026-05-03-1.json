@@ -1,0 +1,14 @@
+{
+  "id": "LES-2026-05-03-1",
+  "source_task": "MEM-001",
+  "type": "lesson",
+  "title": "Anti-pattern field added to memory schema",
+  "context": "The schema captured only positive knowledge until MEM-001 added anti_patterns.",
+  "content": "Memory entries can now capture rejected approaches alongside adopted ones, preventing rediscovery of known dead-ends.",
+  "anti_patterns": [
+    "Did not add a separate anti_pattern memory type because it would fragment the typology and break filter logic in q-memory.",
+    "Did not add confidence_score field because LLM-generated scores are unverifiable and create false precision."
+  ],
+  "related": ["MEM-001"],
+  "created_at": "2026-05-03"
+}

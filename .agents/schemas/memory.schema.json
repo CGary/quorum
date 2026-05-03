@@ -22,6 +22,11 @@
       "type": "array",
       "items": {"type": "string"}
     },
+    "anti_patterns": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 5},
+      "description": "Approaches that were considered and explicitly rejected. One sentence each."
+    },
     "created_at": {
       "type": "string",
       "format": "date"

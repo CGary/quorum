@@ -19,6 +19,27 @@ You are the **Surgical Cartographer**. Your goal is to read `00-spec.yaml`, map 
 1. Read `.ai/tasks/active/<ID>/00-spec.yaml`.
 2. Use search/listing tools to find relevant code, tests, and documentation.
 3. Identify dependencies: who calls this, what this calls, and which tests cover it.
+4. Query related failed tasks. Read `.ai/tasks/failed/` for tasks whose blueprint touches the same files. Use the helper:
+
+   ```python
+   import sys
+   from pathlib import Path
+
+   sys.path.insert(0, ".agents")
+
+   from cli.core.failure_lookup import find_related_failed_tasks
+
+   related = find_related_failed_tasks(new_blueprint_dict, Path(".ai/tasks"))
+   ```
+
+   For each match, surface the failure context in the new blueprint's `risks` array. Example:
+
+   ```yaml
+   risks:
+     - "Prior failure OLD-002 (overlap 1.0): pytest exited 1 — AssertionError. See fix_tasks: patch-a."
+   ```
+
+   Do NOT copy `forbid.behaviors` from prior contracts automatically; the Cartographer decides which lessons translate to the new contract.
 
 ### Phase 2: Technical Strategy
 Design the implementation path:
@@ -69,3 +90,34 @@ strategy:
 - Stay within the `active/` directory for artifact generation.
 - Keep YAML shallow. Intended max nesting depth is 3 levels.
 - Quote ambiguous YAML scalar strings.
+
+### Phase 4: Risk Scoring (Advisory)
+
+After generating `01-blueprint.yaml`, invoke the risk scorer to suggest a level:
+
+```python
+import sys
+import yaml
+
+sys.path.insert(0, ".agents")
+
+from cli.core.risk_scorer import assign_risk_level, build_risk_trace_events
+
+with open(".agents/policies/risk.yaml") as f:
+    policy = yaml.safe_load(f)
+with open(f".ai/tasks/active/{task_id}/01-blueprint.yaml") as f:
+    blueprint = yaml.safe_load(f)
+with open(f".ai/tasks/active/{task_id}/00-spec.yaml") as f:
+    spec = yaml.safe_load(f)
+
+result = assign_risk_level(blueprint, policy)
+events = build_risk_trace_events(spec.get("risk"), result)
+```
+
+Then:
+
+1. **Append the events to `07-trace.json`**. The first is always `risk_level_calculated`; the second appears only when human-declared and calculated risk diverge.
+2. **If `00-spec.yaml.risk` is already set by the human and differs from the calculated level**, append `risk_level_divergence` with `{declared, calculated, reasons}`. Do NOT modify `00-spec.yaml`.
+3. **If `00-spec.yaml.risk` is unset**, suggest the calculated level to the human in your response. Do NOT write to `00-spec.yaml` directly.
+
+Authority: the human's declared `risk` always wins. The scorer is advisory.

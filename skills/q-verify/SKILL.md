@@ -69,6 +69,22 @@ Set `overall_result`:
 - `failed` if any command exits non-zero.
 - `blocked` if commands cannot be run due to missing setup, missing worktree, or invalid contract.
 
+### 3.5 Error Classification
+
+When `overall_result` is `failed` or `blocked`, set `error_category` based on heuristics over `output_excerpt`:
+
+| Heuristic match in output | Category |
+| :--- | :--- |
+| `TimeoutError`, `Connection refused`, `network unreachable`, `disk full`, `429 Too Many Requests` | `environment` |
+| Same test passes on rerun without code change | `flaky` |
+| `ModuleNotFoundError`, `ImportError`, `unresolved reference`, missing package | `dependency` |
+| `AssertionError`, `expected X got Y`, type errors, logic-level test failures | `logic` |
+| Cannot classify confidently | `unknown` |
+
+If `overall_result` is `passed`, omit `error_category` entirely.
+
+This classification is advisory. Future automation may use it to choose between auto-retry (environment, flaky) and re-blueprint (logic, dependency); for now it is metadata for human review and `q-blueprint`'s related-failure lookup.
+
 ### 4. Validate JSON
 
 If possible, validate with:

@@ -62,6 +62,11 @@
         "failed",
         "blocked"
       ]
+    },
+    "error_category": {
+      "type": "string",
+      "enum": ["logic", "dependency", "environment", "flaky", "unknown"],
+      "description": "Optional. Set when overall_result is failed or blocked. Distinguishes recoverable transient failures from code-level failures."
     }
   }
 }
