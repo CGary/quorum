@@ -3,14 +3,27 @@ import shutil
 import yaml
 import json
 import subprocess
+import os
 from pathlib import Path
 from jsonschema import validate
 import datetime
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
+# Quorum v1.1: PROJECT_ROOT is now dynamic based on where the user is running the tool.
+# We look for the git root or fallback to CWD.
+def get_project_root():
+    try:
+        res = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            check=True, capture_output=True, text=True
+        )
+        return Path(res.stdout.strip())
+    except Exception:
+        return Path(os.getcwd())
+
+PROJECT_ROOT = get_project_root()
 AI_TASKS = PROJECT_ROOT / ".ai" / "tasks"
-AGENTS_DIR = PROJECT_ROOT / ".agents"
-SCHEMAS_DIR = AGENTS_DIR / "schemas"
+AGENTS_DIR = PROJECT_ROOT / ".agents" # Note: Local project settings if they exist
+SCHEMAS_DIR = Path(__file__).parent.parent.parent / "schemas" # Schemas are usually in the tool source
 
 def get_base_branch():
     """Detects the base branch of the repository."""

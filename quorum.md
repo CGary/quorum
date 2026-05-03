@@ -360,7 +360,8 @@ project/
 │   │   └── memory.schema.json
 │   ├── prompts/         # Role-specific system instructions
 │   ├── policies/        # Risk and routing logic
-│   └── config.yaml      # Model assignments, cost ceilings, retry policies
+│   ├── config.yaml      # Model assignments, cost ceilings, retry policies
+│   └── skills/          # Quorum and Spec-kitty skills
 ├── .ai/tasks/
 │   ├── inbox/           # Specs and blueprints in draft
 │   ├── active/          # 00-spec.yaml, 01-blueprint.yaml, 02-contract.yaml,

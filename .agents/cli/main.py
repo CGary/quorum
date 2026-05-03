@@ -1,10 +1,13 @@
 import argparse
 import sys
-from .commands import task
+from .commands import task, project
 
 def main():
     parser = argparse.ArgumentParser(description="Quorum Agent CLI")
     subparsers = parser.add_subparsers(dest="command", help="Commands")
+
+    # init command
+    subparsers.add_parser("init", help="Initialize Quorum in the current project")
 
     # task subcommand
     task_parser = subparsers.add_parser("task", help="Task management")
@@ -39,7 +42,9 @@ def main():
 
     args = parser.parse_args()
 
-    if args.command == "task":
+    if args.command == "init":
+        project.init()
+    elif args.command == "task":
         if args.subcommand == "specify":
             task.specify(args.task_id)
         elif args.subcommand == "blueprint":

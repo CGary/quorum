@@ -31,7 +31,7 @@ Quorum es un framework **AI-first** para ejecutar funcionalidades complejas medi
 
 ### Implementado
 
-- CLI `./agents task ...` para inicializar, listar, activar, crear worktrees, consultar estado y limpiar tareas.
+- CLI `quorum task ...` para inicializar, listar, activar, crear worktrees, consultar estado y limpiar tareas.
 - Schemas JSON para artefactos:
   - `spec`, `blueprint`, `contract`, `validation`, `review`, `trace`, `memory`.
 - Skills operativos:
@@ -97,251 +97,79 @@ Quorum usa `00` a `07` más memoria curada. No se agregan slots nuevos sin ADR, 
 
 ---
 
-## 🚀 Cómo usar Quorum en un proyecto de software
+## 🚀 Inicio Rápido
 
-> Suposición: estás en la raíz del repo de software y Quorum ya está instalado/configurado ahí con `./agents`, `.agents/`, `skills/`, `.ai/` y `memory/`.
+Quorum se instala como una herramienta global mediante `uv` para que puedas usarlo en cualquier proyecto de forma aislada.
 
-### 0. Preparar el entorno
+### 1. Instalación Global
 
-```bash
-uv sync
-chmod +x agents
-./agents task list
-```
-
-Verifica que existan estos directorios:
+Clona el repositorio y utiliza `uv tool install`:
 
 ```bash
-.ai/tasks/inbox
-.ai/tasks/active
-.ai/tasks/done
-.ai/tasks/failed
-worktrees
-memory
+git clone https://github.com/usuario/quorum.git
+cd quorum
+uv tool install --editable .
 ```
 
----
+Esto registrará el comando `quorum` en tu PATH. Al ser una instalación `--editable`, cualquier mejora que descargues o hagas en el código de Quorum se reflejará instantáneamente sin necesidad de re-instalar.
 
-### 1. Crear la especificación
+### 2. Inicializar un Proyecto
+
+Ve a tu proyecto de software (ej. `hsme`) y prepara la estructura de Quorum:
 
 ```bash
-./agents task specify FEAT-001
+cd /ruta/a/tu/proyecto
+quorum init
 ```
 
-Esto crea una carpeta en `.ai/tasks/inbox/` con `00-spec.yaml` inicial.
-
-Luego invoca el skill:
-
-```text
-/q-brief FEAT-001
-```
-
-Objetivo: completar `00-spec.yaml` con:
-
-- `task_id`
-- `summary`
-- `goal`
-- `invariants`
-- `acceptance`
-- `risk` si el humano ya lo sabe
-- restricciones o non-goals si aplica
-
-Regla práctica: si no puedes escribir invariantes verificables, la tarea aún no está lista para blueprint.
+Esto creará automáticamente:
+- Directorios de tareas: `.ai/tasks/{inbox,active,done,failed}`.
+- Directorios de memoria curada: `memory/{decisions,patterns,lessons}`.
+- Configuración de `.gitignore` para proteger tus worktrees y artefactos temporales.
 
 ---
 
-### 2. Generar blueprint y contrato
+## 🛠 Flujo de Trabajo Operativo
+
+### 1. Especificación (El "Qué")
 
 ```bash
-./agents task blueprint FEAT-001
+quorum task specify FEAT-001
 ```
+Esto crea `00-spec.yaml`. Usa el skill `/q-brief FEAT-001` para definir invariantes y criterios de aceptación.
 
-Esto mueve la tarea a `.ai/tasks/active/`.
-
-Luego invoca:
-
-```text
-/q-blueprint FEAT-001
-```
-
-`q-blueprint` debe producir:
-
-- `01-blueprint.yaml`
-- `02-contract.yaml`
-
-Durante esta fase Quorum puede:
-
-- calcular riesgo sugerido con `risk_scorer.py`;
-- consultar `.ai/tasks/failed/` con `failure_lookup.py` para detectar fallos relacionados;
-- registrar divergencias de riesgo en `07-trace.json` cuando aplique.
-
----
-
-### 3. Analizar consistencia antes de ejecutar
-
-Opcional pero recomendado:
-
-```text
-/q-analyze FEAT-001
-```
-
-Este skill revisa coherencia entre:
-
-- `00-spec.yaml`
-- `01-blueprint.yaml`
-- `02-contract.yaml`
-
-Busca gaps como:
-
-- archivos necesarios ausentes del contrato;
-- escenarios de test débiles;
-- invariantes no cubiertas;
-- límites demasiado amplios o demasiado estrechos.
-
----
-
-### 4. Crear worktree aislado
+### 2. Blueprint y Contrato (El "Cómo")
 
 ```bash
-./agents task start FEAT-001
+quorum task blueprint FEAT-001
 ```
+Mueve la tarea a `active/`. Usa `/q-blueprint FEAT-001` para que el agente explore el código y genere el `02-contract.yaml`.
 
-Esto crea:
-
-```text
-worktrees/FEAT-001/
-branch: ai/FEAT-001
-```
-
-El agente implementador debe trabajar dentro de ese worktree, no en el checkout principal.
-
----
-
-### 5. Implementar siguiendo el contrato
-
-Invoca:
-
-```text
-/q-implement FEAT-001
-```
-
-Reglas del implementador:
-
-- Solo puede modificar archivos listados en `02-contract.yaml.touch`.
-- Debe respetar `forbid.files` y `forbid.behaviors`.
-- Si el contrato está incompleto, debe bloquear, no improvisar.
-- Si necesita tocar un archivo fuera del contrato, reporta `BLOCKED` para futura renegociación manual o automatizada.
-
-Salida esperada:
-
-- cambios en el worktree;
-- `04-implementation-log.yaml` actualizado;
-- commit en rama de tarea cuando el flujo lo permita.
-
----
-
-### 6. Verificar funcionalmente
-
-```text
-/q-verify FEAT-001
-```
-
-Este skill ejecuta `02-contract.yaml.verify.commands` dentro del worktree y escribe `05-validation.json`.
-
-Resultados posibles:
-
-- `passed`
-- `failed`
-- `blocked`
-
-Si falla, `q-verify` puede añadir:
-
-```json
-"error_category": "logic|dependency|environment|flaky|unknown"
-```
-
-Esto permite distinguir bugs reales de fallos transitorios o de entorno.
-
----
-
-### 7. Revisar el diff
-
-```text
-/q-review FEAT-001
-```
-
-El reviewer produce `06-review.json` con:
-
-- `verdict`: `approve | revise | reject`
-- cumplimiento del contrato;
-- archivos prohibidos tocados;
-- tests faltantes;
-- riesgo funcional;
-- `fix_tasks` si hay que iterar.
-
-Si el verdict es `revise`, vuelve a:
-
-```text
-/q-implement → /q-verify → /q-review
-```
-
----
-
-### 8. Acceptance y merge humano
-
-Cuando `q-review` aprueba:
-
-1. El humano inspecciona el diff.
-2. El humano ejecuta la suite lenta si existe:
+### 3. Aislamiento y Ejecución
 
 ```bash
-# ejemplo; depende del proyecto
-pytest tests/bdd -v
+# Crea un Git Worktree aislado
+quorum task start FEAT-001
 ```
 
-3. El humano mergea la rama `ai/FEAT-001` a `main`.
+Luego invoca los agentes de ejecución:
+- `/q-implement FEAT-001`: Implementa cambios respetando el contrato.
+- `/q-verify FEAT-001`: Ejecuta comandos de validación y genera `05-validation.json`.
+- `/q-review FEAT-001`: Genera el veredicto `06-review.json`.
 
-Quorum no hace merge automático.
+### 4. Merge Humano y Memoria
 
----
-
-### 9. Cerrar tarea y capturar memoria
-
-Después del merge humano:
+Cuando la revisión sea positiva (`approve`):
+1. El humano inspecciona el diff en el worktree.
+2. El humano mergea la rama `ai/FEAT-001` a `main`.
+3. Limpieza y captura de conocimiento:
 
 ```bash
-./agents task clean FEAT-001
-```
+# Archiva la tarea y elimina el worktree
+quorum task clean FEAT-001
 
-Esto remueve el worktree y archiva la tarea en `done/`.
-
-Luego, si hay aprendizaje durable:
-
-```text
+# Captura patrones y lecciones durables
 /q-memory FEAT-001
-```
-
-Captura como máximo conocimiento útil en:
-
-- `memory/decisions/`
-- `memory/patterns/`
-- `memory/lessons/`
-
-No uses memoria como log. Para logs ya existe `07-trace.json`.
-
----
-
-### 10. Consultar estado
-
-```bash
-./agents task status FEAT-001
-./agents task list
-```
-
-También puedes usar:
-
-```text
-/q-status FEAT-001
 ```
 
 ---
@@ -353,52 +181,16 @@ Agent loop:  unit tests + lint       objetivo: <60s
 Human gate:  BDD / acceptance suite  objetivo: <10min
 ```
 
-- El agente ejecuta solo `verify.commands`.
-- El humano ejecuta aceptación lenta antes del merge.
-- Ningún reporte reemplaza tests verdes.
+- El agente ejecuta solo `verify.commands` definidos en el contrato.
+- El humano ejecuta la suite de aceptación completa antes del merge.
+- Ningún reporte reemplaza la validación determinística.
+
+---
 
 Para validar el propio framework:
 
 ```bash
 uv run pytest -v
-```
-
----
-
-## 🛠 Instalación / adopción en un repo
-
-Para trabajar dentro de este repo:
-
-```bash
-git clone <repo>
-cd quorum
-uv sync
-chmod +x agents
-uv run pytest -v
-```
-
-Para adoptar Quorum en otro proyecto, copia/adapta:
-
-```text
-agents
-.agents/
-skills/
-.ai/tasks/{inbox,active,done,failed}/.gitkeep
-memory/{decisions,patterns,lessons}/.gitkeep
-```
-
-Y agrega a `.gitignore`:
-
-```gitignore
-worktrees/
-.ai/tasks/active/*
-.ai/tasks/done/*
-.ai/tasks/failed/*
-.ai/tasks/inbox/*
-!.ai/tasks/active/.gitkeep
-!.ai/tasks/done/.gitkeep
-!.ai/tasks/failed/.gitkeep
-!.ai/tasks/inbox/.gitkeep
 ```
 
 ---
@@ -417,8 +209,8 @@ project/
 │   ├── schemas/           # JSON Schemas para YAML/JSON artifacts
 │   ├── policies/          # risk.yaml y routing.yaml
 │   ├── retrievers/        # import graph / AST neighbors
-│   └── config.yaml        # niveles de modelos y límites
-├── skills/                # skills q-*
+│   ├── config.yaml        # niveles de modelos y límites
+│   └── skills/            # skills q-* y spec-kitty.*
 ├── .ai/tasks/
 │   ├── inbox/
 │   ├── active/
