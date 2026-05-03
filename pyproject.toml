@@ -15,6 +15,9 @@ quorum = "cli.main:main"
 [tool.setuptools]
 package-dir = {"" = ".agents"}
 
+[tool.setuptools.package-data]
+"*" = ["*.yaml", "*.json", "*.md", "0*-*.yaml"]
+
 [tool.setuptools.packages.find]
 where = [".agents"]
 include = ["*"]
