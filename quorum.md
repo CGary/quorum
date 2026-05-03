@@ -136,6 +136,56 @@ This prevents artifact sprawl: observability goes to trace, validation evidence 
 
 ---
 
+## 🔒 Skill Modularity: Single-Phase Skills
+
+Each `/q-*` skill is a **single-phase atomic unit**. The lifecycle phases above (Specify, Blueprint, Contract, Execute, Review, Accept, Memorize) are **not** a chain that one agent runs end-to-end. They are independent dispatches.
+
+### The rule
+
+A skill MUST execute exactly its declared phase and STOP. It MUST NOT auto-activate the next skill, MUST NOT call another skill on the user's behalf, and MUST NOT continue past its own boundary even if the user accepted its output.
+
+| Skill | Single-phase output | What the skill MUST NOT do |
+| :--- | :--- | :--- |
+| `q-brief` | `00-spec.yaml` | Activate `q-blueprint`. Suggest contract details. Touch source code. |
+| `q-blueprint` | `01-blueprint.yaml` + `02-contract.yaml` | Activate `q-analyze` or `q-implement`. Run `verify.commands`. |
+| `q-analyze` | Read-only consistency report | Modify any artifact. Activate `q-blueprint` to fix issues. |
+| `q-implement` | Diff in worktree + `04-implementation-log.yaml` | Activate `q-verify`. Run BDD. Decide retry. |
+| `q-verify` | `05-validation.json` | Edit source. Activate `q-review`. Decide retry. |
+| `q-review` | `06-review.json` | Edit source. Activate `q-accept`. Merge. |
+| `q-accept` | Ready/not-ready verdict | Merge. Move task to `done/`. Activate `q-memory`. |
+| `q-memory` | Curated `memory/*.json` | Activate any other skill. Edit source code. |
+| `q-status` | Read-only state report | Modify artifacts. Activate any other skill. |
+
+### Handoff is text, not action
+
+A skill's terminal output MUST end with a single line of the form:
+
+```text
+Next phase: /q-<next> <TASK_ID> — dispatched separately.
+```
+
+This is **information for the orchestrator** (the human or an external runtime), not an instruction the skill is allowed to execute. The orchestrator decides which agent runs the next phase and at which executor level.
+
+### Why modularity is non-negotiable
+
+1. **Cost control.** Each phase can be routed to a different executor level (`config.yaml` tiers 0/1/2). A cheap model can run `q-status` or `q-brief`; a high-tier model is reserved for `q-implement` on high-risk tasks. Auto-chaining inside one agent forces the entire pipeline onto a single model tier — usually the most expensive one — and burns tokens that policy never authorized.
+2. **Policy authority (Rule #7).** Routing, retries, and escalations are decided by the dispatcher, not by the agent. A skill that auto-activates the next phase is making a routing decision it has no authority to make.
+3. **Human checkpoints.** Each artifact transition (`00 → 01`, `01 → contract validation`, `validation → review`, `review → accept`) is an inspection point. Auto-chaining collapses all checkpoints into one and removes the human's ability to intervene before the next dispatch.
+4. **Failure isolation.** When one phase fails, only that phase fails. Auto-chaining propagates a bad spec into a bad blueprint into a bad implementation, and the trace is harder to read.
+5. **Idempotency.** A modular skill can be re-run on a task in any state without redoing earlier phases. A chained execution cannot.
+
+### Anti-patterns (rejected)
+
+- A skill that says *"shall I proceed to /q-blueprint?"* and then proceeds without an explicit user response.
+- A skill that calls `Skill` / `Activate` for another `/q-*` from inside its own execution.
+- A skill that runs `agents task start` or `quorum task start` itself unless its declared phase is "Aislamiento".
+- A "do-everything" wrapper skill that orchestrates the full lifecycle. The orchestrator IS the lifecycle; do not wrap it inside a skill.
+- Multi-phase prompts ("act as q-brief and then q-blueprint") — split them into two dispatches.
+
+This principle is binding on every current and future Quorum skill, and is enforced via Immutable Rule #9.
+
+---
+
 ## 🧪 Testing Policy
 
 Quorum's `verify.commands` execute fast unit tests and lint for agent feedback loops. BDD acceptance specs run in a separate slower suite, executed by the human before merge approval.
@@ -342,6 +392,9 @@ This preserves:
 
 8. **Tests Are the Only Proof of Work**  
    No spec, blueprint, or contract proves functionality. Only `verify.commands` do.
+
+9. **Skills Are Single-Phase Units**  
+   Every `/q-*` skill executes exactly one declared phase and stops. Skills never auto-activate other skills, never chain into the next phase, and never make routing decisions. The orchestrator (human or external runtime) dispatches each phase independently. See "Skill Modularity".
 
 ---
 

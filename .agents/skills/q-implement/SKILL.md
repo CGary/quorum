@@ -110,3 +110,27 @@ BLOCKED: <specific reason>
 - Do not merge.
 - Do not edit task schemas or policies unless explicitly in `touch`.
 - Do not expand the contract yourself. If the contract is wrong, block.
+
+## 🛑 Handoff (single-phase boundary)
+
+This skill executes ONLY the **Implementation** phase. After committing the diff in the worktree and writing `04-implementation-log.yaml`, STOP.
+
+- DO NOT activate `/q-verify`, `/q-review`, or any other skill — even though running tests "right now" looks efficient.
+- DO NOT execute `verify.commands`. That is `q-verify`'s phase, dispatched by the orchestrator under its own model tier.
+- DO NOT write `05-validation.json`, `06-review.json`, or `07-trace.json` review entries.
+- DO NOT decide retries on your own. If you `BLOCKED`, end and let the orchestrator decide.
+- DO NOT merge or open a PR.
+
+End your final message with exactly one of:
+
+```text
+DONE: <technical summary>
+Next phase: /q-verify <TASK_ID> — dispatched separately by the orchestrator.
+```
+
+```text
+BLOCKED: <specific reason>
+Next phase: orchestrator decision (re-blueprint, contract amendment, or human intervention) — dispatched separately.
+```
+
+Auto-chaining into `/q-verify` violates Quorum Rule #9 (Skills Are Single-Phase Units) and Rule #7 (Cost Bounded by Policy, Not Trust).

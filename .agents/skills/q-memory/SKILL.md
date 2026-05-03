@@ -129,3 +129,20 @@ python -m jsonschema -i memory/<type>/<file>.json .agents/schemas/memory.schema.
 - Prefer one useful memory over many weak ones.
 - Do not edit source code.
 - Do not overwrite existing memory IDs.
+
+## 🛑 Handoff (single-phase boundary)
+
+This skill executes ONLY the **Memory Capture** phase. After writing the curated `memory/*.json` entries, STOP.
+
+- DO NOT activate any other skill. Memory capture is the terminal phase of the Quorum lifecycle.
+- DO NOT edit source code, task artifacts, schemas, policies, or trace files.
+- DO NOT push to external memory systems (HSME, vector DBs, etc.). Quorum is local-first; external consumers read `memory/*.json` themselves.
+- DO NOT auto-trigger ingestion based on time, file count, or task volume. Capture is human-invoked exclusively.
+
+End your final message with exactly this line and nothing after it:
+
+```text
+Next phase: lifecycle complete — orchestrator may dispatch /q-status to confirm state.
+```
+
+Self-chaining or auto-ingestion violates Quorum Rule #9 (Skills Are Single-Phase Units), the Memory Governance "human-invoked, never automatic" gate, and Rule #7 (Cost Bounded by Policy, Not Trust).

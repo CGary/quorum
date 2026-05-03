@@ -88,3 +88,19 @@ Next: <q-blueprint|q-implement|manual clarification>
 - Do not rewrite artifacts unless the user explicitly asks in a separate instruction.
 - Do not invent missing requirements.
 - Prefer exact artifact keys and paths over broad commentary.
+
+## 🛑 Handoff (single-phase boundary)
+
+This skill executes ONLY the **Consistency Analysis** phase. After producing the read-only report, STOP.
+
+- DO NOT activate `/q-blueprint`, `/q-implement`, or any other skill — even if you found issues that "obviously" need a re-blueprint.
+- DO NOT edit `00-spec.yaml`, `01-blueprint.yaml`, or `02-contract.yaml` to fix the issues you reported. Reporting is the entire job.
+- DO NOT run `verify.commands`, modify source, or move the task between states.
+
+End your final message with exactly this line and nothing after it:
+
+```text
+Next phase: /q-blueprint <TASK_ID> (if issues_found) OR quorum task start <TASK_ID> (if pass) — dispatched separately by the orchestrator.
+```
+
+The orchestrator (human or external runtime) decides which agent and model tier runs the next phase. Auto-chaining violates Quorum Rule #9 (Skills Are Single-Phase Units) and Rule #7 (Cost Bounded by Policy, Not Trust).

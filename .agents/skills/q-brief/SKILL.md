@@ -52,3 +52,20 @@ constraints:
 - `summary` MUST be the second key after `task_id` and ≤ 200 characters.
 - Quote ambiguous YAML strings such as `NO`, `1.10`, and `22:30`.
 - Do NOT suggest file paths yet. That is the job of `q-blueprint`.
+
+## 🛑 Handoff (single-phase boundary)
+
+This skill executes ONLY the **Specify** phase. After writing `00-spec.yaml`, STOP.
+
+- DO NOT activate `/q-blueprint`, `/q-analyze`, or any other skill — even if the user nodded earlier or asked you to "go ahead".
+- DO NOT run `quorum task blueprint`, `agents task blueprint`, or any task-state mutation. The orchestrator does that.
+- DO NOT explore source code, draft a blueprint, or pre-fill `01-blueprint.yaml` / `02-contract.yaml`.
+- DO NOT ask "shall I continue to /q-blueprint?" and then continue. You must end the turn.
+
+End your final message with exactly this line and nothing after it:
+
+```text
+Next phase: quorum task blueprint <TASK_ID>, then /q-blueprint <TASK_ID> — dispatched separately by the orchestrator.
+```
+
+The orchestrator (human or external runtime) decides which agent and model tier runs the next phase. Auto-chaining violates Quorum Rule #9 (Skills Are Single-Phase Units) and Rule #7 (Cost Bounded by Policy, Not Trust).

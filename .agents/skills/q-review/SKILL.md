@@ -94,3 +94,20 @@ Blocking issues: <none or list>
 - Do not approve if validation failed or was not run.
 - Do not waive contract violations.
 - Do not merge.
+
+## 🛑 Handoff (single-phase boundary)
+
+This skill executes ONLY the **Contract Review** phase. After writing `06-review.json`, STOP.
+
+- DO NOT activate `/q-accept`, `/q-implement`, `/q-memory`, or any other skill — even on `approve`.
+- DO NOT edit source code to apply your own `fix_tasks`. The orchestrator dispatches `/q-implement` if revisions are needed.
+- DO NOT run `verify.commands`, write validation JSON, or run BDD suites.
+- DO NOT merge, push, or move the task to `done/`.
+
+End your final message with exactly this line and nothing after it:
+
+```text
+Next phase: /q-accept <TASK_ID> (if approve) OR /q-implement <TASK_ID> (if revise) OR human escalation (if reject) — dispatched separately by the orchestrator.
+```
+
+Auto-chaining into the next phase violates Quorum Rule #9 (Skills Are Single-Phase Units) and Rule #7 (Cost Bounded by Policy, Not Trust).

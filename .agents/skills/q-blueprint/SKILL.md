@@ -121,3 +121,20 @@ Then:
 3. **If `00-spec.yaml.risk` is unset**, suggest the calculated level to the human in your response. Do NOT write to `00-spec.yaml` directly.
 
 Authority: the human's declared `risk` always wins. The scorer is advisory.
+
+## 🛑 Handoff (single-phase boundary)
+
+This skill executes ONLY the **Blueprint + Contract** phase. After writing `01-blueprint.yaml` and `02-contract.yaml` (and appending the risk events to `07-trace.json`), STOP.
+
+- DO NOT activate `/q-analyze`, `/q-implement`, `/q-verify`, or any other skill.
+- DO NOT run `quorum task start`, `agents task start`, or create the worktree. The orchestrator does that.
+- DO NOT modify source code, run `verify.commands`, or execute the strategy you just designed.
+- DO NOT silently overwrite `00-spec.yaml.risk`. Risk authority belongs to the human.
+
+End your final message with exactly this line and nothing after it:
+
+```text
+Next phase: /q-analyze <TASK_ID> (recommended) or quorum task start <TASK_ID> — dispatched separately by the orchestrator.
+```
+
+The orchestrator (human or external runtime) decides which agent and model tier runs the next phase. Auto-chaining violates Quorum Rule #9 (Skills Are Single-Phase Units) and Rule #7 (Cost Bounded by Policy, Not Trust).

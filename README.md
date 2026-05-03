@@ -131,46 +131,208 @@ Esto creará automáticamente:
 
 ## 🛠 Flujo de Trabajo Operativo
 
-### 1. Especificación (El "Qué")
+El ciclo combina dos actores que hacen cosas distintas. Confundirlos es la causa #1 de pasos saltados.
+
+| Actor | Responsabilidad | Herramienta |
+|---|---|---|
+| **Orquestador** (humano o runtime externo) | Mueve la tarea entre estados (`inbox` → `active` → `done`/`failed`), crea worktrees, hace merge a `main`, archiva la tarea | Comandos `quorum task ...` + Git |
+| **Skill (AI)** | Produce artefactos (`00`–`07`, memoria) dentro de los límites de su fase | Slash commands `/q-*` |
+
+### ⚠️ Reglas de oro tras la modularización (Regla #9 en `quorum.md`)
+
+Los skills **ya no** ejecutan transiciones de estado por su cuenta. Cualquier comando CLI que aparezca abajo lo corre **el orquestador, no el skill**. Específicamente:
+
+- `/q-brief` **no** corre `quorum task blueprint`. Si lo despachás sin haber hecho la transición, el skill seguiente no encontrará la tarea en `active/`.
+- `/q-blueprint` **no** corre `quorum task start`. Si lo despachás sin worktree, `/q-implement` se bloqueará con `BLOCKED: worktree missing`.
+- `/q-accept` **no** ejecuta `git merge`, ni la suite BDD, ni `quorum task clean`. Solo emite veredicto `ready|not_ready`. El merge y la limpieza son manuales después.
+- Ningún skill activa al siguiente skill. Si querés despachar `/q-implement` después de `/q-blueprint`, lo hacés vos.
+
+Si alguno de estos pasos se omite, la tarea queda en un estado intermedio inconsistente. Usá `quorum task status <ID>` o `/q-status <ID>` para diagnosticar dónde quedó.
+
+### Secuencia canónica (FEAT-001 como ejemplo)
+
+Cada fila es un dispatch independiente. **Nada salta entre filas automáticamente.**
+
+| # | Actor | Acción | Comando o skill | Artefacto / efecto |
+|---|---|---|---|---|
+| 1 | Orquestador | Crear tarea en `inbox/` | `quorum task specify FEAT-001` | Directorio + `00-spec.yaml` esqueleto |
+| 2 | Skill (AI) | Llenar la especificación | `/q-brief FEAT-001` | `00-spec.yaml` completo |
+| 3 | Orquestador | Promover a `active/` | `quorum task blueprint FEAT-001` | Tarea movida; lista para blueprint |
+| 4 | Skill (AI) | Diseñar blueprint y contrato | `/q-blueprint FEAT-001` | `01-blueprint.yaml` + `02-contract.yaml` + risk events en `07-trace.json` |
+| 5 | Skill (AI) — **opcional** | Auditar consistencia entre `00`/`01`/`02` | `/q-analyze FEAT-001` | Reporte read-only (sin artefacto nuevo) |
+| 6 | Orquestador | Crear worktree y rama `ai/FEAT-001` | `quorum task start FEAT-001` | `worktrees/FEAT-001/` + rama |
+| 7 | Skill (AI) | Implementar dentro del contrato | `/q-implement FEAT-001` | Diff committeado en `ai/FEAT-001` + `04-implementation-log.yaml` |
+| 8 | Skill (AI) | Correr `verify.commands` | `/q-verify FEAT-001` | `05-validation.json` |
+| 9 | Skill (AI) | Revisar diff vs contrato | `/q-review FEAT-001` | `06-review.json` |
+| 10 | Skill (AI) | Compuerta de aceptación | `/q-accept FEAT-001` | Veredicto `ready` o `not_ready` |
+| 11 | Humano | Correr suite BDD (si el contrato la define) | `<acceptance.bdd_suite>` manual | Pase/fail manual |
+| 12 | Humano | Inspeccionar diff y mergear a `main` | `git merge ai/FEAT-001` (manual) | Código en `main` |
+| 13 | Orquestador | Archivar tarea y borrar worktree | `quorum task clean FEAT-001` | Tarea en `done/` (o `failed/`) |
+| 14 | Skill (AI) | Capturar lecciones durables | `/q-memory FEAT-001` | Entradas en `memory/{decisions,patterns,lessons}/` |
+
+### Detalle por fase
+
+#### 1. Crear la tarea — orquestador
 
 ```bash
 quorum task specify FEAT-001
 ```
-Esto crea `00-spec.yaml`. Usa el skill `/q-brief FEAT-001` para definir invariantes y criterios de aceptación.
 
-### 2. Blueprint y Contrato (El "Cómo")
+Crea `.ai/tasks/inbox/FEAT-001-<slug>/` con plantillas. **Hacelo siempre antes** de despachar `/q-brief`; el skill no creará la tarea por vos.
+
+#### 2. Especificar — skill `/q-brief`
+
+```text
+/q-brief FEAT-001
+```
+
+Entrevista al humano y completa `00-spec.yaml` con goal, invariantes, criterios de aceptación, no-objetivos y `risk`. Aplica el `Scope Gate`: si la solicitud es trivial, te dice que no uses Quorum.
+
+> El skill **no** mueve la tarea a `active/`. Termina diciendo `Next phase: quorum task blueprint <TASK_ID>, then /q-blueprint <TASK_ID>`.
+
+#### 3. Promover a active — orquestador
 
 ```bash
 quorum task blueprint FEAT-001
 ```
-Mueve la tarea a `active/`. Usa `/q-blueprint FEAT-001` para que el agente explore el código y genere el `02-contract.yaml`.
 
-### 3. Aislamiento y Ejecución
+Mueve `inbox/FEAT-001-*/` → `active/FEAT-001-*/`. **Si saltás este paso**, `/q-blueprint` no encontrará la tarea en `active/` y fallará.
+
+#### 4. Blueprint + contrato — skill `/q-blueprint`
+
+```text
+/q-blueprint FEAT-001
+```
+
+El agente:
+
+- mapea archivos, símbolos y dependencias afectadas;
+- consulta tareas fallidas relacionadas vía `failure_lookup.py`;
+- corre `risk_scorer.py` y registra los eventos de riesgo en `07-trace.json` (sin pisar el riesgo declarado por el humano);
+- genera `01-blueprint.yaml` (estrategia) y `02-contract.yaml` (`touch`, `read`, `forbid`, `verify.commands`, `limits`, `execution`, `retry_policy`).
+
+> El skill **no** crea el worktree. Termina con `Next phase: /q-analyze <TASK_ID> (recommended) or quorum task start <TASK_ID>`.
+
+#### 5. Análisis de consistencia (opcional pero recomendado) — skill `/q-analyze`
+
+```text
+/q-analyze FEAT-001
+```
+
+**Read-only.** Cruza `00`, `01`, `02` contra schemas y policies. Reporta:
+
+- aceptación sin test scenarios,
+- archivos del blueprint que no están en `02-contract.yaml.touch`,
+- comandos BDD lentos colocados como `verify.commands`,
+- divergencias de risk no reflejadas en `07-trace.json`.
+
+No corrige nada. Si encuentra `issues_found`, despachás `/q-blueprint` de nuevo (a un modelo capaz de razonar sobre el contrato) para arreglarlo. Si pasa, seguís al paso 6.
+
+#### 6. Crear worktree — orquestador
 
 ```bash
-# Crea un Git Worktree aislado
 quorum task start FEAT-001
 ```
 
-Luego invoca los agentes de ejecución:
-- `/q-implement FEAT-001`: Implementa cambios respetando el contrato.
-- `/q-verify FEAT-001`: Ejecuta comandos de validación y genera `05-validation.json`.
-- `/q-review FEAT-001`: Genera el veredicto `06-review.json`.
+Genera `worktrees/FEAT-001/` y la rama `ai/FEAT-001` desde `main` (o la rama base detectada). **Sin este paso**, `/q-implement` se bloquea de inmediato.
 
-### 4. Merge Humano y Memoria
+#### 7. Implementación — skill `/q-implement`
 
-Cuando la revisión sea positiva (`approve`):
-1. El humano inspecciona el diff en el worktree.
-2. El humano mergea la rama `ai/FEAT-001` a `main`.
-3. Limpieza y captura de conocimiento:
+```text
+/q-implement FEAT-001
+```
+
+El agente lee `02-contract.yaml` como autoridad vinculante. Toca solo archivos en `touch`, respeta `forbid`, registra cambios en `04-implementation-log.yaml` y commitea dentro del worktree en `ai/FEAT-001`. Tocar fuera del contrato rechaza la tarea.
+
+> El skill **no** ejecuta `verify.commands` ni activa `/q-verify`. Termina con `DONE: …` o `BLOCKED: …`.
+
+#### 8. Verificación — skill `/q-verify`
+
+```text
+/q-verify FEAT-001
+```
+
+Corre cada `verify.commands` dentro del worktree y captura exit codes, duración y un excerpt de salida. Escribe `05-validation.json` con `overall_result` (`passed | failed | blocked`) y, si falló, un `error_category` heurístico (`logic | dependency | environment | flaky | unknown`).
+
+> El skill **no** edita código para arreglar fallos ni decide reintentos. Si falla, el orquestador decide si vuelve a `/q-implement` (logic/dependency) o reintenta `/q-verify` (environment/flaky).
+
+#### 9. Revisión — skill `/q-review`
+
+```text
+/q-review FEAT-001
+```
+
+Compara el diff de `worktrees/FEAT-001/` contra `00`, `01`, `02` y `05`. Emite veredicto en `06-review.json`: `approve | revise | reject`. Si revise, devuelve `fix_tasks` estructurados. No edita código, no aprueba con validation no pasada, no mergea.
+
+#### 10. Compuerta de aceptación — skill `/q-accept`
+
+```text
+/q-accept FEAT-001
+```
+
+Verifica de forma agregada: `05.overall_result == passed`, `06.verdict == approve`, `06.contract_compliance == true`, `forbidden_files_touched` vacío, sin refactors no pedidos, sin violaciones abiertas en `07-trace.json`. Emite `Acceptance: ready` o `not_ready` con bloqueantes.
+
+> Importante: `/q-accept` **no** ejecuta el merge, **no** corre la suite BDD y **no** archiva la tarea. Solo emite el go/no-go. Los pasos 11–13 son obra del humano y del orquestador.
+
+#### 11. Suite BDD — humano
+
+Si `02-contract.yaml.acceptance.bdd_suite` está definido, corré ese comando manualmente fuera del agent loop. Es la única evidencia que cubre criterios de aceptación end-to-end (Política de testing).
+
+#### 12. Merge — humano
 
 ```bash
-# Archiva la tarea y elimina el worktree
-quorum task clean FEAT-001
+git -C worktrees/FEAT-001 log --oneline   # inspeccionar
+git checkout main
+git merge ai/FEAT-001
+```
 
-# Captura patrones y lecciones durables
+Rule #6 es ley: el sistema commitea, nunca mergea. El merge es manual.
+
+#### 13. Limpieza — orquestador
+
+```bash
+quorum task clean FEAT-001
+```
+
+Archiva la tarea en `done/` (o `failed/` si nunca pasó la compuerta) y elimina el worktree. Hacelo **después** del merge; antes deja huérfanos los commits de `ai/FEAT-001` si no fueron mergeados.
+
+#### 14. Captura de memoria — skill `/q-memory`
+
+```text
 /q-memory FEAT-001
 ```
+
+Genera entradas en `memory/decisions/`, `memory/patterns/` o `memory/lessons/`. Es la única vía de ingesta de memoria; no hay captura automática (Memory Governance: human-invoked, never automatic). También se puede invocar sobre tareas en `failed/` con lección durable; en ese caso captura un `lesson` con `anti_patterns`.
+
+### Errores comunes y cómo detectarlos
+
+| Síntoma | Causa probable | Diagnóstico |
+|---|---|---|
+| `/q-blueprint` dice "task not found in active" | Saltaste `quorum task blueprint <ID>` | `quorum task status <ID>` mostrará la tarea aún en `inbox/` |
+| `/q-implement` responde `BLOCKED: worktree missing` | Saltaste `quorum task start <ID>` | `ls worktrees/` no listará la tarea |
+| `/q-verify` responde `blocked` | Falta `02-contract.yaml.verify.commands` | Volver a `/q-blueprint` y completar el contrato |
+| `/q-review` devuelve `revise` con `fix_tasks` | Validation pasó pero el diff sale del contrato | Despachar `/q-implement` con los `fix_tasks` |
+| `/q-accept` queda en `not_ready` por trace | Hay violaciones sin resolver en `07-trace.json` | Inspeccionar `07-trace.json.violations` |
+| Tarea sigue apareciendo en `active/` después del merge | Saltaste `quorum task clean <ID>` | Correr `quorum task clean <ID>` ahora |
+| Lecciones no aparecen en `memory/` | `/q-memory` nunca fue invocado | La memoria es manual; no hay auto-captura |
+
+### Utilidades transversales (read-only)
+
+```bash
+quorum task list              # resumen de todas las tareas y su estado
+quorum task status FEAT-001   # estado, artefactos presentes y próximo paso
+```
+
+```text
+/q-status            # vista global con próxima acción recomendada
+/q-status FEAT-001   # diagnóstico por tarea
+```
+
+`/q-status` es el equivalente conversacional de `quorum task list/status`: nunca modifica artefactos, solo lee `.ai/tasks/` y reporta qué falta y qué skill o comando viene a continuación. Útil al volver a una tarea después de un rato o al diagnosticar un paso saltado.
+
+### Sobre `quorum task run`
+
+El comando existe en el CLI, pero `task_manager.run_task()` es stub: el dispatcher automático está diferido. **Hoy el flujo real lo conducís vos** alternando entre los comandos del orquestador y los despachos de skills, como en la tabla de arriba.
 
 ---
 

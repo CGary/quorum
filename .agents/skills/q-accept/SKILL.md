@@ -53,3 +53,26 @@ Blockers:
 - Do not move task to `done`; use `agents task clean <TASK_ID>` only if the human explicitly asks after merge.
 - Do not run slow BDD automatically unless explicitly instructed by the human.
 - Do not override failed validation or rejected review.
+
+## 🛑 Handoff (single-phase boundary)
+
+This skill executes ONLY the **Merge Gate** phase. After emitting the `ready|not_ready` verdict, STOP.
+
+- DO NOT activate `/q-memory`, `/q-implement`, or any other skill — even when the verdict is `ready`.
+- DO NOT execute `git merge`, `git push`, `gh pr merge`, or any merge command. Rule #6: the system commits, never merges.
+- DO NOT run `quorum task clean` / `agents task clean` yourself, even on `ready`. The human merges first, then the orchestrator dispatches cleanup.
+- DO NOT run the BDD suite. Report it as a required human-run gate.
+
+End your final message with exactly one of:
+
+```text
+Acceptance: ready
+Next phase: human merges ai/<TASK_ID> → main, then quorum task clean <TASK_ID>, then /q-memory <TASK_ID> — each dispatched separately by the orchestrator.
+```
+
+```text
+Acceptance: not_ready
+Next phase: orchestrator dispatches the appropriate remediation skill (/q-implement, /q-verify, /q-review) per the listed blockers — dispatched separately.
+```
+
+Auto-merging or auto-chaining into the next phase violates Quorum Rule #9 (Skills Are Single-Phase Units), Rule #6 (System Commits, Never Merges), and Rule #7 (Cost Bounded by Policy, Not Trust).

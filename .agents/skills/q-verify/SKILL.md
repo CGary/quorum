@@ -108,3 +108,20 @@ Failed commands: <none or list>
 - Do not change source code.
 - Do not fix failures in this skill.
 - Do not run BDD acceptance suites.
+
+## 🛑 Handoff (single-phase boundary)
+
+This skill executes ONLY the **Verification** phase. After writing `05-validation.json`, STOP.
+
+- DO NOT activate `/q-review`, `/q-implement`, or any other skill — even when validation passes and the next step is "obvious".
+- DO NOT edit source code to fix a failing command. That is `q-implement`'s phase, dispatched separately.
+- DO NOT decide retries. The dispatcher (Rule #7) decides retries based on `error_category` and policy.
+- DO NOT write `06-review.json` or judge the diff.
+
+End your final message with exactly this line and nothing after it:
+
+```text
+Next phase: /q-review <TASK_ID> (if passed) OR /q-implement <TASK_ID> / /q-blueprint <TASK_ID> (per orchestrator policy on error_category) — dispatched separately by the orchestrator.
+```
+
+Auto-chaining into the next phase violates Quorum Rule #9 (Skills Are Single-Phase Units) and Rule #7 (Cost Bounded by Policy, Not Trust).

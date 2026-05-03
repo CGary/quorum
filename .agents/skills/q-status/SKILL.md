@@ -82,3 +82,19 @@ Next: <exact command or skill>
 - Do not infer success from prose; read artifacts.
 - Do not run verification commands here.
 - Do not create, move, or delete tasks.
+
+## 🛑 Handoff (single-phase boundary)
+
+This skill executes ONLY the **Read-only State Report** phase. After emitting the status report, STOP.
+
+- DO NOT activate `/q-brief`, `/q-blueprint`, `/q-implement`, `/q-verify`, `/q-review`, `/q-accept`, `/q-memory`, or any other skill — even when the next step is unambiguous.
+- DO NOT run `quorum task specify`, `blueprint`, `start`, or `clean`. Reporting is the entire job.
+- DO NOT modify any artifact, including `07-trace.json`.
+
+End your final message with exactly this line and nothing after it:
+
+```text
+Next phase: <the exact command or skill recommended in the report> — dispatched separately by the orchestrator.
+```
+
+Auto-chaining into the recommended action violates Quorum Rule #9 (Skills Are Single-Phase Units) and Rule #7 (Cost Bounded by Policy, Not Trust).
