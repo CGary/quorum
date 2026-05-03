@@ -1,41 +1,86 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "review.schema.json",
-  "title": "Review Output",
+  "title": "Quorum Review Output",
   "type": "object",
-  "required": ["verdict", "contract_compliance", "forbidden_files_touched", "unrequested_refactor", "missing_tests", "functional_risk", "notes"],
+  "required": [
+    "task_id",
+    "summary",
+    "verdict",
+    "contract_compliance",
+    "forbidden_files_touched",
+    "unrequested_refactor",
+    "missing_tests",
+    "functional_risk",
+    "notes"
+  ],
   "additionalProperties": false,
   "properties": {
+    "task_id": {
+      "type": "string",
+      "pattern": "^[A-Z]+-[0-9]+"
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1
+    },
     "verdict": {
       "type": "string",
-      "enum": ["approve", "revise", "reject"]
+      "enum": [
+        "approve",
+        "revise",
+        "reject"
+      ]
     },
-    "contract_compliance": {"type": "boolean"},
+    "contract_compliance": {
+      "type": "boolean"
+    },
     "forbidden_files_touched": {
       "type": "array",
-      "items": {"type": "string"}
+      "items": {
+        "type": "string"
+      }
     },
-    "unrequested_refactor": {"type": "boolean"},
+    "unrequested_refactor": {
+      "type": "boolean"
+    },
     "missing_tests": {
       "type": "array",
-      "items": {"type": "string"}
+      "items": {
+        "type": "string"
+      }
     },
     "functional_risk": {
       "type": "string",
-      "enum": ["low", "medium", "high"]
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ]
     },
     "notes": {
       "type": "array",
-      "items": {"type": "string"}
+      "items": {
+        "type": "string"
+      }
     },
     "fix_tasks": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["slug", "scope"],
+        "required": [
+          "slug",
+          "scope"
+        ],
+        "additionalProperties": false,
         "properties": {
-          "slug":  {"type": "string"},
-          "scope": {"type": "string"}
+          "slug": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          }
         }
       }
     }

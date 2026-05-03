@@ -1,0 +1,12 @@
+vcs:
+  type: git
+agents:
+  available:
+  - gemini
+  - codex
+  auto_commit: true
+project:
+  uuid: 4f1acf98-7011-4e83-9075-ef3f2c3f6617
+  slug: hsme
+  node_id: b7c77a915371
+  build_id: 828a912a-e8c8-42da-b94e-c510cabe3d71

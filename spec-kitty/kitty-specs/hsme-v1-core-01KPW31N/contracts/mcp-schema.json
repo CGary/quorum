@@ -1,0 +1,56 @@
+{
+  "tools": [
+    {
+      "name": "store_context",
+      "description": "Store a memory document",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "content": { "type": "string" },
+          "source_type": { "type": "string", "enum": ["manual", "log", "code", "note"] },
+          "supersedes_memory_id": { "type": ["number", "null"] },
+          "force_reingest": { "type": ["boolean", "null"] }
+        },
+        "required": ["content", "source_type"]
+      }
+    },
+    {
+      "name": "search_fuzzy",
+      "description": "Hybrid search across FTS5 and vector index",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": { "type": "string" },
+          "limit": { "type": "number", "default": 10 }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "search_exact",
+      "description": "Lexical exact search",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "keyword": { "type": "string" },
+          "limit": { "type": "number", "default": 10 }
+        },
+        "required": ["keyword"]
+      }
+    },
+    {
+      "name": "trace_dependencies",
+      "description": "Knowledge graph traversal",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "entity_name": { "type": "string" },
+          "direction": { "type": "string", "enum": ["downstream", "upstream", "both"] },
+          "max_depth": { "type": "number", "default": 5 },
+          "max_nodes": { "type": "number", "default": 100 }
+        },
+        "required": ["entity_name", "direction"]
+      }
+    }
+  ]
+}

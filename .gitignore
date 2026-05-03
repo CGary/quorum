@@ -27,6 +27,7 @@ wheels/
 .venv_docker/
 
 # Quorum Specific
+.atl/
 worktrees/
 .ai/tasks/active/*
 .ai/tasks/done/*

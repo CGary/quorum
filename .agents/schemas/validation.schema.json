@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "validation.schema.json",
+  "title": "Quorum Validation Capture",
+  "type": "object",
+  "required": [
+    "task_id",
+    "summary",
+    "executed_at",
+    "commands",
+    "overall_result"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "pattern": "^[A-Z]+-[0-9]+"
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1
+    },
+    "executed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "commands": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "command",
+          "exit_code",
+          "duration_s",
+          "output_excerpt"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "command": {
+            "type": "string"
+          },
+          "exit_code": {
+            "type": "integer"
+          },
+          "duration_s": {
+            "type": "number",
+            "minimum": 0
+          },
+          "output_excerpt": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        }
+      },
+      "minItems": 1
+    },
+    "overall_result": {
+      "type": "string",
+      "enum": [
+        "passed",
+        "failed",
+        "blocked"
+      ]
+    }
+  }
+}

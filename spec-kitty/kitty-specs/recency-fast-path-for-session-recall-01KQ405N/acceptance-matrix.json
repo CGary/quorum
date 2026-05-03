@@ -1,0 +1,39 @@
+{
+  "mission_slug": "recency-fast-path-for-session-recall-01KQ405N",
+  "mission_number": "5",
+  "mission_type": "software-dev",
+  "overall_verdict": "pass",
+  "criteria": [
+    {
+      "criterion_id": "AC-001",
+      "description": "Core chronological query and supporting index were implemented and merged (WP01).",
+      "proof_type": "code_review",
+      "evidence": "WP01 done in status.events.jsonl; review note: 'pure SQL query implemented, index added correctly.'",
+      "pass_fail": "pass",
+      "verified_by": "Codex",
+      "verified_at": "2026-04-26T05:20:05Z",
+      "notes": "Covers FR-002, FR-003, FR-004, FR-005, FR-008 and related constraints."
+    },
+    {
+      "criterion_id": "AC-002",
+      "description": "MCP tool surface for recall_recent_session was implemented and merged (WP02).",
+      "proof_type": "code_review",
+      "evidence": "WP02 done in status.events.jsonl; review note: 'MCP tool registered'.",
+      "pass_fail": "pass",
+      "verified_by": "Codex",
+      "verified_at": "2026-04-26T05:20:05Z",
+      "notes": "Covers FR-001, FR-007, C-005."
+    },
+    {
+      "criterion_id": "AC-003",
+      "description": "Tests, protocol documentation, and regression fixes were implemented and merged (WP03).",
+      "proof_type": "code_review",
+      "evidence": "WP03 done in status.events.jsonl; review note: 'all tests fixed and coverage added.'",
+      "pass_fail": "pass",
+      "verified_by": "Codex",
+      "verified_at": "2026-04-26T05:20:05Z",
+      "notes": "Covers FR-006, NFR-001..NFR-004, C-004."
+    }
+  ],
+  "negative_invariants": []
+}

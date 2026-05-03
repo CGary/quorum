@@ -10,6 +10,14 @@ def main():
     task_parser = subparsers.add_parser("task", help="Task management")
     task_subparsers = task_parser.add_subparsers(dest="subcommand", help="Task subcommands")
 
+    # task specify
+    specify_parser = task_subparsers.add_parser("specify", help="Initialize specification session")
+    specify_parser.add_argument("task_id", help="Task ID")
+
+    # task blueprint
+    blueprint_parser = task_subparsers.add_parser("blueprint", help="Generate technical blueprint")
+    blueprint_parser.add_argument("task_id", help="Task ID")
+
     # task start
     start_parser = task_subparsers.add_parser("start", help="Start a task")
     start_parser.add_argument("task_id", help="Task ID (e.g. FEAT-001)")
@@ -22,6 +30,9 @@ def main():
     status_parser = task_subparsers.add_parser("status", help="Get task status")
     status_parser.add_argument("task_id", help="Task ID")
 
+    # task list
+    task_subparsers.add_parser("list", help="List tasks with summaries")
+
     # task clean
     clean_parser = task_subparsers.add_parser("clean", help="Clean up a task")
     clean_parser.add_argument("task_id", help="Task ID")
@@ -29,12 +40,18 @@ def main():
     args = parser.parse_args()
 
     if args.command == "task":
-        if args.subcommand == "start":
+        if args.subcommand == "specify":
+            task.specify(args.task_id)
+        elif args.subcommand == "blueprint":
+            task.blueprint(args.task_id)
+        elif args.subcommand == "start":
             task.start(args.task_id)
         elif args.subcommand == "run":
             task.run(args.task_id)
         elif args.subcommand == "status":
             task.status(args.task_id)
+        elif args.subcommand == "list":
+            task.list_all()
         elif args.subcommand == "clean":
             task.clean(args.task_id)
         else:

@@ -1,0 +1,17 @@
+{
+  "wp_id": "WP01",
+  "mission_slug": "hsme-cli-polish-01KQ5PAC",
+  "worktree_path": ".worktrees/hsme-cli-polish-01KQ5PAC-lane-a",
+  "branch_name": "kitty/mission-hsme-cli-polish-01KQ5PAC-lane-a",
+  "base_branch": "kitty/mission-hsme-cli-polish-01KQ5PAC",
+  "base_commit": "9d65ffa10332509a7c716a87a02fdcb73a5f8c1b",
+  "dependencies": [],
+  "created_at": "2026-04-26T20:26:31.075308+00:00",
+  "created_by": "implement-command-lane",
+  "vcs_backend": "git",
+  "lane_id": "lane-a",
+  "lane_wp_ids": [
+    "WP01"
+  ],
+  "current_wp": "WP01"
+}

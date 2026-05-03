@@ -1,56 +1,138 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "trace.schema.json",
-  "title": "Task Trace",
+  "title": "Quorum Task Trace",
   "type": "object",
-  "required": ["task_id", "profile", "risk", "complexity", "execution_mode", "started_at", "attempts", "violations", "context_overflows"],
+  "required": [
+    "task_id",
+    "summary",
+    "started_at",
+    "attempts",
+    "total_cost_usd",
+    "violations",
+    "context_overflows"
+  ],
   "additionalProperties": false,
   "properties": {
-    "task_id":         {"type": "string"},
-    "profile":         {"type": "string", "enum": ["light", "standard", "full"]},
-    "risk":            {"type": "string", "enum": ["low", "medium", "high"]},
-    "complexity":      {"type": "string", "enum": ["atomic", "compound"]},
-    "execution_mode":  {"type": "string", "enum": ["patch_only", "worktree_edit"]},
-    "started_at":      {"type": "string", "format": "date-time"},
-    "completed_at":    {"type": ["string", "null"], "format": "date-time"},
-    "outcome": {
-      "type": ["string", "null"],
-      "enum": ["merged", "failed", "aborted", null]
+    "task_id": {
+      "type": "string",
+      "pattern": "^[A-Z]+-[0-9]+"
     },
-    "human_minutes":   {"type": ["number", "null"]},
+    "summary": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "completed_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "outcome": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "committed",
+        "failed",
+        "aborted",
+        null
+      ]
+    },
+    "execution_mode": {
+      "type": "string",
+      "enum": [
+        "patch_only",
+        "worktree_edit"
+      ]
+    },
     "attempts": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["phase", "result"],
+        "required": [
+          "phase",
+          "result",
+          "duration_s"
+        ],
         "additionalProperties": false,
         "properties": {
           "phase": {
             "type": "string",
-            "enum": ["execute", "review", "validate_limits", "verify", "architect", "escalate"]
+            "enum": [
+              "specify",
+              "blueprint",
+              "contract",
+              "execute",
+              "verify",
+              "review",
+              "merge_gate",
+              "escalate"
+            ]
           },
-          "level":          {"type": "integer", "minimum": 0, "maximum": 2},
-          "model":          {"type": "string"},
-          "tokens_in":      {"type": "integer"},
-          "tokens_out":     {"type": "integer"},
-          "cost_usd":       {"type": "number"},
-          "duration_s":     {"type": "number"},
           "result": {
             "type": "string",
             "enum": [
-              "verify_passed", "verify_failed",
-              "approve", "revise", "reject",
-              "passed", "failed",
-              "escalated", "aborted"
+              "passed",
+              "failed",
+              "blocked",
+              "skipped"
             ]
           },
-          "failure_reason": {"type": "string"},
-          "stop_early":     {"type": "boolean"}
+          "model": {
+            "type": "string"
+          },
+          "tokens_in": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "tokens_out": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "cost_usd": {
+            "type": "number",
+            "minimum": 0
+          },
+          "duration_s": {
+            "type": "number",
+            "minimum": 0
+          },
+          "notes": {
+            "type": "string"
+          }
         }
       }
     },
-    "total_cost_usd":     {"type": ["number", "null"]},
-    "violations":         {"type": "array", "items": {"type": "string"}},
-    "context_overflows":  {"type": "array", "items": {"type": "string"}}
+    "total_cost_usd": {
+      "type": "number",
+      "minimum": 0
+    },
+    "human_minutes": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "violations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "context_overflows": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
   }
 }

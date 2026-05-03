@@ -1,0 +1,17 @@
+{
+  "mission_id": "01KQ405N8N65EAS0WAWFXPS0AY",
+  "mission_slug": "recency-fast-path-for-session-recall-01KQ405N",
+  "target_branch": "main",
+  "wp_order": [
+    "WP01",
+    "WP02",
+    "WP03"
+  ],
+  "completed_wps": [],
+  "current_wp": null,
+  "has_pending_conflicts": false,
+  "strategy": "merge",
+  "workspace_path": null,
+  "started_at": "2026-04-26T05:23:35.763673+00:00",
+  "updated_at": "2026-04-26T05:23:35.763693+00:00"
+}

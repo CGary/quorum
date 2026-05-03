@@ -1,8 +1,8 @@
-#!/usr/bin/env python3
-import sys
-import os
+#!/usr/bin/env bash
+# Quorum Agent CLI Wrapper (uv version)
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".agents"))
-from cli.main import main
+# Ensure we are in the project root
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+export PYTHONPATH="$DIR/.agents:$PYTHONPATH"
 
-main()
+exec uv run python3 -m cli.main "$@"

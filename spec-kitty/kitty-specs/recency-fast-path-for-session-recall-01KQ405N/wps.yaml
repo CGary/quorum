@@ -1,0 +1,56 @@
+work_packages:
+  - id: WP01
+    title: "Core Query and Index"
+    dependencies: []
+    owned_files:
+      - "src/storage/sqlite/db.go"
+      - "src/core/search/recency.go"
+    requirement_refs:
+      - FR-002
+      - FR-003
+      - FR-004
+      - FR-005
+      - FR-008
+      - C-001
+      - C-002
+      - C-003
+    subtasks:
+      - T001
+      - T002
+      - T003
+      - T004
+
+  - id: WP02
+    title: "MCP Tool Surface"
+    dependencies:
+      - WP01
+    owned_files:
+      - "cmd/hsme/main.go"
+    requirement_refs:
+      - FR-001
+      - FR-007
+      - C-005
+    subtasks:
+      - T005
+      - T006
+      - T007
+
+  - id: WP03
+    title: "Tests and Protocol Documentation"
+    dependencies:
+      - WP01
+      - WP02
+    owned_files:
+      - "tests/modules/**"
+      - "CLAUDE.md"
+    requirement_refs:
+      - FR-006
+      - NFR-001
+      - NFR-002
+      - NFR-003
+      - NFR-004
+      - C-004
+    subtasks:
+      - T008
+      - T009
+      - T010

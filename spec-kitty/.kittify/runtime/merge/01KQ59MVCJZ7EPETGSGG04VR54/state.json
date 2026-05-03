@@ -1,0 +1,29 @@
+{
+  "mission_id": "01KQ59MVCJZ7EPETGSGG04VR54",
+  "mission_slug": "hsme-unified-cli-01KQ59MV",
+  "target_branch": "main",
+  "wp_order": [
+    "WP01",
+    "WP02",
+    "WP03",
+    "WP04",
+    "WP05",
+    "WP06",
+    "WP07"
+  ],
+  "completed_wps": [
+    "WP01",
+    "WP02",
+    "WP03",
+    "WP04",
+    "WP05",
+    "WP06",
+    "WP07"
+  ],
+  "current_wp": null,
+  "has_pending_conflicts": false,
+  "strategy": "merge",
+  "workspace_path": null,
+  "started_at": "2026-04-26T18:22:03.537592+00:00",
+  "updated_at": "2026-04-26T18:22:04.498105+00:00"
+}

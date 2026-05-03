@@ -1,0 +1,139 @@
+{
+  "blocked_reason": null,
+  "completed_steps": [
+    "discovery",
+    "specify",
+    "plan",
+    "tasks_outline",
+    "tasks_packages",
+    "tasks_finalize"
+  ],
+  "decisions": {
+    "raci:discovery": {
+      "accountable": {
+        "actor_id": null,
+        "actor_type": "human"
+      },
+      "consulted": [],
+      "inferred_rule": "prompt_default",
+      "informed": [],
+      "override_reason": null,
+      "responsible": {
+        "actor_id": null,
+        "actor_type": "llm"
+      },
+      "source": "inferred",
+      "step_id": "discovery"
+    },
+    "raci:implement": {
+      "accountable": {
+        "actor_id": null,
+        "actor_type": "human"
+      },
+      "consulted": [],
+      "inferred_rule": "prompt_default",
+      "informed": [],
+      "override_reason": null,
+      "responsible": {
+        "actor_id": null,
+        "actor_type": "llm"
+      },
+      "source": "inferred",
+      "step_id": "implement"
+    },
+    "raci:plan": {
+      "accountable": {
+        "actor_id": null,
+        "actor_type": "human"
+      },
+      "consulted": [],
+      "inferred_rule": "prompt_default",
+      "informed": [],
+      "override_reason": null,
+      "responsible": {
+        "actor_id": null,
+        "actor_type": "llm"
+      },
+      "source": "inferred",
+      "step_id": "plan"
+    },
+    "raci:specify": {
+      "accountable": {
+        "actor_id": null,
+        "actor_type": "human"
+      },
+      "consulted": [],
+      "inferred_rule": "prompt_default",
+      "informed": [],
+      "override_reason": null,
+      "responsible": {
+        "actor_id": null,
+        "actor_type": "llm"
+      },
+      "source": "inferred",
+      "step_id": "specify"
+    },
+    "raci:tasks_finalize": {
+      "accountable": {
+        "actor_id": null,
+        "actor_type": "human"
+      },
+      "consulted": [],
+      "inferred_rule": "prompt_default",
+      "informed": [],
+      "override_reason": null,
+      "responsible": {
+        "actor_id": null,
+        "actor_type": "llm"
+      },
+      "source": "inferred",
+      "step_id": "tasks_finalize"
+    },
+    "raci:tasks_outline": {
+      "accountable": {
+        "actor_id": null,
+        "actor_type": "human"
+      },
+      "consulted": [],
+      "inferred_rule": "prompt_default",
+      "informed": [],
+      "override_reason": null,
+      "responsible": {
+        "actor_id": null,
+        "actor_type": "llm"
+      },
+      "source": "inferred",
+      "step_id": "tasks_outline"
+    },
+    "raci:tasks_packages": {
+      "accountable": {
+        "actor_id": null,
+        "actor_type": "human"
+      },
+      "consulted": [],
+      "inferred_rule": "prompt_default",
+      "informed": [],
+      "override_reason": null,
+      "responsible": {
+        "actor_id": null,
+        "actor_type": "llm"
+      },
+      "source": "inferred",
+      "step_id": "tasks_packages"
+    }
+  },
+  "inputs": {
+    "mission_slug": "recency-fast-path-for-session-recall-01KQ405N"
+  },
+  "issued_step_id": "implement",
+  "mission_key": "software-dev",
+  "pending_decisions": {},
+  "policy_snapshot": {
+    "default_route": "same_llm_context",
+    "extras": {},
+    "strictness": "medium"
+  },
+  "run_id": "640e80667cf148359711e857693f918c",
+  "template_hash": "ea7ee228647d3e45744017bb43106d2f5d5ae7708cd1896de7d8e8ff8d00c88a",
+  "template_path": "/home/gary/.kittify/missions/software-dev/mission-runtime.yaml"
+}

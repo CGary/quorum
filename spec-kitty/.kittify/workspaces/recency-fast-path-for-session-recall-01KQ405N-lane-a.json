@@ -1,0 +1,19 @@
+{
+  "wp_id": "WP01",
+  "mission_slug": "recency-fast-path-for-session-recall-01KQ405N",
+  "worktree_path": ".worktrees/recency-fast-path-for-session-recall-01KQ405N-lane-a",
+  "branch_name": "kitty/mission-recency-fast-path-for-session-recall-01KQ405N-lane-a",
+  "base_branch": "kitty/mission-recency-fast-path-for-session-recall-01KQ405N",
+  "base_commit": "d0ee23282d7ed64afd36c0b94b96765df778cac6",
+  "dependencies": [],
+  "created_at": "2026-04-26T05:01:51.281709+00:00",
+  "created_by": "implement-command-lane",
+  "vcs_backend": "git",
+  "lane_id": "lane-a",
+  "lane_wp_ids": [
+    "WP01",
+    "WP02",
+    "WP03"
+  ],
+  "current_wp": "WP01"
+}

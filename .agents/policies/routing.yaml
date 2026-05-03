@@ -1,49 +1,29 @@
-# Routing rules: complexity × risk → profile → level assignment
+# Routing rules: one ceremony level for complex-feature tasks.
+# Cost, retries, and escalation are dispatcher-controlled, not agent-controlled.
 rules:
-  - match: {complexity: atomic, risk: low}
-    profile: light
-    executor_level: 0
-    reviewer_required: false
-
-  - match: {complexity: atomic, risk: medium}
-    profile: standard
+  - match: {risk: low}
     executor_level: 0
     reviewer_required: true
+    max_attempts: 2
 
-  - match: {complexity: compound, risk: low}
-    profile: standard
+  - match: {risk: medium}
     executor_level: 0
     reviewer_required: true
+    max_attempts: 2
 
-  - match: {complexity: atomic, risk: high}
-    profile: full
+  - match: {risk: high}
     executor_level: 0
     reviewer_required: true
-    architect_required: true
+    max_attempts: 1
+    human_gate_required: true
 
-  - match: {complexity: compound, risk: medium}
-    profile: full
-    executor_level: 0
-    reviewer_required: true
-    architect_required: true
-
-  - match: {complexity: compound, risk: high}
-    profile: full
-    executor_level: 0
-    reviewer_required: true
-    architect_required: true
-
-# Task type overrides (applied after complexity×risk)
 type_overrides:
   migration:
     reviewer_required: true
-    min_profile: standard
+    human_gate_required: true
   security:
-    min_profile: full
-    architect_required: true
+    reviewer_required: true
+    human_gate_required: true
 
-# Routes by profile
 routes:
-  light:    [context, executor_L0, verify, before_merge]
-  standard: [context, executor_L0, verify, reviewer_L1, before_merge]
-  full:     [context, architect_L2, after_plan_gate, subtasks, executor_L0, verify, reviewer_L1, before_merge]
+  default: [context, executor_L0, verify, reviewer_L1, before_merge]

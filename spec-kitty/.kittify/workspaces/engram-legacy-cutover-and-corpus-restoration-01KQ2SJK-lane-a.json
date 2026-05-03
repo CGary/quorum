@@ -1,0 +1,21 @@
+{
+  "wp_id": "WP01",
+  "mission_slug": "engram-legacy-cutover-and-corpus-restoration-01KQ2SJK",
+  "worktree_path": ".worktrees/engram-legacy-cutover-and-corpus-restoration-01KQ2SJK-lane-a",
+  "branch_name": "kitty/mission-engram-legacy-cutover-and-corpus-restoration-01KQ2SJK-lane-a",
+  "base_branch": "kitty/mission-engram-legacy-cutover-and-corpus-restoration-01KQ2SJK",
+  "base_commit": "458ec6df2b09c0e0859f2c80e5ab00d40f95bec7",
+  "dependencies": [],
+  "created_at": "2026-04-26T03:19:07.855398+00:00",
+  "created_by": "implement-command-lane",
+  "vcs_backend": "git",
+  "lane_id": "lane-a",
+  "lane_wp_ids": [
+    "WP01",
+    "WP02",
+    "WP03",
+    "WP04",
+    "WP05"
+  ],
+  "current_wp": "WP01"
+}
