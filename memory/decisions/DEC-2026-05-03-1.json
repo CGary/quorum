@@ -1,0 +1,10 @@
+{
+  "id": "DEC-2026-05-03-1",
+  "source_task": "FEAT-003",
+  "type": "decision",
+  "title": "Package task templates inside tool distribution",
+  "context": "Original templates lived in .ai/tasks/_template, which is typically excluded from distribution packages.",
+  "content": "Moved task templates to .agents/templates to ensure they are available to 'quorum init' even when the tool is installed as a global/editable package via uv/pip. This separates framework-owned templates from user-owned task instances.",
+  "related": ["FEAT-003"],
+  "created_at": "2026-05-03"
+}

@@ -1,0 +1,13 @@
+{
+  "id": "PAT-2026-05-03-1",
+  "source_task": "FEAT-003",
+  "type": "pattern",
+  "title": "Idempotent resource discovery and deployment",
+  "context": "Initial setup commands need to deploy internal tool resources (skills, schemas, templates) to a user project.",
+  "content": "Use Path(__file__).parent.parent... to locate resources relative to the tool installation root. Employ shutil.copytree(src, dst, dirs_exist_ok=True) for idempotent deployment, allowing 'quorum init' to update framework resources without deleting user files or requiring manual cleanup.",
+  "anti_patterns": [
+    "Avoided hardcoding absolute paths or assuming the current working directory contains tool source during execution."
+  ],
+  "related": ["FEAT-003"],
+  "created_at": "2026-05-03"
+}
