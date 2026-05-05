@@ -6,9 +6,8 @@ import subprocess
 import os
 import re
 from pathlib import Path
-from jsonschema import validate
+from jsonschema import validate, ValidationError
 import datetime
-
 # Quorum v1.1: PROJECT_ROOT is now dynamic based on where the user is running the tool.
 # We look for the git root or fallback to CWD.
 def get_project_root():
@@ -20,17 +19,24 @@ def get_project_root():
         return Path(res.stdout.strip())
     except Exception:
         return Path(os.getcwd())
-
 PROJECT_ROOT = get_project_root()
 AI_TASKS = PROJECT_ROOT / ".ai" / "tasks"
 AGENTS_DIR = PROJECT_ROOT / ".agents" # Note: Local project settings if they exist
 SCHEMAS_DIR = Path(__file__).parent.parent.parent / "schemas" # Schemas are usually in the tool source
 POLICIES_DIR = Path(__file__).parent.parent.parent / "policies"
 TEMPLATES_DIR = Path(__file__).parent.parent.parent / "templates"
-
 CHILD_ID_RE = re.compile(r"^([A-Z]+-[0-9]+)-([a-z])$")
 PARENT_ID_RE = re.compile(r"^[A-Z]+-[0-9]+$")
-
+ARTIFACT_SCHEMA_MAP = {
+    "00-spec.yaml": "spec.schema.json",
+    "01-blueprint.yaml": "blueprint.schema.json",
+    "02-contract.yaml": "contract.schema.json",
+    "05-validation.json": "validation.schema.json",
+    "06-review.json": "review.schema.json",
+    "07-trace.json": "trace.schema.json",
+}
+class ArtifactValidationError(Exception):
+    """Raised when an artifact cannot be safely persisted."""
 def get_base_branch():
     """Detects the base branch of the repository."""
     # Try origin HEAD first
@@ -42,7 +48,6 @@ def get_base_branch():
         return res.stdout.strip().split("/")[-1]
     except subprocess.CalledProcessError:
         pass
-
     # Try common defaults
     for branch in ["main", "master", "develop", "trunk"]:
         try:
@@ -53,14 +58,12 @@ def get_base_branch():
             return branch
         except subprocess.CalledProcessError:
             continue
-
     # Fallback to current branch
     res = subprocess.run(
         ["git", "rev-parse", "--abbrev-ref", "HEAD"],
         check=True, capture_output=True, text=True
     )
     return res.stdout.strip()
-
 def _read_spec_task_id(task_dir):
     """Returns the canonical task_id stored in 00-spec.yaml, or None."""
     spec_path = task_dir / "00-spec.yaml"
@@ -74,18 +77,91 @@ def _read_spec_task_id(task_dir):
     except Exception:
         return None
     return None
-
 def _load_json_schema(name):
     with open(SCHEMAS_DIR / name, "r") as f:
         return json.load(f)
-
 def _validate_spec(spec):
     """Validate a 00-spec.yaml payload against the bundled spec schema."""
     validate(instance=spec, schema=_load_json_schema("spec.schema.json"))
-
+def _artifact_schema_name(artifact_path: Path):
+    name = artifact_path.name
+    if name in ARTIFACT_SCHEMA_MAP:
+        return ARTIFACT_SCHEMA_MAP[name]
+    if "memory" in artifact_path.parts and artifact_path.suffix == ".json":
+        return "memory.schema.json"
+    return None
+def _load_artifact_payload(path: Path):
+    raw = path.read_text()
+    if path.suffix == ".json":
+        return json.loads(raw)
+    return yaml.safe_load(raw)
+def _dump_artifact_payload(path: Path, payload):
+    if path.suffix == ".json":
+        path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
+        return
+    path.write_text(yaml.safe_dump(payload, sort_keys=False, allow_unicode=True))
+def _json_pointer(path_parts):
+    if not path_parts:
+        return "$"
+    rendered = "$"
+    for part in path_parts:
+        if isinstance(part, int):
+            rendered += f"[{part}]"
+        else:
+            rendered += f".{part}"
+    return rendered
+def _format_validation_error(artifact_path: Path, error: ValidationError) -> str:
+    return (
+        f"artifact={artifact_path}; field={_json_pointer(error.path)}; "
+        f"reason={error.message}"
+    )
+def validate_artifact(artifact_path, payload):
+    artifact_path = Path(artifact_path)
+    schema_name = _artifact_schema_name(artifact_path)
+    if not schema_name:
+        raise ArtifactValidationError(
+            f"artifact={artifact_path}; field=$; reason=unsupported artifact path"
+        )
+    try:
+        validate(instance=payload, schema=_load_json_schema(schema_name))
+    except ValidationError as error:
+        raise ArtifactValidationError(_format_validation_error(artifact_path, error)) from error
+def _ensure_trace_append_only(artifact_path: Path, existing_payload, new_payload):
+    existing_attempts = list((existing_payload or {}).get("attempts") or [])
+    new_attempts = list((new_payload or {}).get("attempts") or [])
+    if len(new_attempts) < len(existing_attempts):
+        raise ArtifactValidationError(
+            f"artifact={artifact_path}; field=$.attempts; reason=append-only trace cannot remove existing attempts"
+        )
+    if new_attempts[:len(existing_attempts)] != existing_attempts:
+        raise ArtifactValidationError(
+            f"artifact={artifact_path}; field=$.attempts; reason=append-only trace cannot reorder or mutate existing attempts"
+        )
+def save_artifact(artifact_path, payload):
+    artifact_path = Path(artifact_path)
+    existing_payload = None
+    if artifact_path.exists():
+        existing_payload = _load_artifact_payload(artifact_path)
+    if artifact_path.name == "07-trace.json" and existing_payload is not None:
+        _ensure_trace_append_only(artifact_path, existing_payload, payload)
+    validate_artifact(artifact_path, payload)
+    artifact_path.parent.mkdir(parents=True, exist_ok=True)
+    _dump_artifact_payload(artifact_path, payload)
+    return artifact_path
+def append_trace_attempt(trace_path, attempt):
+    trace_path = Path(trace_path)
+    if not trace_path.exists():
+        raise ArtifactValidationError(
+            f"artifact={trace_path}; field=$; reason=trace file must exist before appending attempts"
+        )
+    trace_payload = _load_artifact_payload(trace_path)
+    attempts = list(trace_payload.get("attempts") or [])
+    attempts.append(attempt)
+    trace_payload["attempts"] = attempts
+    save_artifact(trace_path, trace_payload)
+    return trace_payload
 def find_task_dir(task_id, locations=["inbox", "active", "done", "failed"]):
     """Find a task directory.
-
     Resolution order:
       1. Exact `task_id` match in `00-spec.yaml` (canonical, unambiguous).
       2. Exact directory name match.
@@ -122,25 +198,19 @@ def find_task_dir(task_id, locations=["inbox", "active", "done", "failed"]):
                     if len(rest) >= 2 and rest[0].islower() and rest[0].isalpha() and rest[1] == "-":
                         continue
                 name_prefix.append((d, loc))
-
     matches = yaml_matches or name_exact or name_prefix
-
     if len(matches) > 1:
         print(f"[!] AMBIGUITY ERROR: Multiple tasks match '{task_id}':")
         for m, l in matches:
             print(f"  - {l}/{m.name}")
         sys.exit(1)
-
     return matches[0] if matches else (None, None)
-
 def initialize_specify(task_id=None):
     if not task_id:
         # Generate a simple timestamp ID for now
         task_id = f"TASK-{datetime.datetime.now().strftime('%m%d%H%M')}"
-
     task_dir = AI_TASKS / "inbox" / f"{task_id}-new-spec"
     task_dir.mkdir(parents=True, exist_ok=True)
-
     # Create YAML spec placeholder. `summary` is the second key by Quorum v1.1 convention.
     spec_path = task_dir / "00-spec.yaml"
     if not spec_path.exists():
@@ -152,11 +222,8 @@ def initialize_specify(task_id=None):
             "acceptance": ["TODO: define acceptance criterion."],
             "risk": "medium",
         }
-        with open(spec_path, "w") as f:
-            yaml.safe_dump(spec, f, sort_keys=False)
-
+        save_artifact(spec_path, spec)
     return task_dir
-
 def prepare_blueprint(task_id):
     # Blueprint happens in 'active' because it requires exploring code,
     # but it doesn't need a worktree yet.
@@ -167,40 +234,29 @@ def prepare_blueprint(task_id):
             print(f"[*] Task {task_id} is already in active.")
             return active_dir
         raise ValueError(f"Task {task_id} not found in inbox.")
-
     # Move to active
     active_path = AI_TASKS / "active" / task_dir.name
     active_path.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(task_dir), str(active_path))
     return active_path
-
 def start_task(task_id):
     # 1. Find task in any location
     task_dir, loc = find_task_dir(task_id, ["active", "inbox"])
     if not task_dir:
         print(f"[!] Task {task_id} not found.")
         return
-
     # 2. Validate contract (02-contract.yaml) BEFORE any movement
     contract_path = task_dir / "02-contract.yaml"
     if not contract_path.exists():
         print(f"[!] Contract (02-contract.yaml) not found for {task_id}.")
         print(f"[!] Please run 'quorum task blueprint {task_id}' first.")
         return
-
-    with open(contract_path, "r") as f:
-        contract = yaml.safe_load(f)
-
-    schema_path = SCHEMAS_DIR / "contract.schema.json"
-    with open(schema_path, "r") as f:
-        schema = json.load(f)
-
+    contract = _load_artifact_payload(contract_path)
     try:
-        validate(instance=contract, schema=schema)
-    except Exception as e:
+        validate_artifact(contract_path, contract)
+    except ArtifactValidationError as e:
         print(f"[!] Contract validation failed for {task_id}: {e}")
         return
-
     # 3. Transition state (move to active if it was in inbox)
     if loc == "inbox":
         active_path = AI_TASKS / "active" / task_dir.name
@@ -208,12 +264,10 @@ def start_task(task_id):
         print(f"[*] Moving task from inbox to active...")
         shutil.move(str(task_dir), str(active_path))
         task_dir = active_path
-
     # 4. Create worktree
     worktree_path = PROJECT_ROOT / "worktrees" / task_id
     branch_name = f"ai/{task_id}"
     base_branch = get_base_branch()
-
     if worktree_path.exists():
         print(f"[*] Worktree for {task_id} already exists.")
     else:
@@ -225,7 +279,6 @@ def start_task(task_id):
         except subprocess.CalledProcessError as e:
             print(f"[!] Error creating worktree: {e.stderr.decode()}")
             return
-
     # 4. Initialize trace.json (07-trace.json)
     trace_path = task_dir / "07-trace.json"
     if not trace_path.exists():
@@ -239,11 +292,8 @@ def start_task(task_id):
             "violations": [],
             "context_overflows": []
         }
-        with open(trace_path, "w") as f:
-            json.dump(trace, f, indent=2)
-
+        save_artifact(trace_path, trace)
     print(f"[+] Task {task_id} initialized and worktree ready.")
-
 def run_task(task_id):
     # This remains an MVP stub, now consuming 01-blueprint.yaml + 02-contract.yaml.
     task_dir, loc = find_task_dir(task_id, ["active"])
@@ -252,32 +302,26 @@ def run_task(task_id):
         return
     print(f"[*] Running task {task_id} based on 01-blueprint.yaml and 02-contract.yaml...")
     # MVP Execution logic would go here
-
 def show_status(task_id):
     task_dir, loc = find_task_dir(task_id)
     if not task_dir:
         print(f"[!] Task {task_id} not found.")
         return
-
     print(f"Task: {task_id}")
     print(f"Location: {loc}")
-
     trace_path = task_dir / "07-trace.json"
     if trace_path.exists():
         with open(trace_path, "r") as f:
             trace = json.load(f)
         print(f"Summary: {trace.get('summary')}")
         print(f"Cost: ${trace.get('total_cost_usd', 0):.3f}")
-
     # Check for AI-First artifacts
     for art in ["00-spec.yaml", "01-blueprint.yaml", "02-contract.yaml", "05-validation.json", "06-review.json", "07-trace.json"]:
         status = "Present" if (task_dir / art).exists() else "Missing"
         print(f"- {art}: {status}")
-
     # Worktree status
     worktree_path = PROJECT_ROOT / "worktrees" / task_id
     print(f"- worktree: {'Present' if worktree_path.exists() else 'Missing'}")
-
     # Decomposition / parent linkage
     spec_path = task_dir / "00-spec.yaml"
     if spec_path.exists():
@@ -296,7 +340,6 @@ def show_status(task_id):
                     print(f"  - {child_id}: {child_loc or 'missing'}")
         except Exception:
             pass
-
 def list_tasks():
     for loc in ["inbox", "active", "done", "failed"]:
         loc_path = AI_TASKS / loc
@@ -329,13 +372,11 @@ def list_tasks():
                 if summary:
                     break
             print(f"{loc:6} {task_id:14} {summary}")
-
 def clean_task(task_id):
     task_dir, loc = find_task_dir(task_id, ["active", "done", "failed"])
     if not task_dir:
         print(f"[!] Task {task_id} not found.")
         return
-
     spec_path = task_dir / "00-spec.yaml"
     if loc == "active" and spec_path.exists():
         try:
@@ -357,23 +398,17 @@ def clean_task(task_id):
                 print(f"[!] Parent task {task_id} still has unfinished children: {', '.join(not_done)}")
                 print("[!] Clean each child after its human merge before cleaning the parent.")
                 return
-
     worktree_path = PROJECT_ROOT / "worktrees" / task_id
     if worktree_path.exists():
         print(f"[*] Removing worktree {worktree_path}...")
         subprocess.run(["git", "worktree", "remove", str(worktree_path)], check=False)
-
     if loc == "active":
         target_dir = AI_TASKS / "done" / task_dir.name
         print(f"[*] Archiving task to done/...")
         shutil.move(str(task_dir), str(target_dir))
-
     print(f"[+] Task {task_id} cleaned up.")
-
-
 def back_task(task_id):
     """Reverse the most recent state transition for a task.
-
     Resolution order:
       1. If a worktree exists, remove it (reverses `start`).
       2. Else if the task is in done/ or failed/, move it back to active/.
@@ -384,7 +419,6 @@ def back_task(task_id):
     if not task_dir:
         print(f"[!] Task {task_id} not found.")
         return
-
     worktree_path = PROJECT_ROOT / "worktrees" / task_id
     if worktree_path.exists():
         print(f"[*] Reversing 'start': removing worktree {worktree_path}...")
@@ -415,7 +449,6 @@ def back_task(task_id):
             pass
         print(f"[+] Worktree removed. Task {task_id} stays in {loc}/. Re-run '/q-blueprint {task_id}' if the contract needs changes, or 'quorum task start {task_id}' when ready.")
         return
-
     if loc in ("done", "failed"):
         target_dir = AI_TASKS / "active" / task_dir.name
         target_dir.parent.mkdir(parents=True, exist_ok=True)
@@ -423,7 +456,6 @@ def back_task(task_id):
         shutil.move(str(task_dir), str(target_dir))
         print(f"[+] Task {task_id} restored to active/.")
         return
-
     if loc == "active":
         target_dir = AI_TASKS / "inbox" / task_dir.name
         target_dir.parent.mkdir(parents=True, exist_ok=True)
@@ -431,20 +463,15 @@ def back_task(task_id):
         shutil.move(str(task_dir), str(target_dir))
         print(f"[+] Task {task_id} returned to inbox/. Re-run '/q-brief {task_id}' to refine the spec.")
         return
-
     if loc == "inbox":
         print(f"[!] Task {task_id} is already in inbox/. There is no earlier state. Edit '00-spec.yaml' directly or delete the directory if you want to start over.")
         return
-
-
 def split_task(parent_id):
     """Materialise child tasks from a parent's `decomposition` field.
-
     Reads `00-spec.yaml.decomposition` from the parent and creates one
     child task directory per entry under `inbox/`. Each child gets its own
     `00-spec.yaml` derived from the parent (parent-task linkage, inherited
     risk floor, declared `summary`/`depends_on`).
-
     Idempotent: re-running on a parent whose children already exist is a
     no-op for each existing child; new entries in `decomposition` are
     materialised on demand.
@@ -452,7 +479,6 @@ def split_task(parent_id):
     if not PARENT_ID_RE.match(parent_id):
         print(f"[!] '{parent_id}' is not a valid parent task ID (expected '<PREFIX>-<NUMBER>', e.g. FEAT-001).")
         return
-
     parent_dir, loc = find_task_dir(parent_id)
     if not parent_dir:
         print(f"[!] Parent task {parent_id} not found.")
@@ -460,25 +486,20 @@ def split_task(parent_id):
     if loc != "active":
         print(f"[!] Parent task {parent_id} must be in active/ before splitting (currently in {loc}/).")
         return
-
     spec_path = parent_dir / "00-spec.yaml"
     if not spec_path.exists():
         print(f"[!] Parent {parent_id} has no 00-spec.yaml.")
         return
-
     with open(spec_path) as f:
         parent_spec = yaml.safe_load(f) or {}
-
     if parent_spec.get("parent_task"):
         print(f"[!] Task {parent_id} is already a child task; recursive decomposition is not supported.")
         return
-
     try:
         _validate_spec(parent_spec)
     except Exception as e:
         print(f"[!] Parent spec validation failed for {parent_id}: {e}")
         return
-
     decomposition = parent_spec.get("decomposition")
     if not decomposition:
         print(f"[!] Parent {parent_id} has no `decomposition` field. Run '/q-decompose {parent_id}' first to author it.")
@@ -486,7 +507,6 @@ def split_task(parent_id):
     if not isinstance(decomposition, list):
         print(f"[!] Parent {parent_id} has malformed `decomposition`; expected a list.")
         return
-
     child_ids = []
     for entry in decomposition:
         if not isinstance(entry, dict):
@@ -501,7 +521,6 @@ def split_task(parent_id):
             print(f"[!] Duplicate child_id '{child_id}' in decomposition.")
             return
         child_ids.append(child_id)
-
     child_id_set = set(child_ids)
     for entry in decomposition:
         child_id = entry["child_id"]
@@ -509,12 +528,10 @@ def split_task(parent_id):
             if dep not in child_id_set:
                 print(f"[!] Child {child_id} depends on unknown sibling '{dep}'.")
                 return
-
     # Reject sibling dependency cycles before creating any directories.
     graph = {entry["child_id"]: list(entry.get("depends_on", []) or []) for entry in decomposition}
     visiting = set()
     visited = set()
-
     def visit(node):
         if node in visited:
             return False
@@ -527,17 +544,14 @@ def split_task(parent_id):
         visiting.remove(node)
         visited.add(node)
         return False
-
     if any(visit(node) for node in graph):
         print(f"[!] Decomposition for {parent_id} contains a dependency cycle.")
         return
-
     parent_risk = parent_spec.get("risk", "medium")
     parent_invariants = parent_spec.get("invariants", [])
     parent_acceptance = parent_spec.get("acceptance", [])
     parent_non_goals = parent_spec.get("non_goals", [])
     parent_constraints = parent_spec.get("constraints", [])
-
     created = []
     skipped = []
     for entry in decomposition:
@@ -548,15 +562,12 @@ def split_task(parent_id):
         if not CHILD_ID_RE.match(child_id):
             print(f"[!] Skipping malformed child_id '{child_id}' (expected '<PARENT>-<a..z>').")
             continue
-
         existing_dir, _ = find_task_dir(child_id)
         if existing_dir:
             skipped.append(child_id)
             continue
-
         child_summary = entry.get("summary", f"Child of {parent_id}.")
         child_depends_on = entry.get("depends_on", [])
-
         child_spec = {
             "task_id": child_id,
             "summary": child_summary,
@@ -572,21 +583,15 @@ def split_task(parent_id):
             child_spec["constraints"] = list(parent_constraints)
         if child_depends_on:
             child_spec["depends_on"] = list(child_depends_on)
-
         try:
             _validate_spec(child_spec)
         except Exception as e:
             print(f"[!] Generated child spec for {child_id} is invalid: {e}")
             return
-
         child_dir = AI_TASKS / "inbox" / f"{child_id}-new-spec"
         child_dir.mkdir(parents=True, exist_ok=True)
-
-        with open(child_dir / "00-spec.yaml", "w") as f:
-            yaml.safe_dump(child_spec, f, sort_keys=False)
-
+        save_artifact(child_dir / "00-spec.yaml", child_spec)
         created.append(child_id)
-
     if created:
         print(f"[+] Created {len(created)} child task(s) in inbox/: {', '.join(created)}")
     if skipped:

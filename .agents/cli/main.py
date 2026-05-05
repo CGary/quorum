@@ -2,6 +2,7 @@ import argparse
 import sys
 from .commands import task, project
 
+
 def main():
     parser = argparse.ArgumentParser(description="Quorum Agent CLI")
     subparsers = parser.add_subparsers(dest="command", help="Commands")
@@ -24,6 +25,13 @@ def main():
     # task start
     start_parser = task_subparsers.add_parser("start", help="Start a task")
     start_parser.add_argument("task_id", help="Task ID (e.g. FEAT-001)")
+
+    artifact_save_parser = task_subparsers.add_parser(
+        "artifact-save",
+        help="Persist a supported task artifact from stdin with schema validation"
+    )
+    artifact_save_parser.add_argument("task_id", help="Task ID")
+    artifact_save_parser.add_argument("artifact_path", help="Artifact path relative to the task directory")
 
     # task run
     run_parser = task_subparsers.add_parser("run", help="Run a task")
@@ -65,6 +73,8 @@ def main():
             task.blueprint(args.task_id)
         elif args.subcommand == "start":
             task.start(args.task_id)
+        elif args.subcommand == "artifact-save":
+            task.artifact_save(args.task_id, args.artifact_path)
         elif args.subcommand == "run":
             task.run(args.task_id)
         elif args.subcommand == "status":
