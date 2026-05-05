@@ -1,0 +1,13 @@
+{
+  "id": "DEC-2026-05-04-1",
+  "source_task": "FEAT-004-a",
+  "type": "decision",
+  "title": "Validate Quorum task artifacts on save, not by background sweeps",
+  "context": "FEAT-004-a had to enforce schemas for blueprint, validation, review, trace, and memory artifacts without expanding runtime scope.",
+  "content": "Quorum now treats artifact validation as a write-time concern: supported task artifacts are validated immediately before persistence, and invalid payloads are rejected without modifying the existing file. This preserves fast CLI behavior and avoids retroactive scans during task status/start flows.",
+  "anti_patterns": [
+    "Avoided validating every artifact in active/ during status or startup because that adds unrelated runtime work and violates the task's non-goal."
+  ],
+  "related": ["FEAT-004-a"],
+  "created_at": "2026-05-04"
+}

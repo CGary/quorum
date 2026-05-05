@@ -1,0 +1,13 @@
+{
+  "id": "LES-2026-05-04-1",
+  "source_task": "FEAT-004-a",
+  "type": "lesson",
+  "title": "Protect append-only trace history with unchanged-prefix checks",
+  "context": "07-trace.json needed stronger guarantees than ordinary schema validation because structurally valid payloads can still truncate or rewrite history.",
+  "content": "For append-only task traces, validate more than schema shape: require the previously persisted attempts list to remain an unchanged prefix of the new payload before writing. This blocks deletions, reordering, and silent mutation of old attempts while still allowing new attempts to be appended.",
+  "anti_patterns": [
+    "Avoided relying on trace.schema.json alone because a valid schema payload can still rewrite prior attempts and lose audit history."
+  ],
+  "related": ["FEAT-004-a"],
+  "created_at": "2026-05-04"
+}

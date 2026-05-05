@@ -1,0 +1,13 @@
+{
+  "id": "PAT-2026-05-04-1",
+  "source_task": "FEAT-004-a",
+  "type": "pattern",
+  "title": "Dispatch artifact validation from file path to schema name",
+  "context": "Multiple Quorum artifacts share the same persistence flow but each must validate against a different JSON schema.",
+  "content": "Centralize persistence behind a save_artifact helper that maps artifact paths to schema files, formats field-level validation errors, writes JSON/YAML consistently, and special-cases memory/*.json plus 07-trace.json. This keeps CLI commands thin and makes new artifact write paths reuse one enforcement point.",
+  "anti_patterns": [
+    "Avoided duplicating per-command schema validation logic in each CLI entrypoint because drift between write paths would weaken enforcement."
+  ],
+  "related": ["FEAT-004-a"],
+  "created_at": "2026-05-04"
+}

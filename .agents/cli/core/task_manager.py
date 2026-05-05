@@ -31,6 +31,7 @@ ARTIFACT_SCHEMA_MAP = {
     "00-spec.yaml": "spec.schema.json",
     "01-blueprint.yaml": "blueprint.schema.json",
     "02-contract.yaml": "contract.schema.json",
+    "04-implementation-log.yaml": "implementation-log.schema.json",
     "05-validation.json": "validation.schema.json",
     "06-review.json": "review.schema.json",
     "07-trace.json": "trace.schema.json",
@@ -160,6 +161,9 @@ def append_trace_attempt(trace_path, attempt):
     trace_payload["attempts"] = attempts
     save_artifact(trace_path, trace_payload)
     return trace_payload
+def _validate_implementation_log(log):
+    """Validate a 04-implementation-log.yaml payload against its schema."""
+    validate(instance=log, schema=_load_json_schema("implementation-log.schema.json"))
 def find_task_dir(task_id, locations=["inbox", "active", "done", "failed"]):
     """Find a task directory.
     Resolution order:
@@ -279,7 +283,22 @@ def start_task(task_id):
         except subprocess.CalledProcessError as e:
             print(f"[!] Error creating worktree: {e.stderr.decode()}")
             return
-    # 4. Initialize trace.json (07-trace.json)
+
+    # 5. Initialize implementation log (04-implementation-log.yaml)
+    log_path = task_dir / "04-implementation-log.yaml"
+    if not log_path.exists():
+        log = {
+            "task_id": task_id,
+            "summary": contract.get("summary", "Implementation log initialized."),
+            "entries": []
+        }
+        try:
+            save_artifact(log_path, log)
+        except ArtifactValidationError as e:
+            print(f"[!] Error initializing implementation log: {e}")
+            return
+
+    # 6. Initialize trace.json (07-trace.json)
     trace_path = task_dir / "07-trace.json"
     if not trace_path.exists():
         trace = {
@@ -316,7 +335,7 @@ def show_status(task_id):
         print(f"Summary: {trace.get('summary')}")
         print(f"Cost: ${trace.get('total_cost_usd', 0):.3f}")
     # Check for AI-First artifacts
-    for art in ["00-spec.yaml", "01-blueprint.yaml", "02-contract.yaml", "05-validation.json", "06-review.json", "07-trace.json"]:
+    for art in ["00-spec.yaml", "01-blueprint.yaml", "02-contract.yaml", "04-implementation-log.yaml", "05-validation.json", "06-review.json", "07-trace.json"]:
         status = "Present" if (task_dir / art).exists() else "Missing"
         print(f"- {art}: {status}")
     # Worktree status

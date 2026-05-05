@@ -31,6 +31,7 @@ def test_init_scaffolding(tmp_path):
         
         # Check one specific schema
         assert (tmp_path / ".agents/schemas/spec.schema.json").is_file()
+        assert (tmp_path / ".agents/schemas/implementation-log.schema.json").is_file()
         
         # 3. Verify .gitignore
         gitignore = (tmp_path / ".gitignore").read_text()
