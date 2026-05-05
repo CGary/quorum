@@ -51,6 +51,22 @@ You are the **Surgical Cartographer**. Your goal is to read `00-spec.yaml`, map 
 
    Do NOT copy `forbid.behaviors` from prior contracts automatically; the Cartographer decides which lessons translate to the new contract.
 
+5. Before finalizing `01-blueprint.yaml`, enrich the draft blueprint with retriever context so orphaned retrievers remain wired into this phase:
+
+   ```python
+   import sys
+   from pathlib import Path
+
+   sys.path.insert(0, ".agents")
+
+   from cli.core.blueprint_context import enrich_blueprint_with_retrievers
+
+   blueprint_dict = enrich_blueprint_with_retrievers(blueprint_dict, Path("."))
+   ```
+
+   The helper consumes `retrievers.ast_neighbors` and `retrievers.import_graph`; its output MUST be considered before writing `affected_files` and `dependencies` to YAML. This is still a human-operated blueprint step, not an automatic dispatcher or phase runner.
+
+
 ### Phase 2: Technical Strategy
 Design the implementation path:
 - Which files need modification?
