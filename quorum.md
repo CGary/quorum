@@ -36,7 +36,7 @@ Humans think in stories; agents think in constraints. Quorum eliminates the huma
 | **What** do we want? | Specification | `00-spec.yaml` | Logical Architect |
 | **How** will we do it? | Blueprint | `01-blueprint.yaml` | Surgical Cartographer |
 | **What** can we touch? | Contract | `02-contract.yaml` | The Gatekeeper |
-| **What** was done? | Implementation Log | `04-implementation-log.yaml` | Surgical Executor |
+| **What** was done? | Implementation Log | `04-implementation-log.yaml` validated by `implementation-log.schema.json` | Surgical Executor |
 | **Did** it work? | Tests / verify | `verify.commands` + `05-validation.json` | Functional Verifier |
 | **What** changed? | Git | Repo + worktrees | Code Truth |
 | **What** did it cost? | Trace | `07-trace.json` | Economic Verifier |
@@ -494,6 +494,7 @@ project/
 │   │   ├── spec.schema.json
 │   │   ├── blueprint.schema.json
 │   │   ├── contract.schema.json
+│   │   ├── implementation-log.schema.json
 │   │   ├── validation.schema.json
 │   │   ├── review.schema.json
 │   │   ├── trace.schema.json
