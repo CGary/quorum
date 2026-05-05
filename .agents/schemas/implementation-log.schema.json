@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "implementation-log.schema.json",
+  "title": "Quorum Implementation Log",
+  "type": "object",
+  "required": [
+    "task_id",
+    "summary",
+    "entries"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "pattern": "^[A-Z]+-[0-9]+(-[a-z])?$",
+      "description": "Canonical task ID."
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "changed_files",
+          "notes",
+          "verify_pending"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "changed_files": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          },
+          "verify_pending": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  }
+}
