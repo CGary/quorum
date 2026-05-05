@@ -4,7 +4,7 @@
 
 Quorum es un framework **AI-first** para ejecutar funcionalidades complejas mediante contratos verificables. Convierte una intención humana en artefactos machine-first (`00` → `07`), limita el contexto que recibe cada agente y exige que el resultado se pruebe con comandos reales antes de revisión humana.
 
-> Estado actual: **MVP de orquestación y artefactos**. Quorum ya incluye schemas, skills, CLI de tareas, worktrees aislados, políticas de riesgo/routing, scoring de riesgo y lookup de fallos relacionados. El dispatcher/runtime automático completo todavía está diferido: `task_manager.run_task()` sigue siendo stub.
+> Estado actual: **MVP de orquestación y artefactos**. Quorum ya incluye schemas, skills, CLI de tareas, worktrees aislados, políticas de riesgo/routing, scoring de riesgo y lookup de fallos relacionados.
 
 ---
 
@@ -52,7 +52,6 @@ Quorum es un framework **AI-first** para ejecutar funcionalidades complejas medi
 ### Diferido / no implementado aún
 
 - Dispatcher automático de ejecución.
-- `task_manager.run_task()` real.
 - Auto-retry y re-blueprint automático tras fallo.
 - Renegociación automática de contrato.
 - Shadow merge / pre-merge gate automático.
@@ -387,10 +386,6 @@ quorum task status FEAT-001   # estado, artefactos, worktree, parent_task / deco
 /q-status FEAT-001   # diagnóstico por tarea
 ```
 
-### Sobre `quorum task run`
-
-El comando existe en el CLI, pero `task_manager.run_task()` es stub: el dispatcher automático está diferido. Hoy el flujo lo conducís vos despachando skills; las transiciones forward las hacen los skills mismos. La reversión sigue siendo humana vía `quorum task back`.
-
 ---
 
 ## 🧪 Política de testing
@@ -449,7 +444,7 @@ project/
 
 Prioridad antes de automatización avanzada:
 
-1. Convertir `task_manager.run_task()` en runtime real.
+1. Implementar dispatcher automático de ejecución.
 2. Consolidar escritura consistente de `07-trace.json` durante ejecución.
 3. Añadir flujo explícito de review/pre-merge en CLI.
 4. Implementar merge-gate determinístico mediante shadow merge + `verify.commands`.
