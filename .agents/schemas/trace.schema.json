@@ -16,7 +16,7 @@
   "properties": {
     "task_id": {
       "type": "string",
-      "pattern": "^[A-Z]+-[0-9]+"
+      "pattern": "^[A-Z]+-[0-9]+(-[a-z])?$"
     },
     "summary": {
       "type": "string",

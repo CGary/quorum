@@ -1,0 +1,85 @@
+# .agents/policies/decomposition.yaml
+#
+# Policy that drives `/q-decompose`. Heuristic adapted from spec-kitty.tasks
+# work-package sizing: each Quorum implementation task = one spec-kitty WP.
+#
+# Authority: advisory, not binding. The skill MUST NOT split silently when
+# the spec is borderline — it asks the human.
+
+# Target subtask count per implementation task.
+# Subtasks here = atomic implementation steps the executor will execute.
+target_subtasks_per_task:
+  min: 3
+  max: 7
+
+# Hard cap. If decomposition would yield more than `max` atomic subtasks
+# inside a single implementation task, the task MUST be split.
+max_subtasks_per_task: 10
+
+# Heuristic thresholds applied to `00-spec.yaml` BEFORE blueprint exists.
+# These are signals, not hard rules — the skill decides whether to ask.
+heuristic_thresholds:
+  # If the spec implies more than this many distinct invariants,
+  # the feature likely covers multiple subsystems.
+  invariants_orthogonal_count: 5
+
+  # If acceptance criteria span this many independent surfaces,
+  # the feature crosses concern boundaries.
+  acceptance_criteria_count: 7
+
+  # Cumulative file estimate from `goal`/`acceptance` (rough; the blueprint
+  # phase later refines this against the real codebase).
+  estimated_affected_files: 7
+
+# Signals that, when matched, justify splitting into N children.
+# Naming any single signal here is enough to trigger an "ask the human" step
+# in `/q-decompose`. None of these auto-splits without confirmation.
+split_signals:
+  - id: subtask_count_exceeds_max
+    rule: >
+      Decomposition would yield more than `max_subtasks_per_task` atomic
+      subtasks inside one implementation task.
+  - id: multiple_independent_concerns
+    rule: >
+      Invariants and acceptance criteria touch unrelated subsystems
+      (e.g. database schema AND HTTP routing AND UI rendering).
+  - id: mixed_phases
+    rule: >
+      Acceptance covers infrastructure setup, business logic, and polish
+      simultaneously — phases that benefit from separate verify cycles.
+  - id: high_risk_with_orthogonal_invariants
+    rule: >
+      `00-spec.yaml.risk == high` AND invariants protect more than two
+      independent subsystems.
+  - id: cross_runtime_boundary
+    rule: >
+      Acceptance spans more than one runtime/process (e.g. CLI + server +
+      worker), each requiring its own verify suite.
+
+# Naming convention for child tasks materialised by `quorum task split`.
+# Children inherit the parent's numeric prefix and append a single
+# lowercase letter (a..z) to keep `find_task_dir` deterministic.
+naming:
+  child_id_pattern: "<PARENT_ID>-<a..z>"
+  parent_id_pattern: "^[A-Z]+-[0-9]+$"
+  examples:
+    parent: "FEAT-001"
+    children:
+      - "FEAT-001-a"
+      - "FEAT-001-b"
+      - "FEAT-001-c"
+
+# Per-child contract obligations derived from the parent.
+# Each child inherits the parent's `risk` floor unless `/q-decompose`
+# justifies a lower level in the child's own spec.
+inheritance:
+  risk_floor_from_parent: true
+  invariants_subset_required: true   # child invariants ⊆ parent invariants
+  acceptance_subset_required: true   # child acceptance ⊆ parent acceptance
+  non_goals_inherit: true
+
+# Dependency rules between siblings.
+dependencies:
+  allow_depends_on: true
+  cycle_detection: true
+  enforce_topological_order_in_status: true

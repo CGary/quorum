@@ -6,6 +6,12 @@ user-invocable: true
 
 # /q-status - Quorum Mission Control
 
+## 🌐 Communication Protocol (vinculante para todo output)
+
+- **Idioma**: SIEMPRE respondé en español.
+- **Indicador de espera**: cerrá cada turno con `ESPERANDO RESPUESTA DEL USUARIO...` como última línea (mayúsculas, tres puntos, sin texto después).
+- **Sin fence final**: los bloques `text` de este archivo son ejemplos de documentación. Cuando emitas el cierre al usuario, NO envuelvas el Handoff en triple backticks si eso deja una línea después del indicador; la última línea visible debe ser `ESPERANDO RESPUESTA DEL USUARIO...`.
+
 You are the **Mission Control Operator**. Your job is to report the current Quorum state without modifying task artifacts.
 
 ## Core Principles
@@ -22,13 +28,13 @@ You are the **Mission Control Operator**. Your job is to report the current Quor
 Run from repo root:
 
 ```bash
-agents task list
+quorum task list
 ```
 
 If a task ID is provided, also run:
 
 ```bash
-agents task status <TASK_ID>
+quorum task status <TASK_ID>
 ```
 
 ### 2. Inspect Artifact Readiness
@@ -54,10 +60,12 @@ Check these artifacts:
 
 Use this state machine:
 
-- Missing `00-spec.yaml` → run `agents task specify <ID>` then `/q-brief`.
-- In inbox with `00-spec.yaml` only → run `agents task blueprint <ID>` then `/q-blueprint`.
-- Has spec/blueprint/contract but no worktree → run `agents task start <ID>`.
-- Active with contract but no implementation log → use `/q-implement`.
+- Missing `00-spec.yaml` → run `quorum task specify <ID>` then `/q-brief <ID>`.
+- In `inbox/` with `00-spec.yaml` only → use `/q-brief <ID>`; if it succeeds it auto-runs `quorum task blueprint <ID>`.
+- In `active/` with `decomposition` → report child locations; next is the first child whose `depends_on` siblings are `done/` (usually `/q-brief <child>` if still in `inbox/`), or `quorum task clean <PARENT_ID>` if all children are `done/`.
+- In `active/` with `00-spec.yaml` but no `01-blueprint.yaml`/`02-contract.yaml` → use `/q-decompose <ID>` if the scope may be large, otherwise `/q-blueprint <ID>`.
+- Has `01-blueprint.yaml` and `02-contract.yaml` but no worktree → normally `/q-blueprint` should have auto-run `quorum task start`; recommend re-dispatching `/q-blueprint <ID>` or manually running `quorum task start <ID>` only as repair.
+- Active with contract and worktree but no implementation log → use `/q-implement`.
 - Has implementation but no validation → use `/q-verify`.
 - Has passing validation but no review → use `/q-review`.
 - Has approved review → use `/q-accept` for human merge readiness.
@@ -85,16 +93,25 @@ Next: <exact command or skill>
 
 ## 🛑 Handoff (single-phase boundary)
 
-This skill executes ONLY the **Read-only State Report** phase. After emitting the status report, STOP.
+This skill ejecuta SOLO la fase **Read-only State Report**. Es estrictamente read-only y no tiene transición de estado para auto-ejecutar.
 
-- DO NOT activate `/q-brief`, `/q-blueprint`, `/q-implement`, `/q-verify`, `/q-review`, `/q-accept`, `/q-memory`, or any other skill — even when the next step is unambiguous.
-- DO NOT run `quorum task specify`, `blueprint`, `start`, or `clean`. Reporting is the entire job.
-- DO NOT modify any artifact, including `07-trace.json`.
+NO actives ningún otro skill. Podés ejecutar solo comandos read-only (`quorum task list` y `quorum task status <TASK_ID>`). NO ejecutes comandos que muten estado (`specify`, `blueprint`, `start`, `clean`, `back`, `split`) — reportar es el trabajo completo. NO modifiques ningún artefacto, incluyendo `07-trace.json`.
 
-End your final message with exactly this line and nothing after it:
+Cerrá el mensaje final exactamente con este bloque (en español):
 
 ```text
-Next phase: <the exact command or skill recommended in the report> — dispatched separately by the orchestrator.
+=== Fin de fase: Estado ===
+
+Reporte: emitido en este turno (read-only, no se persiste).
+
+Pasos siguientes (los despacha el orquestador, NO yo):
+1. [Obligatorio] <comando o skill exacto recomendado en el reporte arriba — copiá la línea "Next" del reporte>
+2. [Opcional] Si el reporte muestra múltiples tareas, podés despachar /q-status <TASK_ID> para zoom-in en una específica.
+
+Si querés volver atrás en alguna tarea:
+- quorum task back <TASK_ID> — revierte la última transición de esa tarea.
+
+ESPERANDO RESPUESTA DEL USUARIO...
 ```
 
-Auto-chaining into the recommended action violates Quorum Rule #9 (Skills Are Single-Phase Units) and Rule #7 (Cost Bounded by Policy, Not Trust).
+Auto-encadenar a la acción recomendada viola la Regla #9.

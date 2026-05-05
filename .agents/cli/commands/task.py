@@ -28,3 +28,13 @@ def clean(task_id):
 
 def list_all():
     task_manager.list_tasks()
+
+
+def back(task_id):
+    print(f"[*] Reverting task {task_id} to its previous state...")
+    task_manager.back_task(task_id)
+
+
+def split(parent_id):
+    print(f"[*] Materialising children for {parent_id}...")
+    task_manager.split_task(parent_id)

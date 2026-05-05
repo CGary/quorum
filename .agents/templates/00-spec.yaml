@@ -11,3 +11,12 @@ non_goals:
   - Explicitly excluded outcome.
 constraints:
   - Operational constraint or dependency limit.
+
+# Optional decomposition metadata:
+# parent_task: FEAT-000      # set only on child tasks, e.g. FEAT-000-a
+# depends_on:                # set only on child tasks with sibling dependencies
+#   - FEAT-000-a
+# decomposition:             # set only on umbrella parent tasks by /q-decompose
+#   - child_id: FEAT-000-a
+#     summary: First independently implementable slice.
+#     depends_on: []

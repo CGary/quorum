@@ -131,44 +131,78 @@ Esto creará automáticamente:
 
 ## 🛠 Flujo de Trabajo Operativo
 
-El ciclo combina dos actores que hacen cosas distintas. Confundirlos es la causa #1 de pasos saltados.
+El ciclo combina dos actores. Saber qué hace cada uno es lo que evita pasos saltados.
 
 | Actor | Responsabilidad | Herramienta |
 |---|---|---|
-| **Orquestador** (humano o runtime externo) | Mueve la tarea entre estados (`inbox` → `active` → `done`/`failed`), crea worktrees, hace merge a `main`, archiva la tarea | Comandos `quorum task ...` + Git |
-| **Skill (AI)** | Produce artefactos (`00`–`07`, memoria) dentro de los límites de su fase | Slash commands `/q-*` |
+| **Orquestador** (humano o runtime externo) | Crea tareas iniciales, decide qué skill despachar, hace `git merge` a `main`, ejecuta rollbacks (`quorum task back`) | Comandos `quorum task ...` + Git |
+| **Skill (AI)** | Produce artefactos (`00`–`07`, memoria) dentro de su fase, y auto-ejecuta UNA transición de estado forward al terminar con éxito (cuando aplica) | Slash commands `/q-*` |
 
-### ⚠️ Reglas de oro tras la modularización (Regla #9 en `quorum.md`)
+### ⚠️ Auto-transición forward + indicador de espera + idioma (Regla #9 en `quorum.md`)
 
-Los skills **ya no** ejecutan transiciones de estado por su cuenta. Cualquier comando CLI que aparezca abajo lo corre **el orquestador, no el skill**. Específicamente:
+Para reducir fricción operativa, los skills auto-ejecutan **una sola transición CLI hacia adelante** al cerrar su fase con éxito. Las únicas tres autorizadas:
 
-- `/q-brief` **no** corre `quorum task blueprint`. Si lo despachás sin haber hecho la transición, el skill seguiente no encontrará la tarea en `active/`.
-- `/q-blueprint` **no** corre `quorum task start`. Si lo despachás sin worktree, `/q-implement` se bloqueará con `BLOCKED: worktree missing`.
-- `/q-accept` **no** ejecuta `git merge`, ni la suite BDD, ni `quorum task clean`. Solo emite veredicto `ready|not_ready`. El merge y la limpieza son manuales después.
-- Ningún skill activa al siguiente skill. Si querés despachar `/q-implement` después de `/q-blueprint`, lo hacés vos.
+| Skill | Auto-ejecuta | Efecto |
+|---|---|---|
+| `/q-brief` | `quorum task blueprint <ID>` | Mueve la tarea de `inbox/` a `active/` |
+| `/q-decompose` | `quorum task split <PARENT_ID>` | Materializa hijos en `inbox/` desde el campo `decomposition` |
+| `/q-blueprint` | `quorum task start <ID>` | Crea el worktree y la rama `ai/<ID>` |
 
-Si alguno de estos pasos se omite, la tarea queda en un estado intermedio inconsistente. Usá `quorum task status <ID>` o `/q-status <ID>` para diagnosticar dónde quedó.
+Los demás skills (`/q-analyze`, `/q-implement`, `/q-verify`, `/q-review`, `/q-accept`, `/q-memory`, `/q-status`) **no** ejecutan transiciones de estado.
 
-### Secuencia canónica (FEAT-001 como ejemplo)
+Reglas adicionales que cumple cada skill (impuestas en `SKILL.md`):
 
-Cada fila es un dispatch independiente. **Nada salta entre filas automáticamente.**
+- **Idioma**: cualquier output al usuario va en **español**, sin importar el idioma del input o de la documentación interna.
+- **Indicador de espera**: cada turno que termina esperando una respuesta cierra exactamente con `ESPERANDO RESPUESTA DEL USUARIO...` (mayúsculas, tres puntos) como última línea.
+- **Sin fence final**: los ejemplos pueden estar documentados en bloques Markdown, pero el output real del agente no debe dejar un cierre ``` después del indicador; la última línea visible tiene que ser `ESPERANDO RESPUESTA DEL USUARIO...`.
+- **Handoff explícito**: el cierre de cada skill enumera los próximos pasos, marcando cada uno como `[Obligatorio]` u `[Opcional]`, e incluye `quorum task back <ID>` como vía de rollback humana.
+- **Sin auto-encadenado de skills**: ningún skill activa al siguiente. La activación del próximo skill la decide el orquestador.
 
-| # | Actor | Acción | Comando o skill | Artefacto / efecto |
-|---|---|---|---|---|
-| 1 | Orquestador | Crear tarea en `inbox/` | `quorum task specify FEAT-001` | Directorio + `00-spec.yaml` esqueleto |
-| 2 | Skill (AI) | Llenar la especificación | `/q-brief FEAT-001` | `00-spec.yaml` completo |
-| 3 | Orquestador | Promover a `active/` | `quorum task blueprint FEAT-001` | Tarea movida; lista para blueprint |
-| 4 | Skill (AI) | Diseñar blueprint y contrato | `/q-blueprint FEAT-001` | `01-blueprint.yaml` + `02-contract.yaml` + risk events en `07-trace.json` |
-| 5 | Skill (AI) — **opcional** | Auditar consistencia entre `00`/`01`/`02` | `/q-analyze FEAT-001` | Reporte read-only (sin artefacto nuevo) |
-| 6 | Orquestador | Crear worktree y rama `ai/FEAT-001` | `quorum task start FEAT-001` | `worktrees/FEAT-001/` + rama |
-| 7 | Skill (AI) | Implementar dentro del contrato | `/q-implement FEAT-001` | Diff committeado en `ai/FEAT-001` + `04-implementation-log.yaml` |
-| 8 | Skill (AI) | Correr `verify.commands` | `/q-verify FEAT-001` | `05-validation.json` |
-| 9 | Skill (AI) | Revisar diff vs contrato | `/q-review FEAT-001` | `06-review.json` |
-| 10 | Skill (AI) | Compuerta de aceptación | `/q-accept FEAT-001` | Veredicto `ready` o `not_ready` |
-| 11 | Humano | Correr suite BDD (si el contrato la define) | `<acceptance.bdd_suite>` manual | Pase/fail manual |
-| 12 | Humano | Inspeccionar diff y mergear a `main` | `git merge ai/FEAT-001` (manual) | Código en `main` |
-| 13 | Orquestador | Archivar tarea y borrar worktree | `quorum task clean FEAT-001` | Tarea en `done/` (o `failed/`) |
-| 14 | Skill (AI) | Capturar lecciones durables | `/q-memory FEAT-001` | Entradas en `memory/{decisions,patterns,lessons}/` |
+Si querés volver a un estado anterior porque algo no quedó bien:
+
+```bash
+quorum task back <TASK_ID>
+```
+
+Reversa la transición forward más reciente: si hay worktree, lo borra (y borra la rama si está vacía); si no hay worktree y la tarea está en `active/`, la devuelve a `inbox/`; si está en `done/` o `failed/`, la devuelve a `active/`. Es siempre humano: ningún skill ejecuta `back` por su cuenta.
+
+### Secuencia canónica para una tarea simple o no decompuesta (FEAT-001)
+
+| # | Actor | Acción | Comando o skill | Auto-transición | Artefacto / efecto |
+|---|---|---|---|---|---|
+| 1 | Orquestador | Crear tarea en `inbox/` | `quorum task specify FEAT-001` | — | Directorio + `00-spec.yaml` esqueleto |
+| 2 | Skill | Llenar la spec | `/q-brief FEAT-001` | `quorum task blueprint` ✓ | Spec lista; tarea en `active/` |
+| 3 | Skill — **opcional** | Decomposition | `/q-decompose FEAT-001` | `quorum task split` (solo si confirma) | Hijos en `inbox/` o continúa single-task |
+| 4 | Skill | Blueprint + contrato | `/q-blueprint FEAT-001` | `quorum task start` ✓ | `01`, `02`, `07-trace.json`; worktree creado |
+| 5 | Skill — **opcional** | Auditoría | `/q-analyze FEAT-001` | — | Reporte read-only |
+| 6 | Skill | Implementar | `/q-implement FEAT-001` | — | Diff committeado + `04-implementation-log.yaml` |
+| 7 | Skill | Verificar | `/q-verify FEAT-001` | — | `05-validation.json` |
+| 8 | Skill | Revisar | `/q-review FEAT-001` | — | `06-review.json` |
+| 9 | Skill | Compuerta de aceptación | `/q-accept FEAT-001` | — | Veredicto `ready` / `not_ready` |
+| 10 | Humano | Suite BDD (si el contrato la define) | `<acceptance.bdd_suite>` | — | Pase/fail manual |
+| 11 | Humano | Merge | `git checkout main && git merge ai/FEAT-001` | — | Código en `main` |
+| 12 | Orquestador | Archivar | `quorum task clean FEAT-001` | — | Tarea en `done/`, worktree borrado |
+| 13 | Skill — **opcional** | Memoria | `/q-memory FEAT-001` | — | `memory/{decisions,patterns,lessons}/` |
+
+Comparado con el modelo anterior, `quorum task blueprint` y `quorum task start` **ya no los corre normalmente el orquestador**: `/q-brief` auto-ejecuta el primero y `/q-blueprint` auto-ejecuta el segundo. El orquestador solo los corre manualmente para reparación o recuperación.
+
+### Variante con decomposition (feature grande → N hijos)
+
+Cuando la feature es lo bastante grande como para que un LLM modesto no pueda implementarla en una sola pasada, el orquestador despacha `/q-decompose` después de `/q-brief`. El padre queda como umbrella en `active/` y cada hijo recorre su propio ciclo completo.
+
+| # | Actor | Acción | Resultado |
+|---|---|---|---|
+| 1 | Orquestador | `quorum task specify FEAT-001` | Padre en `inbox/` |
+| 2 | Skill | `/q-brief FEAT-001` | Padre con spec; auto-mueve a `active/` |
+| 3 | Skill | `/q-decompose FEAT-001` | Aplica heurística de `.agents/policies/decomposition.yaml`, propone N hijos, espera confirmación, persiste `decomposition` en el spec del padre, auto-corre `quorum task split FEAT-001` → crea `FEAT-001-a`, `FEAT-001-b`, ... en `inbox/` con `parent_task: FEAT-001` y `depends_on` |
+| 4 | Orquestador | Para cada hijo, en orden topológico de `depends_on`: | |
+| 4a | Skill | `/q-brief FEAT-001-a` | Refina el spec del hijo (heredó invariantes y aceptación del padre); auto-mueve a `active/` |
+| 4b | Skill | `/q-blueprint FEAT-001-a` | Genera 01/02 del hijo y auto-crea worktree `worktrees/FEAT-001-a/` con rama `ai/FEAT-001-a` |
+| 4c..h | Skill / Humano | `/q-implement` → `/q-verify` → `/q-review` → `/q-accept` → BDD → merge `ai/FEAT-001-a` a `main` → `quorum task clean FEAT-001-a` → `/q-memory FEAT-001-a` (opcional) | Hijo cerrado |
+| 5 | (repetir 4 para `FEAT-001-b`, etc.) | | |
+| 6 | Orquestador | Cuando todos los hijos están en `done/`: `quorum task clean FEAT-001` | Padre archivado |
+
+Cada hijo mergea a `main` independientemente cuando está `ready`. No hay rama integradora; las dependencias se respetan sólo a nivel de orden de despacho (`depends_on` lo marca el spec del hijo). El CLI protege al padre: `quorum task clean <PARENT_ID>` falla si algún hijo de `decomposition` no está todavía en `done/`.
 
 ### Detalle por fase
 
@@ -178,7 +212,7 @@ Cada fila es un dispatch independiente. **Nada salta entre filas automáticament
 quorum task specify FEAT-001
 ```
 
-Crea `.ai/tasks/inbox/FEAT-001-<slug>/` con plantillas. **Hacelo siempre antes** de despachar `/q-brief`; el skill no creará la tarea por vos.
+Crea `.ai/tasks/inbox/FEAT-001-<slug>/` con un `00-spec.yaml` esqueleto. **Hacelo antes** de despachar `/q-brief`; el skill no crea la tarea por vos.
 
 #### 2. Especificar — skill `/q-brief`
 
@@ -186,17 +220,19 @@ Crea `.ai/tasks/inbox/FEAT-001-<slug>/` con plantillas. **Hacelo siempre antes**
 /q-brief FEAT-001
 ```
 
-Entrevista al humano y completa `00-spec.yaml` con goal, invariantes, criterios de aceptación, no-objetivos y `risk`. Aplica el `Scope Gate`: si la solicitud es trivial, te dice que no uses Quorum.
+Entrevista al humano y completa `00-spec.yaml` con goal, invariantes, aceptación, no-objetivos y `risk`. Aplica el `Scope Gate`: si la solicitud es trivial, redirige fuera de Quorum.
 
-> El skill **no** mueve la tarea a `active/`. Termina diciendo `Next phase: quorum task blueprint <TASK_ID>, then /q-blueprint <TASK_ID>`.
+> Auto-transición: al terminar con éxito, el skill ejecuta `quorum task blueprint FEAT-001` y mueve la tarea a `active/`. Si falló o quedó incompleto, no corre la transición.
 
-#### 3. Promover a active — orquestador
+#### 3. Decomposition (opcional) — skill `/q-decompose`
 
-```bash
-quorum task blueprint FEAT-001
+```text
+/q-decompose FEAT-001
 ```
 
-Mueve `inbox/FEAT-001-*/` → `active/FEAT-001-*/`. **Si saltás este paso**, `/q-blueprint` no encontrará la tarea en `active/` y fallará.
+Lee el spec del padre, aplica los signals de `.agents/policies/decomposition.yaml` y propone una decomposition concreta en hijos `FEAT-001-a`, `FEAT-001-b`, ... cada uno con `summary`, `depends_on` y herencia de invariantes/aceptación. Pide confirmación humana **antes** de persistir.
+
+> Auto-transición: solo si el humano confirma. Persiste el campo `decomposition` en el spec del padre y corre `quorum task split FEAT-001`. Si el humano dice "no decomponer", no se ejecuta nada y se sigue el flujo single-task.
 
 #### 4. Blueprint + contrato — skill `/q-blueprint`
 
@@ -204,123 +240,146 @@ Mueve `inbox/FEAT-001-*/` → `active/FEAT-001-*/`. **Si saltás este paso**, `/
 /q-blueprint FEAT-001
 ```
 
-El agente:
+Mapea archivos, símbolos y dependencias afectadas; consulta tareas fallidas relacionadas vía `failure_lookup.py`; corre `risk_scorer.py` y registra los eventos en `07-trace.json` sin pisar el riesgo declarado por el humano; genera `01-blueprint.yaml` y `02-contract.yaml`.
 
-- mapea archivos, símbolos y dependencias afectadas;
-- consulta tareas fallidas relacionadas vía `failure_lookup.py`;
-- corre `risk_scorer.py` y registra los eventos de riesgo en `07-trace.json` (sin pisar el riesgo declarado por el humano);
-- genera `01-blueprint.yaml` (estrategia) y `02-contract.yaml` (`touch`, `read`, `forbid`, `verify.commands`, `limits`, `execution`, `retry_policy`).
+> Auto-transición: al terminar con éxito, ejecuta `quorum task start FEAT-001` y crea el worktree + rama.
 
-> El skill **no** crea el worktree. Termina con `Next phase: /q-analyze <TASK_ID> (recommended) or quorum task start <TASK_ID>`.
-
-#### 5. Análisis de consistencia (opcional pero recomendado) — skill `/q-analyze`
+#### 5. Análisis de consistencia (opcional) — skill `/q-analyze`
 
 ```text
 /q-analyze FEAT-001
 ```
 
-**Read-only.** Cruza `00`, `01`, `02` contra schemas y policies. Reporta:
+**Read-only.** Cruza `00`, `01`, `02` contra schemas y policies. Reporta gaps (aceptación sin test scenarios, archivos del blueprint que no están en `touch`, BDD lento como `verify.commands`, divergencias de risk no reflejadas). No corrige.
 
-- aceptación sin test scenarios,
-- archivos del blueprint que no están en `02-contract.yaml.touch`,
-- comandos BDD lentos colocados como `verify.commands`,
-- divergencias de risk no reflejadas en `07-trace.json`.
-
-No corrige nada. Si encuentra `issues_found`, despachás `/q-blueprint` de nuevo (a un modelo capaz de razonar sobre el contrato) para arreglarlo. Si pasa, seguís al paso 6.
-
-#### 6. Crear worktree — orquestador
-
-```bash
-quorum task start FEAT-001
-```
-
-Genera `worktrees/FEAT-001/` y la rama `ai/FEAT-001` desde `main` (o la rama base detectada). **Sin este paso**, `/q-implement` se bloquea de inmediato.
-
-#### 7. Implementación — skill `/q-implement`
+#### 6. Implementación — skill `/q-implement`
 
 ```text
 /q-implement FEAT-001
 ```
 
-El agente lee `02-contract.yaml` como autoridad vinculante. Toca solo archivos en `touch`, respeta `forbid`, registra cambios en `04-implementation-log.yaml` y commitea dentro del worktree en `ai/FEAT-001`. Tocar fuera del contrato rechaza la tarea.
+Lee el contrato como autoridad vinculante. Toca solo archivos en `touch`, respeta `forbid`, registra cambios en `04-implementation-log.yaml` y commitea dentro del worktree en `ai/FEAT-001`. Tocar fuera del contrato rechaza la tarea.
 
-> El skill **no** ejecuta `verify.commands` ni activa `/q-verify`. Termina con `DONE: …` o `BLOCKED: …`.
+> Sin auto-transición. Termina con `DONE` o `BLOCKED`.
 
-#### 8. Verificación — skill `/q-verify`
+#### 7. Verificación — skill `/q-verify`
 
 ```text
 /q-verify FEAT-001
 ```
 
-Corre cada `verify.commands` dentro del worktree y captura exit codes, duración y un excerpt de salida. Escribe `05-validation.json` con `overall_result` (`passed | failed | blocked`) y, si falló, un `error_category` heurístico (`logic | dependency | environment | flaky | unknown`).
+Corre `verify.commands` del contrato dentro del worktree, captura exit codes y output, escribe `05-validation.json` con `overall_result` y `error_category` opcional.
 
-> El skill **no** edita código para arreglar fallos ni decide reintentos. Si falla, el orquestador decide si vuelve a `/q-implement` (logic/dependency) o reintenta `/q-verify` (environment/flaky).
-
-#### 9. Revisión — skill `/q-review`
+#### 8. Revisión — skill `/q-review`
 
 ```text
 /q-review FEAT-001
 ```
 
-Compara el diff de `worktrees/FEAT-001/` contra `00`, `01`, `02` y `05`. Emite veredicto en `06-review.json`: `approve | revise | reject`. Si revise, devuelve `fix_tasks` estructurados. No edita código, no aprueba con validation no pasada, no mergea.
+Compara el diff contra `00`, `01`, `02`, `05`. Veredicto en `06-review.json`: `approve | revise | reject`. Si `revise`, devuelve `fix_tasks` estructurados.
 
-#### 10. Compuerta de aceptación — skill `/q-accept`
+#### 9. Compuerta de aceptación — skill `/q-accept`
 
 ```text
 /q-accept FEAT-001
 ```
 
-Verifica de forma agregada: `05.overall_result == passed`, `06.verdict == approve`, `06.contract_compliance == true`, `forbidden_files_touched` vacío, sin refactors no pedidos, sin violaciones abiertas en `07-trace.json`. Emite `Acceptance: ready` o `not_ready` con bloqueantes.
+Verifica de forma agregada que validation pasó, review aprobó, contrato se cumplió, no hay refactors no pedidos ni violaciones abiertas en trace. Emite `Acceptance: ready` o `not_ready`.
 
-> Importante: `/q-accept` **no** ejecuta el merge, **no** corre la suite BDD y **no** archiva la tarea. Solo emite el go/no-go. Los pasos 11–13 son obra del humano y del orquestador.
+> No corre merge, ni BDD, ni clean. Reporta lo que tiene que hacer el humano.
 
-#### 11. Suite BDD — humano
-
-Si `02-contract.yaml.acceptance.bdd_suite` está definido, corré ese comando manualmente fuera del agent loop. Es la única evidencia que cubre criterios de aceptación end-to-end (Política de testing).
-
-#### 12. Merge — humano
+#### 10–12. BDD + merge + clean — humano + orquestador
 
 ```bash
-git -C worktrees/FEAT-001 log --oneline   # inspeccionar
+# 10. (si el contrato define bdd_suite, humano corre el comando manualmente)
+
+# 11. Merge humano
+git -C worktrees/FEAT-001 log --oneline
 git checkout main
 git merge ai/FEAT-001
-```
 
-Rule #6 es ley: el sistema commitea, nunca mergea. El merge es manual.
-
-#### 13. Limpieza — orquestador
-
-```bash
+# 12. Archivar
 quorum task clean FEAT-001
 ```
 
-Archiva la tarea en `done/` (o `failed/` si nunca pasó la compuerta) y elimina el worktree. Hacelo **después** del merge; antes deja huérfanos los commits de `ai/FEAT-001` si no fueron mergeados.
+Regla #6: el sistema commitea, nunca mergea. El merge es manual.
 
-#### 14. Captura de memoria — skill `/q-memory`
+#### 13. Memoria (opcional) — skill `/q-memory`
 
 ```text
 /q-memory FEAT-001
 ```
 
-Genera entradas en `memory/decisions/`, `memory/patterns/` o `memory/lessons/`. Es la única vía de ingesta de memoria; no hay captura automática (Memory Governance: human-invoked, never automatic). También se puede invocar sobre tareas en `failed/` con lección durable; en ese caso captura un `lesson` con `anti_patterns`.
+Genera entradas en `memory/{decisions,patterns,lessons}/`. La memoria es exclusivamente human-invoked; no hay captura automática.
+
+### Rollback humano: `quorum task back`
+
+```bash
+quorum task back FEAT-001
+```
+
+Revierte la transición forward más reciente:
+
+| Estado actual de la tarea | Resultado de `back` |
+|---|---|
+| Worktree existe | Borra worktree + rama (si está vacía). Tarea queda en `active/`. |
+| En `active/` sin worktree | Mueve a `inbox/`. |
+| En `done/` o `failed/` | Mueve a `active/`. |
+| En `inbox/` | Rechaza con mensaje (no hay estado anterior). |
+
+Útil cuando un skill cerró una fase con auto-transición pero el resultado no convence: corres `back`, refinás lo que sea, y volvés a despachar el skill correspondiente.
+
+### Comandos CLI que mutan estado
+
+Estos comandos existen aunque el flujo normal delegue algunas transiciones a los skills:
+
+```bash
+quorum task specify FEAT-001      # crea la tarea inicial en inbox/
+quorum task blueprint FEAT-001    # mueve inbox/ -> active/ (normalmente lo auto-ejecuta /q-brief)
+quorum task split FEAT-001        # materializa hijos desde 00-spec.yaml.decomposition (lo auto-ejecuta /q-decompose)
+quorum task start FEAT-001        # crea worktree + rama ai/FEAT-001 (normalmente lo auto-ejecuta /q-blueprint)
+quorum task clean FEAT-001        # archiva en done/ y borra worktree; en padres exige todos los hijos en done/
+quorum task back FEAT-001         # rollback humano de la última transición forward
+```
+
+`quorum task split` es idempotente: si un hijo ya existe, lo salta y crea sólo los faltantes. También valida que el padre esté en `active/`, que no sea ya una tarea hija, que los `child_id` pertenezcan al padre (`FEAT-001-a`), que `depends_on` apunte a hermanos existentes y que no haya ciclos.
+
+### Campos nuevos en `00-spec.yaml`
+
+La decomposition agrega metadata explícita al spec:
+
+```yaml
+# En tareas padre (umbrella):
+decomposition:
+  - child_id: FEAT-001-a
+    summary: Slice implementable de forma independiente.
+    depends_on: []
+
+# En tareas hijas:
+parent_task: FEAT-001
+depends_on:
+  - FEAT-001-a
+```
+
+Los IDs hijos usan un sufijo de una letra (`FEAT-001-a`, `FEAT-001-b`, ...). Los schemas de `00`–`07` aceptan estos IDs para que cada hijo tenga sus propios artefactos, worktree, branch, verify, review y accept.
 
 ### Errores comunes y cómo detectarlos
 
 | Síntoma | Causa probable | Diagnóstico |
 |---|---|---|
-| `/q-blueprint` dice "task not found in active" | Saltaste `quorum task blueprint <ID>` | `quorum task status <ID>` mostrará la tarea aún en `inbox/` |
-| `/q-implement` responde `BLOCKED: worktree missing` | Saltaste `quorum task start <ID>` | `ls worktrees/` no listará la tarea |
-| `/q-verify` responde `blocked` | Falta `02-contract.yaml.verify.commands` | Volver a `/q-blueprint` y completar el contrato |
-| `/q-review` devuelve `revise` con `fix_tasks` | Validation pasó pero el diff sale del contrato | Despachar `/q-implement` con los `fix_tasks` |
-| `/q-accept` queda en `not_ready` por trace | Hay violaciones sin resolver en `07-trace.json` | Inspeccionar `07-trace.json.violations` |
-| Tarea sigue apareciendo en `active/` después del merge | Saltaste `quorum task clean <ID>` | Correr `quorum task clean <ID>` ahora |
+| `/q-brief` cierra sin auto-correr `task blueprint` | El skill detectó la spec incompleta o falló validación | Leé la última respuesta del skill: si terminó en `BLOCKED` o sigue haciendo preguntas, no es un bug. Completá la entrevista. |
+| `/q-blueprint` no creó worktree | El skill cerró con `BLOCKED` (contrato inválido o spec inconsistente) | `quorum task status <ID>` muestra worktree Missing y artefactos parciales. Re-despachá `/q-blueprint` después de corregir. |
+| `quorum task back` borra commits no mergeados | Comportamiento esperado cuando la rama no se mergeó | Antes de correr `back`, mergeá o guardá los cambios manualmente |
+| `/q-decompose` propuso decomposition pero no creó hijos | El humano respondió "no decomponer" o hubo error de schema en el spec del padre | Revisá la última respuesta del skill |
+| Hijos en `inbox/` con specs derivados del padre | Lo esperado tras `quorum task split` | Despachá `/q-brief <child>` para refinar cada uno |
+| Padre en `active/` con todos los hijos en `done/` | Falta archivar el padre | `quorum task clean <PARENT>` |
 | Lecciones no aparecen en `memory/` | `/q-memory` nunca fue invocado | La memoria es manual; no hay auto-captura |
 
 ### Utilidades transversales (read-only)
 
 ```bash
 quorum task list              # resumen de todas las tareas y su estado
-quorum task status FEAT-001   # estado, artefactos presentes y próximo paso
+quorum task status FEAT-001   # estado, artefactos, worktree, parent_task / decomposition / depends_on
 ```
 
 ```text
@@ -328,11 +387,9 @@ quorum task status FEAT-001   # estado, artefactos presentes y próximo paso
 /q-status FEAT-001   # diagnóstico por tarea
 ```
 
-`/q-status` es el equivalente conversacional de `quorum task list/status`: nunca modifica artefactos, solo lee `.ai/tasks/` y reporta qué falta y qué skill o comando viene a continuación. Útil al volver a una tarea después de un rato o al diagnosticar un paso saltado.
-
 ### Sobre `quorum task run`
 
-El comando existe en el CLI, pero `task_manager.run_task()` es stub: el dispatcher automático está diferido. **Hoy el flujo real lo conducís vos** alternando entre los comandos del orquestador y los despachos de skills, como en la tabla de arriba.
+El comando existe en el CLI, pero `task_manager.run_task()` es stub: el dispatcher automático está diferido. Hoy el flujo lo conducís vos despachando skills; las transiciones forward las hacen los skills mismos. La reversión sigue siendo humana vía `quorum task back`.
 
 ---
 

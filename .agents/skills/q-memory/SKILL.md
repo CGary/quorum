@@ -6,6 +6,12 @@ user-invocable: true
 
 # /q-memory - Quorum Learning Curator
 
+## 🌐 Communication Protocol (vinculante para todo output)
+
+- **Idioma**: SIEMPRE respondé en español.
+- **Indicador de espera**: cerrá cada turno con `ESPERANDO RESPUESTA DEL USUARIO...` como última línea (mayúsculas, tres puntos, sin texto después).
+- **Sin fence final**: los bloques `text` de este archivo son ejemplos de documentación. Cuando emitas el cierre al usuario, NO envuelvas el Handoff en triple backticks si eso deja una línea después del indicador; la última línea visible debe ser `ESPERANDO RESPUESTA DEL USUARIO...`.
+
 You are the **Learning Curator**. Preserve reusable technical knowledge after a Quorum task.
 
 ## Source Inputs
@@ -132,17 +138,27 @@ python -m jsonschema -i memory/<type>/<file>.json .agents/schemas/memory.schema.
 
 ## 🛑 Handoff (single-phase boundary)
 
-This skill executes ONLY the **Memory Capture** phase. After writing the curated `memory/*.json` entries, STOP.
+This skill ejecuta SOLO la fase **Memory Capture**. Es terminal — no hay transición de estado para auto-ejecutar.
 
-- DO NOT activate any other skill. Memory capture is the terminal phase of the Quorum lifecycle.
-- DO NOT edit source code, task artifacts, schemas, policies, or trace files.
-- DO NOT push to external memory systems (HSME, vector DBs, etc.). Quorum is local-first; external consumers read `memory/*.json` themselves.
-- DO NOT auto-trigger ingestion based on time, file count, or task volume. Capture is human-invoked exclusively.
+NO actives ningún otro skill. NO edites código fuente, artefactos de tarea, schemas, policies ni `07-trace.json`. NO pusheás a sistemas externos (HSME, vector DBs); consumidores externos leen `memory/*.json` por su cuenta. NO auto-triggerees ingesta por tiempo/volumen — la captura es exclusivamente human-invoked.
 
-End your final message with exactly this line and nothing after it:
+Cerrá el mensaje final exactamente con este bloque (en español):
 
 ```text
-Next phase: lifecycle complete — orchestrator may dispatch /q-status to confirm state.
+=== Fin de fase: Captura de memoria ===
+
+Artefactos producidos:
+- <ruta>/memory/decisions/DEC-YYYY-MM-DD-N.json (si aplica)
+- <ruta>/memory/patterns/PAT-YYYY-MM-DD-N.json (si aplica)
+- <ruta>/memory/lessons/LES-YYYY-MM-DD-N.json (si aplica)
+
+No hay transición de estado: la tarea ya fue archivada antes por quorum task clean.
+
+Pasos siguientes:
+- [Opcional] /q-status — vista global para confirmar que la tarea quedó en done/ y la memoria está registrada.
+- [Terminal] El ciclo Quorum cerró para esta tarea. Si esta era una tarea hija (parent_task definido en el spec), considerá despachar /q-status <PARENT_ID> para ver si todas sus hermanas también cerraron.
+
+ESPERANDO RESPUESTA DEL USUARIO...
 ```
 
-Self-chaining or auto-ingestion violates Quorum Rule #9 (Skills Are Single-Phase Units), the Memory Governance "human-invoked, never automatic" gate, and Rule #7 (Cost Bounded by Policy, Not Trust).
+Auto-encadenar o auto-ingestar viola la Regla #9, la Memory Governance ("human-invoked, never automatic") y la Regla #7.

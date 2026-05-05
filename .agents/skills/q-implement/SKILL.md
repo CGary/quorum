@@ -1,10 +1,16 @@
 ---
 name: q-implement
-description: Implement a Quorum task inside its isolated worktree using 00-spec.yaml, 01-blueprint.yaml, and strict 02-contract.yaml boundaries. Use for surgical code changes after agents task start has prepared the worktree.
+description: Implement a Quorum task inside its isolated worktree using 00-spec.yaml, 01-blueprint.yaml, and strict 02-contract.yaml boundaries. Use for surgical code changes after quorum task start has prepared the worktree.
 user-invocable: true
 ---
 
 # /q-implement - Quorum Surgical Executor
+
+## 🌐 Communication Protocol (vinculante para todo output)
+
+- **Idioma**: SIEMPRE respondé en español.
+- **Indicador de espera**: cerrá cada turno con `ESPERANDO RESPUESTA DEL USUARIO...` como última línea (mayúsculas, tres puntos, sin texto después).
+- **Sin fence final**: los bloques `text` de este archivo son ejemplos de documentación. Cuando emitas el cierre al usuario, NO envuelvas el Handoff en triple backticks si eso deja una línea después del indicador; la última línea visible debe ser `ESPERANDO RESPUESTA DEL USUARIO...`.
 
 You are the **Surgical Executor**. Implement exactly what the Quorum contract authorizes, no more.
 
@@ -29,7 +35,7 @@ worktrees/<TASK_ID>/
 If the worktree does not exist, stop and tell the user to run:
 
 ```bash
-agents task start <TASK_ID>
+quorum task start <TASK_ID>
 ```
 
 ## Execution Steps
@@ -113,24 +119,51 @@ BLOCKED: <specific reason>
 
 ## 🛑 Handoff (single-phase boundary)
 
-This skill executes ONLY the **Implementation** phase. After committing the diff in the worktree and writing `04-implementation-log.yaml`, STOP.
+This skill ejecuta SOLO la fase **Implementation**. La tarea ya está en active/ con worktree creado por `/q-blueprint`; no hay transición de estado para auto-ejecutar.
 
-- DO NOT activate `/q-verify`, `/q-review`, or any other skill — even though running tests "right now" looks efficient.
-- DO NOT execute `verify.commands`. That is `q-verify`'s phase, dispatched by the orchestrator under its own model tier.
-- DO NOT write `05-validation.json`, `06-review.json`, or `07-trace.json` review entries.
-- DO NOT decide retries on your own. If you `BLOCKED`, end and let the orchestrator decide.
-- DO NOT merge or open a PR.
+NO actives ningún otro skill. NO ejecutes `verify.commands` (es la fase de `/q-verify`). NO escribas `05-validation.json`, `06-review.json`, ni entries de review en `07-trace.json`. NO decidas reintentos por vos mismo. NO mergees ni abras PR.
 
-End your final message with exactly one of:
+Cerrá el mensaje final exactamente con uno de estos bloques (en español):
 
+**Caso éxito**:
 ```text
-DONE: <technical summary>
-Next phase: /q-verify <TASK_ID> — dispatched separately by the orchestrator.
+=== Fin de fase: Implementación ===
+
+Resultado: DONE
+Resumen técnico: <una línea>
+
+Artefactos producidos:
+- Diff committeado en la rama ai/<TASK_ID> (worktrees/<TASK_ID>/)
+- .ai/tasks/active/<TASK_ID>-<slug>/04-implementation-log.yaml
+
+No hay transición de estado: el worktree y la rama siguen iguales.
+
+Pasos siguientes (los despacha el orquestador, NO yo):
+1. [Obligatorio] /q-verify <TASK_ID> — corre verify.commands del contrato dentro del worktree y escribe 05-validation.json.
+
+Si querés volver atrás:
+- git -C worktrees/<TASK_ID> reset --hard HEAD~1 — descarta el último commit del worktree.
+- quorum task back <TASK_ID> — borra worktree y rama (perdés todos los commits no mergeados).
+
+ESPERANDO RESPUESTA DEL USUARIO...
 ```
 
+**Caso bloqueado**:
 ```text
-BLOCKED: <specific reason>
-Next phase: orchestrator decision (re-blueprint, contract amendment, or human intervention) — dispatched separately.
+=== Fin de fase: Implementación ===
+
+Resultado: BLOCKED
+Razón específica: <descripción>
+
+Pasos siguientes (los despacha el orquestador, NO yo):
+- Si el contrato es incorrecto (touch insuficiente, forbid mal puesto, verify.commands inadecuados):
+  1. [Obligatorio] /q-blueprint <TASK_ID> — rediseñar 01/02.
+- Si la spec es ambigua o cambió la intención:
+  1. [Obligatorio] quorum task back <TASK_ID> (dos veces si hace falta) hasta volver a inbox/ y luego /q-brief <TASK_ID>.
+- Si el bloqueo es ambiental (dependencia faltante, permisos):
+  1. [Obligatorio] Resolución manual fuera del agent loop, luego re-despachar /q-implement <TASK_ID>.
+
+ESPERANDO RESPUESTA DEL USUARIO...
 ```
 
-Auto-chaining into `/q-verify` violates Quorum Rule #9 (Skills Are Single-Phase Units) and Rule #7 (Cost Bounded by Policy, Not Trust).
+Auto-encadenar a `/q-verify` viola la Regla #9.

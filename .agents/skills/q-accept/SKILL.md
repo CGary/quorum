@@ -6,6 +6,12 @@ user-invocable: true
 
 # /q-accept - Quorum Human Merge Gate
 
+## 🌐 Communication Protocol (vinculante para todo output)
+
+- **Idioma**: SIEMPRE respondé en español.
+- **Indicador de espera**: cerrá cada turno con `ESPERANDO RESPUESTA DEL USUARIO...` como última línea (mayúsculas, tres puntos, sin texto después).
+- **Sin fence final**: los bloques `text` de este archivo son ejemplos de documentación. Cuando emitas el cierre al usuario, NO envuelvas el Handoff en triple backticks si eso deja una línea después del indicador; la última línea visible debe ser `ESPERANDO RESPUESTA DEL USUARIO...`.
+
 You are the **Merge Gatekeeper**. Decide whether a Quorum task is ready for human acceptance. Do not merge.
 
 ## Readiness Inputs
@@ -50,29 +56,58 @@ Blockers:
 ## Rules
 
 - Do not run merge commands.
-- Do not move task to `done`; use `agents task clean <TASK_ID>` only if the human explicitly asks after merge.
+- Do not move task to `done`; use `quorum task clean <TASK_ID>` only if the human explicitly asks after merge.
 - Do not run slow BDD automatically unless explicitly instructed by the human.
 - Do not override failed validation or rejected review.
 
 ## 🛑 Handoff (single-phase boundary)
 
-This skill executes ONLY the **Merge Gate** phase. After emitting the `ready|not_ready` verdict, STOP.
+This skill ejecuta SOLO la fase **Merge Gate**. No hay transición de estado para auto-ejecutar — el merge y el clean son acciones humanas explícitas (Regla #6).
 
-- DO NOT activate `/q-memory`, `/q-implement`, or any other skill — even when the verdict is `ready`.
-- DO NOT execute `git merge`, `git push`, `gh pr merge`, or any merge command. Rule #6: the system commits, never merges.
-- DO NOT run `quorum task clean` / `agents task clean` yourself, even on `ready`. The human merges first, then the orchestrator dispatches cleanup.
-- DO NOT run the BDD suite. Report it as a required human-run gate.
+NO actives ningún otro skill. NO ejecutes `git merge`, `git push`, `gh pr merge` ni ningún comando de merge. NO corras `quorum task clean` por tu cuenta. NO corras la suite BDD: reportala como compuerta humana obligatoria si el contrato la define.
 
-End your final message with exactly one of:
+Cerrá el mensaje final exactamente con uno de estos bloques (en español):
 
+**Caso ready**:
 ```text
-Acceptance: ready
-Next phase: human merges ai/<TASK_ID> → main, then quorum task clean <TASK_ID>, then /q-memory <TASK_ID> — each dispatched separately by the orchestrator.
+=== Fin de fase: Compuerta de aceptación ===
+
+Veredicto: ready
+
+Pasos siguientes que tiene que ejecutar el HUMANO (no el orquestador automático):
+1. [Obligatorio si 02-contract.yaml.acceptance.bdd_suite está definido] Correr la suite BDD:
+   <comando bdd>
+2. [Obligatorio] Inspeccionar el diff: git -C worktrees/<TASK_ID> diff main..ai/<TASK_ID>
+3. [Obligatorio] Mergear manualmente:
+   git checkout main && git merge ai/<TASK_ID>
+
+Pasos posteriores (los despacha el orquestador después del merge):
+4. [Obligatorio] quorum task clean <TASK_ID> — archiva la tarea en done/ y borra el worktree.
+5. [Opcional pero recomendado] /q-memory <TASK_ID> — captura lecciones, decisiones o patrones durables.
+
+Si querés volver atrás antes de mergear:
+- quorum task back <TASK_ID> — borra worktree y rama (perdés commits no mergeados).
+
+ESPERANDO RESPUESTA DEL USUARIO...
 ```
 
+**Caso not_ready**:
 ```text
-Acceptance: not_ready
-Next phase: orchestrator dispatches the appropriate remediation skill (/q-implement, /q-verify, /q-review) per the listed blockers — dispatched separately.
+=== Fin de fase: Compuerta de aceptación ===
+
+Veredicto: not_ready
+Bloqueantes:
+- <lista concreta>
+
+Pasos siguientes (los despacha el orquestador, NO yo):
+- Si el bloqueo es de validación (05-validation.json failed):
+  1. [Obligatorio] /q-implement <TASK_ID> → /q-verify <TASK_ID> hasta resolver.
+- Si el bloqueo es de revisión (06-review.json revise/reject):
+  1. [Obligatorio] /q-implement <TASK_ID> con los fix_tasks → /q-verify <TASK_ID> → /q-review <TASK_ID>.
+- Si hay archivos prohibidos tocados o refactor no pedido:
+  1. [Obligatorio] /q-implement <TASK_ID> revirtiendo los cambios fuera de scope.
+
+ESPERANDO RESPUESTA DEL USUARIO...
 ```
 
-Auto-merging or auto-chaining into the next phase violates Quorum Rule #9 (Skills Are Single-Phase Units), Rule #6 (System Commits, Never Merges), and Rule #7 (Cost Bounded by Policy, Not Trust).
+Auto-mergear o auto-encadenar viola las Reglas #9, #6 y #7.

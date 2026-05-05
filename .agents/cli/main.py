@@ -40,6 +40,20 @@ def main():
     clean_parser = task_subparsers.add_parser("clean", help="Clean up a task")
     clean_parser.add_argument("task_id", help="Task ID")
 
+    # task back
+    back_parser = task_subparsers.add_parser(
+        "back",
+        help="Revert a task to its previous state (worktree, then active->inbox, or done/failed->active)"
+    )
+    back_parser.add_argument("task_id", help="Task ID")
+
+    # task split
+    split_parser = task_subparsers.add_parser(
+        "split",
+        help="Materialise child tasks from a parent's `decomposition` field (authored by /q-decompose)"
+    )
+    split_parser.add_argument("task_id", help="Parent task ID (e.g. FEAT-001)")
+
     args = parser.parse_args()
 
     if args.command == "init":
@@ -59,6 +73,10 @@ def main():
             task.list_all()
         elif args.subcommand == "clean":
             task.clean(args.task_id)
+        elif args.subcommand == "back":
+            task.back(args.task_id)
+        elif args.subcommand == "split":
+            task.split(args.task_id)
         else:
             task_parser.print_help()
     else:

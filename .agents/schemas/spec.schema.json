@@ -14,7 +14,8 @@
   "properties": {
     "task_id": {
       "type": "string",
-      "pattern": "^[A-Z]+-[0-9]+"
+      "pattern": "^[A-Z]+-[0-9]+(-[a-z])?$",
+      "description": "Canonical task ID. Children appended -a, -b, ... (e.g. FEAT-001-a)."
     },
     "summary": {
       "type": "string",
@@ -57,6 +58,46 @@
       "type": "array",
       "items": {
         "type": "string"
+      }
+    },
+    "parent_task": {
+      "type": "string",
+      "pattern": "^[A-Z]+-[0-9]+$",
+      "description": "Set on child tasks. References the umbrella parent task_id."
+    },
+    "decomposition": {
+      "type": "array",
+      "description": "Set on parent tasks. Lists children created by /q-decompose.",
+      "items": {
+        "type": "object",
+        "required": ["child_id", "summary"],
+        "additionalProperties": false,
+        "properties": {
+          "child_id": {
+            "type": "string",
+            "pattern": "^[A-Z]+-[0-9]+-[a-z]$"
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1
+          },
+          "depends_on": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Z]+-[0-9]+-[a-z]$"
+            }
+          }
+        }
+      }
+    },
+    "depends_on": {
+      "type": "array",
+      "description": "Set on child tasks that must be implemented after listed siblings.",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Z]+-[0-9]+-[a-z]$"
       }
     }
   }

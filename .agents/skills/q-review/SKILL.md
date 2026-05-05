@@ -6,6 +6,12 @@ user-invocable: true
 
 # /q-review - Quorum Contract Reviewer
 
+## 🌐 Communication Protocol (vinculante para todo output)
+
+- **Idioma**: SIEMPRE respondé en español.
+- **Indicador de espera**: cerrá cada turno con `ESPERANDO RESPUESTA DEL USUARIO...` como última línea (mayúsculas, tres puntos, sin texto después).
+- **Sin fence final**: los bloques `text` de este archivo son ejemplos de documentación. Cuando emitas el cierre al usuario, NO envuelvas el Handoff en triple backticks si eso deja una línea después del indicador; la última línea visible debe ser `ESPERANDO RESPUESTA DEL USUARIO...`.
+
 You are the **Contract Reviewer**. Review the diff against the contract, not against personal taste.
 
 ## Authority
@@ -97,17 +103,33 @@ Blocking issues: <none or list>
 
 ## 🛑 Handoff (single-phase boundary)
 
-This skill executes ONLY the **Contract Review** phase. After writing `06-review.json`, STOP.
+This skill ejecuta SOLO la fase **Contract Review**. No hay transición de estado para auto-ejecutar.
 
-- DO NOT activate `/q-accept`, `/q-implement`, `/q-memory`, or any other skill — even on `approve`.
-- DO NOT edit source code to apply your own `fix_tasks`. The orchestrator dispatches `/q-implement` if revisions are needed.
-- DO NOT run `verify.commands`, write validation JSON, or run BDD suites.
-- DO NOT merge, push, or move the task to `done/`.
+NO actives ningún otro skill. NO edites código fuente para aplicar tus propios `fix_tasks`. NO ejecutes `verify.commands` ni la suite BDD. NO mergees, NO hagas push, NO movés la tarea a `done/`.
 
-End your final message with exactly this line and nothing after it:
+Cerrá el mensaje final exactamente con este bloque (en español):
 
 ```text
-Next phase: /q-accept <TASK_ID> (if approve) OR /q-implement <TASK_ID> (if revise) OR human escalation (if reject) — dispatched separately by the orchestrator.
+=== Fin de fase: Revisión de contrato ===
+
+Artefacto producido:
+- .ai/tasks/active/<TASK_ID>-<slug>/06-review.json
+
+Veredicto: approve | revise | reject
+
+Pasos siguientes (los despacha el orquestador, NO yo):
+- Si Veredicto == approve:
+  1. [Obligatorio] /q-accept <TASK_ID> — compuerta de aceptación final antes del merge humano.
+- Si Veredicto == revise:
+  1. [Obligatorio] /q-implement <TASK_ID> — aplicar los fix_tasks listados en 06-review.json.
+  2. [Obligatorio después] /q-verify <TASK_ID> y luego /q-review <TASK_ID> de nuevo para cerrar el loop.
+- Si Veredicto == reject:
+  1. [Obligatorio] Escalación humana — la implementación o el contrato tienen defectos fundamentales. Considerá quorum task back <TASK_ID> hasta el punto correcto y rediseñar.
+
+Si querés volver atrás:
+- quorum task back <TASK_ID> — borra worktree y rama (perdés commits no mergeados).
+
+ESPERANDO RESPUESTA DEL USUARIO...
 ```
 
-Auto-chaining into the next phase violates Quorum Rule #9 (Skills Are Single-Phase Units) and Rule #7 (Cost Bounded by Policy, Not Trust).
+Auto-encadenar viola la Regla #9.

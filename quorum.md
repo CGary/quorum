@@ -105,84 +105,170 @@ This prevents artifact sprawl: observability goes to trace, validation evidence 
 - **Goal**: Convert human intent into a logical invariant map.
 - **Output**: `00-spec.yaml`.
 - **Logic**: Identify what must be true, what must not change, and success criteria. No code paths yet.
+- **Forward auto-transition**: on success, runs `quorum task blueprint <TASK_ID>` (inbox → active).
 
-### Phase 2: Blueprint (Surgical Cartography)
+### Phase 1.5: Decompose (Optional, large features only)
+
+- **Actor**: `q-decompose` (Decomposer).
+- **Goal**: When the spec describes a feature too large for one implementation pass, split it into N child tasks (`FEAT-001-a`, `-b`, ...) that each go through their own full lifecycle.
+- **Output**: `decomposition: [...]` field appended to the parent's `00-spec.yaml`; child specs materialised in `inbox/`.
+- **Logic**: Apply the heuristic in `.agents/policies/decomposition.yaml`. Propose a split, ask the human to confirm, persist, and auto-run `quorum task split <PARENT_ID>`.
+- **Forward auto-transition**: on confirmation, runs `quorum task split <PARENT_ID>`.
+- **When to skip**: the heuristic raises zero signals or the human declines. The flow continues as a single task.
+
+### Phase 2: Blueprint + Contract (Surgical Cartography)
 
 - **Actor**: `q-blueprint` (Surgical Cartographer).
 - **Goal**: Explore the codebase and design the surgical path.
-- **Output**: `01-blueprint.yaml`.
+- **Output**: `01-blueprint.yaml` + `02-contract.yaml` + risk events appended to `07-trace.json`.
 - **Logic**: Map affected files, symbols, dependencies, existing tests, and required new scenarios.
+- **Forward auto-transition**: on success, runs `quorum task start <TASK_ID>` (creates worktree + branch).
 
-### Phase 3: Contract (Operational Authority)
+### Phase 2.5: Analyze (Optional Consistency Gate)
 
-- **Actor**: Automation derived from Blueprint.
-- **Goal**: Generate the strict execution contract.
-- **Output**: `02-contract.yaml`.
-- **Logic**: Define `touch`, `forbid`, fast `verify.commands`, limits, execution mode, and retry policy.
+- **Actor**: `q-analyze` (Artifact Consistency Analyst).
+- **Goal**: Verify that `00-spec.yaml`, `01-blueprint.yaml`, and `02-contract.yaml` agree before implementation.
+- **Output**: Read-only report in the agent response (no persisted artifact).
+- **Logic**: Detect missing tests, contract/blueprint mismatches, slow BDD commands placed in `verify.commands`, and risk/trace drift.
+- **Forward auto-transition**: none.
 
-### Phase 4: Execute (Surgical Implementation)
+### Phase 3: Implement (Surgical Implementation)
 
-- **Actor**: Executor L0.
-- **Goal**: Implementation and fast verification.
-- **Output**: Verified diff, `04-implementation-log.yaml`, `05-validation.json`, and `07-trace.json`.
-- **Logic**: Operate in a Git worktree. Retries are controlled by dispatcher policy and `verify.commands` failures.
+- **Actor**: `q-implement` (Surgical Executor).
+- **Goal**: Implement exactly what `02-contract.yaml` authorizes.
+- **Output**: Commit(s) on `ai/<TASK_ID>` inside `worktrees/<TASK_ID>/` and `04-implementation-log.yaml`.
+- **Logic**: Operate only inside the worktree, touch only contract-authorized paths, and stop without running `verify.commands`.
+- **Forward auto-transition**: none.
 
-### Phase 5: Review and Merge Gate
+### Phase 4: Verify (Functional Verification)
 
-- **Actor**: Reviewer agent + human.
-- **Goal**: Verify contract compliance and acceptance.
-- **Output**: `06-review.json` and human merge decision.
-- **Logic**: The system commits agent work. The human runs BDD acceptance and performs the merge.
+- **Actor**: `q-verify` (Functional Verifier).
+- **Goal**: Execute the contract's fast `verify.commands`.
+- **Output**: `05-validation.json`.
+- **Logic**: Capture commands, exit codes, duration, output excerpts, and `error_category` when failures occur. Do not edit code.
+- **Forward auto-transition**: none.
+
+### Phase 5: Review (Contract Compliance)
+
+- **Actor**: `q-review` (Contract Reviewer).
+- **Goal**: Review the diff against the spec, blueprint, contract, and validation evidence.
+- **Output**: `06-review.json`.
+- **Logic**: Approve only when validation passed and the diff stays inside the contract.
+- **Forward auto-transition**: none.
+
+### Phase 6: Accept + Human Merge Gate
+
+- **Actor**: `q-accept` (Merge Gatekeeper) + human.
+- **Goal**: Decide whether the task is ready for human BDD, inspection, and merge.
+- **Output**: `ready|not_ready` verdict in the agent response; human merge decision.
+- **Logic**: The system commits agent work. The human runs BDD acceptance (if defined) and performs the merge. The CLI cleanup happens after merge.
+- **Forward auto-transition**: none.
+
+### Phase 7: Memory Capture (Optional)
+
+- **Actor**: `q-memory` (Learning Curator).
+- **Goal**: Preserve durable decisions, patterns, or lessons after merge or meaningful failure.
+- **Output**: Curated entries under `memory/{decisions,patterns,lessons}/`.
+- **Logic**: Human-invoked only; no automatic ingestion.
+- **Forward auto-transition**: none.
 
 ---
 
-## 🔒 Skill Modularity: Single-Phase Skills
+## 🔒 Skill Modularity: Single-Phase Skills with Forward Auto-Transition
 
-Each `/q-*` skill is a **single-phase atomic unit**. The lifecycle phases above (Specify, Blueprint, Contract, Execute, Review, Accept, Memorize) are **not** a chain that one agent runs end-to-end. They are independent dispatches.
+Cada `/q-*` skill es una **unidad atómica de una sola fase**. Las fases del ciclo (Specify, Decompose, Blueprint, Analyze, Implement, Verify, Review, Accept, Memorize) **no** son una cadena que un mismo agente recorre de punta a punta. Son despachos independientes hechos por el orquestador.
 
-### The rule
+### Regla base
 
-A skill MUST execute exactly its declared phase and STOP. It MUST NOT auto-activate the next skill, MUST NOT call another skill on the user's behalf, and MUST NOT continue past its own boundary even if the user accepted its output.
+Un skill EJECUTA solo su fase declarada y para. NO activa al siguiente skill, NO llama a otro skill por cuenta del usuario, NO sigue después de su frontera aunque el usuario haya aceptado la salida.
 
-| Skill | Single-phase output | What the skill MUST NOT do |
+### Excepción acotada: auto-transición de estado hacia adelante
+
+Para reducir fricción operativa, los skills que terminan una fase con éxito **SÍ** ejecutan automáticamente la transición de estado del CLI hacia adelante (no hacia atrás, no hacia otro skill). Las transiciones autorizadas son sólo estas tres:
+
+| Skill | Auto-ejecuta al terminar con éxito | Efecto |
 | :--- | :--- | :--- |
-| `q-brief` | `00-spec.yaml` | Activate `q-blueprint`. Suggest contract details. Touch source code. |
-| `q-blueprint` | `01-blueprint.yaml` + `02-contract.yaml` | Activate `q-analyze` or `q-implement`. Run `verify.commands`. |
-| `q-analyze` | Read-only consistency report | Modify any artifact. Activate `q-blueprint` to fix issues. |
-| `q-implement` | Diff in worktree + `04-implementation-log.yaml` | Activate `q-verify`. Run BDD. Decide retry. |
-| `q-verify` | `05-validation.json` | Edit source. Activate `q-review`. Decide retry. |
-| `q-review` | `06-review.json` | Edit source. Activate `q-accept`. Merge. |
-| `q-accept` | Ready/not-ready verdict | Merge. Move task to `done/`. Activate `q-memory`. |
-| `q-memory` | Curated `memory/*.json` | Activate any other skill. Edit source code. |
-| `q-status` | Read-only state report | Modify artifacts. Activate any other skill. |
+| `/q-brief` | `quorum task blueprint <TASK_ID>` | Mueve la tarea de `inbox/` a `active/` |
+| `/q-decompose` | `quorum task split <PARENT_ID>` | Materializa hijos en `inbox/` desde el campo `decomposition` |
+| `/q-blueprint` | `quorum task start <TASK_ID>` | Crea worktree y rama `ai/<TASK_ID>` |
 
-### Handoff is text, not action
+Los demás skills (`/q-analyze`, `/q-implement`, `/q-verify`, `/q-review`, `/q-accept`, `/q-memory`, `/q-status`) **no** tienen transición de estado para auto-ejecutar.
 
-A skill's terminal output MUST end with a single line of the form:
+La excepción está bajo control:
 
-```text
-Next phase: /q-<next> <TASK_ID> — dispatched separately.
+- Solo se autorizan transiciones **forward**. La reversión (`quorum task back`) la decide y la ejecuta exclusivamente el humano.
+- Si la fase termina en `BLOCKED`, el skill **no** corre la transición.
+- La transición no implica activar otro skill: el siguiente despacho lo hace el orquestador.
+
+### Tabla de fronteras por skill
+
+| Skill | Fase única | Auto-transición forward | Lo que el skill SIGUE sin poder hacer |
+| :--- | :--- | :--- | :--- |
+| `q-brief` | Specify | `quorum task blueprint` | Activar `q-blueprint`. Pre-llenar 01/02. |
+| `q-decompose` | Decomposition | `quorum task split` | Activar `q-brief` por los hijos. Inventar invariantes nuevas. |
+| `q-blueprint` | Blueprint + Contract | `quorum task start` | Activar `q-analyze`/`q-implement`. Correr `verify.commands`. |
+| `q-analyze` | Consistency Analysis | (ninguna) | Modificar artefactos. Activar `q-blueprint`. |
+| `q-implement` | Implementation | (ninguna) | Activar `q-verify`. Correr BDD. Decidir retry. |
+| `q-verify` | Verification | (ninguna) | Editar código. Activar `q-review`. Decidir retry. |
+| `q-review` | Contract Review | (ninguna) | Editar código. Activar `q-accept`. Mergear. |
+| `q-accept` | Merge Gate | (ninguna) | Mergear. Mover a `done/`. Activar `q-memory`. |
+| `q-memory` | Memory Capture | (ninguna) | Activar cualquier otro skill. Editar código. |
+| `q-status` | Read-only Status | (ninguna) | Modificar artefactos. Activar cualquier otro skill. |
+
+### Handoff es información explícita + indicador de espera
+
+El cierre de cada skill debe (1) declarar la transición ejecutada (si la hubo), (2) enumerar los siguientes pasos para el orquestador con cada uno marcado como `[Obligatorio]` o `[Opcional]`, (3) referenciar `quorum task back <ID>` como vía de rollback humana, y (4) terminar con la última línea exacta `ESPERANDO RESPUESTA DEL USUARIO...` (mayúsculas, tres puntos, sin texto después). Los ejemplos pueden estar en bloques Markdown dentro de la documentación, pero el output real del agente no debe dejar un cierre de bloque después del indicador.
+
+Las salidas que solo dicen "Next phase: X" sin enumeración explícita están deprecadas. La forma canónica está documentada en cada `SKILL.md` bajo `## 🛑 Handoff`.
+
+### Por qué la modularidad sigue siendo no-negociable
+
+1. **Control de costos.** Cada fase puede enrutarse a un nivel de modelo distinto (`config.yaml` tiers 0/1/2). Un modelo barato puede correr `q-status` o `q-brief`; uno potente queda reservado para `q-implement` en tareas de alto riesgo. Auto-encadenar fases adentro de un mismo agente fuerza toda la pipeline a un solo tier — generalmente el más caro — y quema tokens que la política nunca autorizó.
+2. **Autoridad de policy (Regla #7).** Routing, retries y escalaciones las decide el dispatcher, no el agente. Un skill que activa al siguiente está tomando una decisión de routing que no tiene autoridad para tomar.
+3. **Checkpoints humanos.** Cada transición de artefacto (`00 → 01`, `01 → contrato validado`, `validation → review`, `review → accept`) es un punto de inspección. Auto-encadenar colapsa todos los checkpoints en uno y le quita al humano la posibilidad de intervenir antes del próximo despacho.
+4. **Aislamiento de fallos.** Si una fase falla, sólo esa fase falla. Auto-encadenar propaga un mal spec a un mal blueprint a una mala implementación.
+5. **Idempotencia.** Un skill modular se puede re-correr sobre una tarea en cualquier estado sin rehacer fases anteriores. Una ejecución encadenada no.
+
+### Anti-patrones (rechazados)
+
+- Un skill que dice *"¿procedo a /q-blueprint?"* y procede sin esperar respuesta.
+- Un skill que llama `Skill`/`Activate` sobre otro `/q-*` desde adentro de su ejecución.
+- Un skill que ejecuta una transición CLI **fuera** de las tres autorizadas en la tabla de arriba.
+- Un skill que ejecuta `quorum task back` por su cuenta. La reversión es exclusivamente humana.
+- Un skill "wrapper" que orquesta el ciclo completo. El orquestador ES el ciclo; no se envuelve en un skill.
+- Prompts multifase ("actuá como q-brief y después como q-blueprint") — separalos en dos despachos.
+
+Este principio es vinculante en todo skill actual y futuro de Quorum, y está reforzado por la Regla Inmutable #9.
+
+### Decomposition: una feature ≠ una sola tarea
+
+Cuando el spec describe una feature lo suficientemente grande como para superar la capacidad de un LLM modesto en una sola sesión, `/q-decompose <PARENT_ID>` la divide en N hijos independientes (`<PARENT_ID>-a`, `<PARENT_ID>-b`, ...) que recorren cada uno **su propio ciclo completo** (`/q-brief` → `/q-blueprint` → `/q-analyze` opcional → `/q-implement` → `/q-verify` → `/q-review` → `/q-accept` → merge humano → `quorum task clean` → `/q-memory`), cada uno en su propio worktree y rama `ai/<PARENT_ID>-<x>`.
+
+Reglas:
+
+- El padre permanece en `active/` como coordinador y nunca se implementa directamente. Sus hijos referencian `parent_task: <PARENT_ID>`.
+- Cada hijo merge a `main` independientemente cuando está `ready`. No hay rama integradora.
+- Las dependencias entre hijos se modelan vía el campo `depends_on` en cada hijo. El orquestador respeta el orden topológico al despachar.
+- La heurística de splitting está en `.agents/policies/decomposition.yaml` (señales adaptadas de `spec-kitty.tasks`: 3-7 subtareas atómicas por implementación, máx 10, signals por concerns ortogonales / fases mezcladas / cross-runtime / risk alto).
+- El skill nunca decompone silenciosamente: aplica la heurística, propone una decomposition concreta y pide confirmación humana antes de persistir.
+- `quorum task split <PARENT_ID>` materializa los hijos de forma idempotente y valida que el padre esté en `active/`, que no sea una tarea hija, que los hijos tengan IDs `<PARENT_ID>-a/b/c`, que `depends_on` apunte a hermanos existentes y que no haya ciclos.
+- `quorum task clean <PARENT_ID>` no archiva un padre con `decomposition` hasta que todos sus hijos estén en `done/`.
+
+### Spec fields for decomposition
+
+`00-spec.yaml` acepta estos campos opcionales:
+
+```yaml
+parent_task: FEAT-001        # sólo en hijos, e.g. FEAT-001-a
+depends_on:                  # sólo en hijos cuando necesitan hermanos previos
+  - FEAT-001-a
+decomposition:               # sólo en padres umbrella, escrito por /q-decompose
+  - child_id: FEAT-001-a
+    summary: Primera slice implementable de forma independiente.
+    depends_on: []
 ```
 
-This is **information for the orchestrator** (the human or an external runtime), not an instruction the skill is allowed to execute. The orchestrator decides which agent runs the next phase and at which executor level.
-
-### Why modularity is non-negotiable
-
-1. **Cost control.** Each phase can be routed to a different executor level (`config.yaml` tiers 0/1/2). A cheap model can run `q-status` or `q-brief`; a high-tier model is reserved for `q-implement` on high-risk tasks. Auto-chaining inside one agent forces the entire pipeline onto a single model tier — usually the most expensive one — and burns tokens that policy never authorized.
-2. **Policy authority (Rule #7).** Routing, retries, and escalations are decided by the dispatcher, not by the agent. A skill that auto-activates the next phase is making a routing decision it has no authority to make.
-3. **Human checkpoints.** Each artifact transition (`00 → 01`, `01 → contract validation`, `validation → review`, `review → accept`) is an inspection point. Auto-chaining collapses all checkpoints into one and removes the human's ability to intervene before the next dispatch.
-4. **Failure isolation.** When one phase fails, only that phase fails. Auto-chaining propagates a bad spec into a bad blueprint into a bad implementation, and the trace is harder to read.
-5. **Idempotency.** A modular skill can be re-run on a task in any state without redoing earlier phases. A chained execution cannot.
-
-### Anti-patterns (rejected)
-
-- A skill that says *"shall I proceed to /q-blueprint?"* and then proceeds without an explicit user response.
-- A skill that calls `Skill` / `Activate` for another `/q-*` from inside its own execution.
-- A skill that runs `agents task start` or `quorum task start` itself unless its declared phase is "Aislamiento".
-- A "do-everything" wrapper skill that orchestrates the full lifecycle. The orchestrator IS the lifecycle; do not wrap it inside a skill.
-- Multi-phase prompts ("act as q-brief and then q-blueprint") — split them into two dispatches.
-
-This principle is binding on every current and future Quorum skill, and is enforced via Immutable Rule #9.
+Todos los schemas de artefactos por tarea (`spec`, `blueprint`, `contract`, `validation`, `review`, `trace`) aceptan IDs hijos con sufijo de una letra (`FEAT-001-a`). Esto permite que cada hijo tenga su propio worktree, branch, verify, review y accept.
 
 ---
 
@@ -394,7 +480,7 @@ This preserves:
    No spec, blueprint, or contract proves functionality. Only `verify.commands` do.
 
 9. **Skills Are Single-Phase Units**  
-   Every `/q-*` skill executes exactly one declared phase and stops. Skills never auto-activate other skills, never chain into the next phase, and never make routing decisions. The orchestrator (human or external runtime) dispatches each phase independently. See "Skill Modularity".
+   Every `/q-*` skill executes exactly one declared phase and stops. Skills never auto-activate other skills, never chain into the next phase, and never make routing decisions. They MAY auto-execute one authorized forward state-transition CLI (the three listed in "Skill Modularity"); rollback (`quorum task back`) is exclusively human. The orchestrator (human or external runtime) dispatches each phase independently.
 
 ---
 
@@ -412,9 +498,16 @@ project/
 │   │   ├── trace.schema.json
 │   │   └── memory.schema.json
 │   ├── prompts/         # Role-specific system instructions
-│   ├── policies/        # Risk and routing logic
+│   ├── policies/        # Risk, routing, and decomposition logic
+│   │   ├── risk.yaml
+│   │   ├── routing.yaml
+│   │   └── decomposition.yaml
 │   ├── config.yaml      # Model assignments, cost ceilings, retry policies
-│   └── skills/          # Quorum and Spec-kitty skills
+│   ├── templates/
+│   │   ├── 00-spec.yaml # includes optional parent_task/decomposition/depends_on examples
+│   │   ├── 01-blueprint.yaml
+│   │   └── 02-contract.yaml
+│   └── skills/          # Quorum skills: q-brief, q-decompose, q-blueprint, ...
 ├── .ai/tasks/
 │   ├── inbox/           # Specs and blueprints in draft
 │   ├── active/          # 00-spec.yaml, 01-blueprint.yaml, 02-contract.yaml,

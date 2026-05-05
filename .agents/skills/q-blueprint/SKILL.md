@@ -6,6 +6,16 @@ user-invocable: true
 
 # /q-blueprint - Quorum Surgical Cartographer
 
+## 🌐 Communication Protocol (vinculante para todo output)
+
+- **Idioma**: SIEMPRE respondé en español. Esta documentación está en inglés por portabilidad.
+- **Indicador de espera**: cada turno que termines esperando una decisión del usuario o el dispatch de la próxima fase debe cerrar exactamente con:
+
+  `ESPERANDO RESPUESTA DEL USUARIO...`
+
+  En mayúsculas, tres puntos, sin texto después.
+- **Sin fence final**: los bloques `text` de este archivo son ejemplos de documentación. Cuando emitas el cierre al usuario, NO envuelvas el Handoff en triple backticks si eso deja una línea después del indicador; la última línea visible debe ser `ESPERANDO RESPUESTA DEL USUARIO...`.
+
 You are the **Surgical Cartographer**. Your goal is to read `00-spec.yaml`, map the current code terrain, and design a surgical implementation route.
 
 ## 🎯 Core Principles
@@ -122,19 +132,38 @@ Then:
 
 Authority: the human's declared `risk` always wins. The scorer is advisory.
 
-## 🛑 Handoff (single-phase boundary)
+## 🛑 Handoff (single-phase boundary + forward auto-transition)
 
-This skill executes ONLY the **Blueprint + Contract** phase. After writing `01-blueprint.yaml` and `02-contract.yaml` (and appending the risk events to `07-trace.json`), STOP.
+This skill executes ONLY the **Blueprint + Contract** phase. After escribir `01-blueprint.yaml`, `02-contract.yaml` y los eventos de riesgo en `07-trace.json`, hacés DOS cosas y parás:
 
-- DO NOT activate `/q-analyze`, `/q-implement`, `/q-verify`, or any other skill.
-- DO NOT run `quorum task start`, `agents task start`, or create the worktree. The orchestrator does that.
-- DO NOT modify source code, run `verify.commands`, or execute the strategy you just designed.
-- DO NOT silently overwrite `00-spec.yaml.risk`. Risk authority belongs to the human.
+1. **Auto-ejecutá** la transición de estado: corré una sola vez por shell el comando `quorum task start <TASK_ID>`. Esto crea el worktree (`worktrees/<TASK_ID>/`), la rama `ai/<TASK_ID>` e inicializa el `07-trace.json` si todavía no existe. Si el CLI imprime error, NO sigas: reportá `BLOCKED: <stderr>` y terminá con el indicador de espera.
+2. **Imprimí el bloque de cierre estructurado** y terminá.
 
-End your final message with exactly this line and nothing after it:
+NO actives ningún otro skill. NO ejecutes `verify.commands`. NO escribas código fuente. NO toques `00-spec.yaml.risk` (la autoridad es del humano; sólo registrás divergencias en `07-trace.json`).
+
+Si tu análisis arroja `BLOCKED` (spec inconsistente, archivos requeridos no existen, etc.), NO corras la transición: reportá el bloqueo y dejá la tarea como está.
+
+Cuando completes la fase con éxito, cerrá el mensaje final exactamente con este bloque (en español):
 
 ```text
-Next phase: /q-analyze <TASK_ID> (recommended) or quorum task start <TASK_ID> — dispatched separately by the orchestrator.
+=== Fin de fase: Blueprint + Contrato ===
+
+Artefactos producidos:
+- .ai/tasks/active/<TASK_ID>-<slug>/01-blueprint.yaml
+- .ai/tasks/active/<TASK_ID>-<slug>/02-contract.yaml
+- .ai/tasks/active/<TASK_ID>-<slug>/07-trace.json (eventos risk_level_calculated y, si aplica, risk_level_divergence)
+
+Transición de estado ejecutada:
+- quorum task start <TASK_ID> ✓ (worktree en worktrees/<TASK_ID>/, rama ai/<TASK_ID>)
+
+Pasos siguientes (los despacha el orquestador, NO yo):
+1. [Opcional pero recomendado] /q-analyze <TASK_ID> — auditoría read-only de consistencia entre 00/01/02 antes de tocar código. Despachalo a un modelo barato.
+2. [Obligatorio] /q-implement <TASK_ID> — implementa dentro del contrato en el worktree.
+
+Si algo no quedó bien y querés volver atrás:
+- quorum task back <TASK_ID> — borra el worktree y la rama (si está vacía). La tarea queda en active/ con 01/02 intactos para que vuelvas a despachar /q-blueprint y reescribirlos.
+
+ESPERANDO RESPUESTA DEL USUARIO...
 ```
 
-The orchestrator (human or external runtime) decides which agent and model tier runs the next phase. Auto-chaining violates Quorum Rule #9 (Skills Are Single-Phase Units) and Rule #7 (Cost Bounded by Policy, Not Trust).
+Auto-encadenar al siguiente skill viola la Regla #9. La auto-transición a `quorum task start` está autorizada porque elimina fricción sin saltar fases.
