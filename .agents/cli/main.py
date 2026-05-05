@@ -33,10 +33,6 @@ def main():
     artifact_save_parser.add_argument("task_id", help="Task ID")
     artifact_save_parser.add_argument("artifact_path", help="Artifact path relative to the task directory")
 
-    # task run
-    run_parser = task_subparsers.add_parser("run", help="Run a task")
-    run_parser.add_argument("task_id", help="Task ID")
-
     # task status
     status_parser = task_subparsers.add_parser("status", help="Get task status")
     status_parser.add_argument("task_id", help="Task ID")
@@ -75,8 +71,6 @@ def main():
             task.start(args.task_id)
         elif args.subcommand == "artifact-save":
             task.artifact_save(args.task_id, args.artifact_path)
-        elif args.subcommand == "run":
-            task.run(args.task_id)
         elif args.subcommand == "status":
             task.status(args.task_id)
         elif args.subcommand == "list":

@@ -294,14 +294,6 @@ def start_task(task_id):
         }
         save_artifact(trace_path, trace)
     print(f"[+] Task {task_id} initialized and worktree ready.")
-def run_task(task_id):
-    # This remains an MVP stub, now consuming 01-blueprint.yaml + 02-contract.yaml.
-    task_dir, loc = find_task_dir(task_id, ["active"])
-    if not task_dir:
-        print(f"[!] Task {task_id} not found in active.")
-        return
-    print(f"[*] Running task {task_id} based on 01-blueprint.yaml and 02-contract.yaml...")
-    # MVP Execution logic would go here
 def show_status(task_id):
     task_dir, loc = find_task_dir(task_id)
     if not task_dir:
