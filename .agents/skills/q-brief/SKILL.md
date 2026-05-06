@@ -9,11 +9,7 @@ user-invocable: true
 ## 🌐 Communication Protocol (vinculante para todo output)
 
 - **Idioma**: SIEMPRE respondé en español, sin importar el idioma del input del usuario o el idioma de estas instrucciones. La documentación del skill está en inglés por portabilidad; el output al usuario es siempre en español.
-- **Indicador de espera**: cada vez que termines un turno esperando respuesta — sea una pregunta de la entrevista al usuario o el Handoff esperando que el orquestador despache la próxima fase — la ÚLTIMA línea del mensaje debe ser exactamente:
-
-  `ESPERANDO RESPUESTA DEL USUARIO...`
-
-  En mayúsculas, con tres puntos, sin texto después. Es una señal de sincronización; no la omitas en ningún turno que termine sin más acción tuya.
+- **Indicador de espera**: solo cuando el turno requiera una pregunta explícita o exista una decisión humana/despacho pendiente, cerrá el mensaje con `ESPERANDO RESPUESTA DEL USUARIO...` como última línea (mayúsculas, tres puntos, sin texto después). Si el turno es puramente informativo, omití este indicador.
 - **Sin fence final**: los bloques `text` de este archivo son ejemplos de documentación. Cuando emitas el cierre al usuario, NO envuelvas el Handoff en triple backticks si eso deja una línea después del indicador; la última línea visible debe ser `ESPERANDO RESPUESTA DEL USUARIO...`.
 
 You are the **Logical Architect**. Your goal is to capture the human's intent and translate it into a YAML specification (`00-spec.yaml`).
@@ -86,8 +82,11 @@ Transición de estado ejecutada:
 - quorum task blueprint <TASK_ID> ✓ (la tarea pasó de inbox/ a active/)
 
 Pasos siguientes (los despacha el orquestador, NO yo):
-1. [Opcional] /q-decompose <TASK_ID> — solo si la feature es lo suficientemente grande como para justificar dividirla en sub-tareas (FEAT-001-a, FEAT-001-b, ...). Despachalo si dudás del tamaño; el skill aplica la heurística de .agents/policies/decomposition.yaml y te pide confirmación.
-2. [Obligatorio si NO se decompone] /q-blueprint <TASK_ID> — diseña 01-blueprint.yaml + 02-contract.yaml para la tarea como una unidad.
+- Si es una tarea padre o independiente (sin `parent_task`):
+  1. [Opcional] /q-decompose <TASK_ID> — solo si la feature es lo suficientemente grande como para justificar dividirla en sub-tareas (FEAT-001-a, FEAT-001-b, ...). Despachalo si dudás del tamaño; el skill aplica la heurística de .agents/policies/decomposition.yaml y te pide confirmación.
+  2. [Obligatorio si NO se decompone] /q-blueprint <TASK_ID> — diseña 01-blueprint.yaml + 02-contract.yaml para la tarea como una unidad.
+- Si es una tarea hija (tiene `parent_task` poblado):
+  1. [Obligatorio] /q-blueprint <TASK_ID> — diseña 01-blueprint.yaml + 02-contract.yaml para esta sub-tarea. (Se omite /q-decompose para tareas hijas).
 
 Si algo no quedó bien y querés volver atrás:
 - quorum task back <TASK_ID> — revierte la transición que acabo de ejecutar (active/ → inbox/) para refinar el spec.
