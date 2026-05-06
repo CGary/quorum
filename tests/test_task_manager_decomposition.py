@@ -69,8 +69,8 @@ def test_split_task_materialises_valid_children(monkeypatch, tmp_path):
 
     task_manager.split_task("FEAT-001")
 
-    child_a = yaml.safe_load((ai_tasks / "inbox" / "FEAT-001-a-new-spec" / "00-spec.yaml").read_text())
-    child_b = yaml.safe_load((ai_tasks / "inbox" / "FEAT-001-b-new-spec" / "00-spec.yaml").read_text())
+    child_a = yaml.safe_load((ai_tasks / "inbox" / "FEAT-001-a" / "00-spec.yaml").read_text())
+    child_b = yaml.safe_load((ai_tasks / "inbox" / "FEAT-001-b" / "00-spec.yaml").read_text())
     assert child_a["parent_task"] == "FEAT-001"
     assert child_a["risk"] == "high"
     assert child_a["constraints"] == ["No new runtime dependency."]
@@ -95,7 +95,7 @@ def test_split_task_requires_active_parent(monkeypatch, tmp_path, capsys):
 
     out = capsys.readouterr().out
     assert "must be in active/" in out
-    assert not (ai_tasks / "inbox" / "FEAT-002-a-new-spec").exists()
+    assert not (ai_tasks / "inbox" / "FEAT-002-a").exists()
 
 
 def test_clean_parent_waits_for_children_done(monkeypatch, tmp_path, capsys):

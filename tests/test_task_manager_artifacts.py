@@ -43,7 +43,7 @@ def _setup_repo(monkeypatch, tmp_path):
     return root, ai_tasks
 def test_cli_artifact_save_rejects_invalid_blueprint_and_preserves_existing(monkeypatch, tmp_path, capsys):
     root, ai_tasks = _setup_repo(monkeypatch, tmp_path)
-    task_dir = ai_tasks / "active" / "FEAT-001-new-spec"
+    task_dir = ai_tasks / "active" / "FEAT-001"
     task_dir.mkdir(parents=True, exist_ok=True)
     (task_dir / "00-spec.yaml").write_text(yaml.safe_dump({
         "task_id": "FEAT-001",
@@ -128,8 +128,11 @@ def test_initialize_and_start_keep_spec_and_contract_validation_paths(monkeypatc
     task_dir = task_manager.initialize_specify("FEAT-010")
     spec = yaml.safe_load((task_dir / "00-spec.yaml").read_text())
     assert spec["task_id"] == "FEAT-010"
-    active_dir = ai_tasks / "active" / "FEAT-010-new-spec"
-    task_dir.rename(active_dir)
+    assert task_dir.name == "FEAT-010"
+    active_dir = ai_tasks / "active" / "FEAT-010"
+    # In some test setups task_dir might already be in active, or we move it
+    if not active_dir.exists():
+        task_dir.rename(active_dir)
     contract = {
         "task_id": "FEAT-010",
         "summary": "valid contract",
