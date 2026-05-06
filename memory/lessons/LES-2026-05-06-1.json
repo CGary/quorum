@@ -1,0 +1,10 @@
+{
+  "id": "LES-2026-05-06-1",
+  "source_task": "FEAT-005-b",
+  "type": "lesson",
+  "title": "Aislamiento contractual para evitar filtración de funcionalidades",
+  "context": "En tareas descompuestas de un mismo padre (FEAT-005), existe el riesgo de implementar criterios de aceptación que pertenecen a otras tareas hermanas.",
+  "content": "El uso estricto del bloque 'forbid' en 02-contract.yaml permitió delimitar que FEAT-005-b solo debía ocuparse del naming slugless, prohibiendo explícitamente la implementación de lógica de visualización (mapas ASCII) o reintentos que corresponden a otras ramas de la descomposición. Esto asegura que cada PR sea pequeño, revisable y cumpla exactamente su propósito.",
+  "related": ["FEAT-005-b"],
+  "created_at": "2026-05-06"
+}

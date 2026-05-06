@@ -1,0 +1,10 @@
+{
+  "id": "PAT-2026-05-06-1",
+  "source_task": "FEAT-005-a",
+  "type": "pattern",
+  "title": "Desacoplamiento normativo mediante ADRs para cambios en agentes",
+  "context": "Los cambios de alto impacto en el comportamiento de los agentes deben formalizarse antes de la implementación técnica.",
+  "content": "Establecer el patrón de usar ADRs para definir la autoridad y fronteras de los agentes (como el retry de tareas) antes de implementar la lógica en código. Esto asegura alineación humana sobre el 'qué' y el 'por qué' del comportamiento del agente, separando la norma de la ejecución.",
+  "related": ["FEAT-005-a"],
+  "created_at": "2026-05-06"
+}

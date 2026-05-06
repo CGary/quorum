@@ -1,0 +1,10 @@
+{
+  "id": "DEC-2026-05-06-2",
+  "source_task": "FEAT-005-b",
+  "type": "decision",
+  "title": "Eliminación de sufijos slug en directorios, ramas y worktrees",
+  "context": "El uso de sufijos como '-new-spec' en los nombres de directorios generaba redundancia y complejidad innecesaria en la resolución de rutas.",
+  "content": "Se ha decidido usar exclusivamente el task_id como nombre de los directorios de tareas en inbox/, active/, done/ y failed/, así como para los nombres de las ramas de git (ai/<ID>) y directorios de worktrees (worktrees/<ID>). El task_id en 00-spec.yaml sigue siendo la fuente de verdad definitiva.",
+  "related": ["FEAT-005", "FEAT-005-b"],
+  "created_at": "2026-05-06"
+}

@@ -1,0 +1,10 @@
+{
+  "id": "DEC-2026-05-06-1",
+  "source_task": "FEAT-005-a",
+  "type": "decision",
+  "title": "Política de retry autorizado para tareas hijas en /q-implement",
+  "context": "Las tareas complejas descompuestas en hijos requieren resiliencia ante fallos transitorios sin violar la modularidad de skills.",
+  "content": "Se formaliza mediante ADR 0001 que /q-implement puede reintentar tareas hijas fallidas siempre que el retry sea iniciado externamente (orquestador/humano), mantenga 07-trace.json como append-only, y no automatice merge ni rollback manual. Esto preserva la Regla #7 y la modularidad del sistema.",
+  "related": ["FEAT-005-a", "ADR 0001"],
+  "created_at": "2026-05-06"
+}
