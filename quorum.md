@@ -139,7 +139,7 @@ This prevents artifact sprawl: observability goes to trace, validation evidence 
 - **Goal**: Implement exactly what `02-contract.yaml` authorizes.
 - **Output**: Commit(s) on `ai/<TASK_ID>` inside `worktrees/<TASK_ID>/` and `04-implementation-log.yaml`.
 - **Logic**: Operate only inside the worktree, touch only contract-authorized paths, and stop without running `verify.commands`.
-- **Authorized Retry**: For **child tasks only**, `/q-implement` may be authorized by an ADR (e.g., ADR 0001) to retry a previously failed implementation. This retry must be initiated by the dispatcher/orchestrator, preserve `07-trace.json` as append-only, and never auto-merge nor auto-rollback.
+- **Authorized Retry**: Para una **hija fallida**, `/q-implement` puede ser autorizado por un ADR (ej. ADR 0001) para reintentar una implementación previa. Este retry debe ser iniciado por el despachador/orquestador, preservar `07-trace.json` como append-only, y nunca auto-mergear ni auto-rollbackear. Respeta la **Regla #7**.
 - **Forward auto-transition**: none.
 
 ### Phase 4: Verify (Functional Verification)
