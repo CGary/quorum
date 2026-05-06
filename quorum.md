@@ -139,6 +139,7 @@ This prevents artifact sprawl: observability goes to trace, validation evidence 
 - **Goal**: Implement exactly what `02-contract.yaml` authorizes.
 - **Output**: Commit(s) on `ai/<TASK_ID>` inside `worktrees/<TASK_ID>/` and `04-implementation-log.yaml`.
 - **Logic**: Operate only inside the worktree, touch only contract-authorized paths, and stop without running `verify.commands`.
+- **Authorized Retry**: For **child tasks only**, `/q-implement` may be authorized by an ADR (e.g., ADR 0001) to retry a previously failed implementation. This retry must be initiated by the dispatcher/orchestrator, preserve `07-trace.json` as append-only, and never auto-merge nor auto-rollback.
 - **Forward auto-transition**: none.
 
 ### Phase 4: Verify (Functional Verification)
@@ -386,7 +387,7 @@ When a task does not satisfy its contract, Quorum already has a structured chain
 
 - **Per-task forbiddance**: `02-contract.yaml.forbid.behaviors` is the binding list of patterns the executor must not introduce. Lessons from past failures of similar tasks belong here.
 - **Cross-task lessons**: `memory/lessons/` (with `q-memory`) captures durable failure modes. The `anti_patterns` field on every memory entry records approaches rejected with technical justification (see Memory Governance).
-- **Retry policy**: `02-contract.yaml.retry_policy.max_attempts` (range 0-5) caps retries. The dispatcher (when active) is the only authority to retry; the agent never decides.
+- **Retry policy**: `02-contract.yaml.retry_policy.max_attempts` (range 0-5) caps retries. The dispatcher (when active) is the only authority to retry; the agent never decides. **Authorized Child Retry**: Failed child tasks may be retried by `/q-implement` if authorized by ADR 0001. This preserves the append-only nature of `07-trace.json` and does not automate human-only actions (merge/rollback).
 
 ### Failure classification (lightweight)
 
