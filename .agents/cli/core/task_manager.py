@@ -213,7 +213,7 @@ def initialize_specify(task_id=None):
     if not task_id:
         # Generate a simple timestamp ID for now
         task_id = f"TASK-{datetime.datetime.now().strftime('%m%d%H%M')}"
-    task_dir = AI_TASKS / "inbox" / f"{task_id}-new-spec"
+    task_dir = AI_TASKS / "inbox" / task_id
     task_dir.mkdir(parents=True, exist_ok=True)
     # Create YAML spec placeholder. `summary` is the second key by Quorum v1.1 convention.
     spec_path = task_dir / "00-spec.yaml"
@@ -599,7 +599,7 @@ def split_task(parent_id):
         except Exception as e:
             print(f"[!] Generated child spec for {child_id} is invalid: {e}")
             return
-        child_dir = AI_TASKS / "inbox" / f"{child_id}-new-spec"
+        child_dir = AI_TASKS / "inbox" / child_id
         child_dir.mkdir(parents=True, exist_ok=True)
         save_artifact(child_dir / "00-spec.yaml", child_spec)
         created.append(child_id)
