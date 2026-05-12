@@ -313,6 +313,30 @@ def start_task(task_id):
         }
         save_artifact(trace_path, trace)
     print(f"[+] Task {task_id} initialized and worktree ready.")
+def _derive_parent_state(spec):
+    """Derive a parent task's state from its children's current locations.
+
+    Returns one of:
+      - "partial":   at least one child resides in failed/.
+      - "completed": every child resides in done/ (and none in failed/).
+      - "active":    otherwise (children still in inbox/active or missing).
+
+    The state is never persisted; it is recomputed every call so retries
+    that move a child out of failed/ revert the parent automatically.
+    """
+    decomposition = spec.get("decomposition") or []
+    child_locs = []
+    for entry in decomposition:
+        child_id = entry.get("child_id") if isinstance(entry, dict) else None
+        if not child_id:
+            continue
+        _, child_loc = find_task_dir(child_id)
+        child_locs.append(child_loc)
+    if any(loc == "failed" for loc in child_locs):
+        return "partial"
+    if child_locs and all(loc == "done" for loc in child_locs):
+        return "completed"
+    return "active"
 def show_status(task_id):
     task_dir, loc = find_task_dir(task_id)
     if not task_dir:
@@ -349,6 +373,7 @@ def show_status(task_id):
                 for child_id in children:
                     _, child_loc = find_task_dir(child_id)
                     print(f"  - {child_id}: {child_loc or 'missing'}")
+                print(f"- parent_state: {_derive_parent_state(spec)}")
         except Exception:
             pass
 def list_tasks():
@@ -389,13 +414,16 @@ def clean_task(task_id):
         print(f"[!] Task {task_id} not found.")
         return
     spec_path = task_dir / "00-spec.yaml"
+    parent_id = None
     if loc == "active" and spec_path.exists():
         try:
             with open(spec_path) as f:
                 spec = yaml.safe_load(f) or {}
             decomposition = spec.get("decomposition") or []
+            parent_id = spec.get("parent_task")
         except Exception:
             decomposition = []
+            parent_id = None
         if decomposition:
             not_done = []
             for entry in decomposition:
@@ -418,6 +446,42 @@ def clean_task(task_id):
         print(f"[*] Archiving task to done/...")
         shutil.move(str(task_dir), str(target_dir))
     print(f"[+] Task {task_id} cleaned up.")
+    # Auto-archive the parent when this child completes the decomposition.
+    # The transition belongs to the CLI (quorum task clean), not to any skill.
+    if parent_id:
+        _auto_archive_parent_if_complete(parent_id)
+def _auto_archive_parent_if_complete(parent_id):
+    """If `parent_id` is still active and all its declared children are in done/,
+    archive the parent to done/ as a side-effect of the same CLI transition.
+
+    No-op when the parent is missing, already archived, has no decomposition,
+    or still has at least one child outside done/. Skills must never call this
+    directly — clean_task is the only authorized entry point."""
+    parent_dir, parent_loc = find_task_dir(parent_id, ["active"])
+    if not parent_dir or parent_loc != "active":
+        return
+    parent_spec_path = parent_dir / "00-spec.yaml"
+    if not parent_spec_path.exists():
+        return
+    try:
+        with open(parent_spec_path) as f:
+            parent_spec = yaml.safe_load(f) or {}
+    except Exception:
+        return
+    decomposition = parent_spec.get("decomposition") or []
+    if not decomposition:
+        return
+    for entry in decomposition:
+        child_id = entry.get("child_id") if isinstance(entry, dict) else None
+        if not child_id:
+            return
+        _, child_loc = find_task_dir(child_id)
+        if child_loc != "done":
+            return
+    target_dir = AI_TASKS / "done" / parent_dir.name
+    print(f"[*] All children of {parent_id} are in done/; auto-archiving parent...")
+    shutil.move(str(parent_dir), str(target_dir))
+    print(f"[+] Parent task {parent_id} archived to done/.")
 def back_task(task_id):
     """Reverse the most recent state transition for a task.
     Resolution order:
