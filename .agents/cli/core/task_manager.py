@@ -475,6 +475,144 @@ def _save_worktree_changes(worktree_path, task_id):
     return result.returncode == 0, (result.stdout or "") + (result.stderr or "")
 
 
+def _ensure_retry_worktree(task_id):
+    """Ensure a failed child has a safe worktree for a new /q-implement dispatch.
+
+    Existing worktrees are never reset or removed here. If they contain dirty
+    changes, retry is blocked so the human can decide whether to keep, stash, or
+    discard that work outside this helper. Missing worktrees are recreated from
+    the existing ai/<TASK> branch when present, otherwise from the detected base
+    branch.
+    """
+    worktree_path = PROJECT_ROOT / "worktrees" / task_id
+    if worktree_path.exists():
+        if _is_worktree_dirty(worktree_path):
+            print(f"[!] Worktree {worktree_path} has uncommitted changes.")
+            print(f"[!] Refusing retry for {task_id} until the worktree is clean.")
+            print(f"      cd {worktree_path} && git status")
+            return False
+        return True
+
+    branch_name = f"ai/{task_id}"
+    branch_check = subprocess.run(
+        ["git", "-C", str(PROJECT_ROOT), "rev-parse", "--verify", branch_name],
+        capture_output=True, text=True
+    )
+    if branch_check.returncode == 0:
+        cmd = ["git", "-C", str(PROJECT_ROOT), "worktree", "add", str(worktree_path), branch_name]
+    else:
+        cmd = [
+            "git", "-C", str(PROJECT_ROOT), "worktree", "add",
+            str(worktree_path), "-b", branch_name, get_base_branch()
+        ]
+
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        output = (result.stderr or result.stdout or "").strip()
+        print(f"[!] Could not prepare retry worktree for {task_id}: {output}")
+        return False
+    return True
+
+
+def _clear_retry_artifacts(task_dir):
+    """Remove stale terminal artifacts from a failed attempt before retrying.
+
+    07-trace.json is deliberately excluded so attempts remain append-only and
+    historical validation/review outcomes stay available in Git history.
+    """
+    removed = []
+    for name in ["05-validation.json", "06-review.json"]:
+        path = task_dir / name
+        if path.exists():
+            path.unlink()
+            removed.append(name)
+    return removed
+
+
+def _restore_parent_for_child_retry(parent_id):
+    """Ensure a retried child's parent is active and observable during work."""
+    parent_dir, parent_loc = find_task_dir(parent_id, ["active", "done"])
+    if not parent_dir:
+        print(f"[!] Parent task {parent_id} not found for retry.")
+        return False
+    if parent_loc == "active":
+        return True
+
+    target_dir = AI_TASKS / "active" / parent_dir.name
+    if target_dir.exists():
+        print(f"[!] Cannot restore parent {parent_id}: active/{parent_dir.name} already exists.")
+        return False
+    print(f"[*] Restoring parent task {parent_id} from done/ to active/ for child retry...")
+    target_dir.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(parent_dir), str(target_dir))
+    return True
+
+
+def prepare_failed_child_retry(task_id):
+    """Prepare a failed child task for an externally requested /q-implement retry.
+
+    This is not a rollback path and does not invoke `quorum task back`. It only
+    performs the ADR-authorized retry setup for child tasks: validate that the
+    task is a failed child, keep 07-trace.json intact, remove stale terminal
+    validation/review artifacts, restore the parent to active when needed, and
+    move the child back to active.
+    """
+    task_dir, loc = find_task_dir(task_id, ["active", "failed"])
+    if not task_dir:
+        print(f"[!] Task {task_id} not found in active/ or failed/.")
+        return False
+    if loc == "active":
+        print(f"[*] Task {task_id} is already active; retry preparation not needed.")
+        return True
+    if loc != "failed":
+        print(f"[!] Task {task_id} is in {loc}/; retry preparation only handles failed/ children.")
+        return False
+
+    spec_path = task_dir / "00-spec.yaml"
+    if not spec_path.exists():
+        print(f"[!] Cannot retry {task_id}: missing 00-spec.yaml.")
+        return False
+    try:
+        spec = yaml.safe_load(spec_path.read_text()) or {}
+        _validate_spec(spec)
+    except Exception as error:
+        print(f"[!] Cannot retry {task_id}: invalid 00-spec.yaml: {error}")
+        return False
+
+    parent_id = spec.get("parent_task")
+    if not parent_id:
+        print(f"[!] Retry is only authorized for failed child tasks; {task_id} has no parent_task.")
+        return False
+
+    active_target = AI_TASKS / "active" / task_dir.name
+    if active_target.exists():
+        print(f"[!] Cannot retry {task_id}: active/{task_dir.name} already exists.")
+        return False
+
+    trace_path = task_dir / "07-trace.json"
+    if not trace_path.exists():
+        print(f"[!] Cannot retry {task_id}: missing 07-trace.json to preserve attempts history.")
+        return False
+    try:
+        validate_artifact(trace_path, _load_artifact_payload(trace_path))
+    except ArtifactValidationError as error:
+        print(f"[!] Cannot retry {task_id}: invalid 07-trace.json: {error}")
+        return False
+
+    if not _ensure_retry_worktree(task_id):
+        return False
+    if not _restore_parent_for_child_retry(parent_id):
+        return False
+
+    removed = _clear_retry_artifacts(task_dir)
+    active_target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(task_dir), str(active_target))
+    if removed:
+        print(f"[*] Removed stale retry artifacts for {task_id}: {', '.join(removed)}")
+    print(f"[+] Failed child task {task_id} restored to active/ for /q-implement retry.")
+    return True
+
+
 def clean_task(task_id, force=False, save=False):
     if force and save:
         print(f"[!] --force and --save are mutually exclusive. Pick one: --force discards changes, --save stashes them.")

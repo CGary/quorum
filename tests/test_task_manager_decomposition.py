@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 from pathlib import Path
 
 import pytest
@@ -322,3 +323,103 @@ def test_clean_parent_direct_still_blocks_with_unfinished_children(monkeypatch, 
     out = capsys.readouterr().out
     assert "unfinished children" in out
     assert (ai_tasks / "active" / "FEAT-018").exists()
+
+
+def _write_trace(task_dir: Path, task_id: str, attempts=None):
+    task_dir.mkdir(parents=True, exist_ok=True)
+    trace = {
+        "task_id": task_id,
+        "summary": f"Trace for {task_id}",
+        "started_at": "2026-05-12T00:00:00Z",
+        "execution_mode": "worktree_edit",
+        "attempts": attempts or [{"phase": "verify", "result": "failed", "duration_s": 1.0}],
+        "total_cost_usd": 0.0,
+        "violations": [],
+        "context_overflows": [],
+    }
+    (task_dir / "07-trace.json").write_text(json.dumps(trace))
+    return trace
+
+
+def test_prepare_failed_child_retry_preserves_trace_and_restores_active(monkeypatch, tmp_path, capsys):
+    _, ai_tasks = _setup_tasks(monkeypatch, tmp_path)
+    _setup_parent_with_children(
+        ai_tasks,
+        "FEAT-020",
+        [
+            ("FEAT-020-a", "failed", "Slice A."),
+            ("FEAT-020-b", "done", "Slice B."),
+        ],
+    )
+    (ai_tasks / "done" / "FEAT-020").parent.mkdir(parents=True, exist_ok=True)
+    (ai_tasks / "active" / "FEAT-020").rename(ai_tasks / "done" / "FEAT-020")
+    failed_dir = ai_tasks / "failed" / "FEAT-020-a"
+    original_trace = _write_trace(
+        failed_dir,
+        "FEAT-020-a",
+        [{"phase": "verify", "result": "failed", "duration_s": 2.0, "notes": "old failure"}],
+    )
+    (failed_dir / "05-validation.json").write_text("{}")
+    (failed_dir / "06-review.json").write_text("{}")
+    monkeypatch.setattr(task_manager, "_ensure_retry_worktree", lambda task_id: True)
+
+    assert task_manager.prepare_failed_child_retry("FEAT-020-a") is True
+
+    out = capsys.readouterr().out
+    active_child = ai_tasks / "active" / "FEAT-020-a"
+    assert "restored to active" in out
+    assert active_child.exists()
+    assert not failed_dir.exists()
+    assert (ai_tasks / "active" / "FEAT-020").exists()
+    assert not (ai_tasks / "done" / "FEAT-020").exists()
+    assert not (active_child / "05-validation.json").exists()
+    assert not (active_child / "06-review.json").exists()
+    retry_trace = json.loads((active_child / "07-trace.json").read_text())
+    assert retry_trace["attempts"] == original_trace["attempts"]
+
+    task_manager.show_status("FEAT-020")
+    assert "parent_state: active" in capsys.readouterr().out
+
+
+def test_prepare_failed_child_retry_blocks_dirty_worktree(monkeypatch, tmp_path, capsys):
+    root, ai_tasks = _setup_tasks(monkeypatch, tmp_path)
+    _setup_parent_with_children(
+        ai_tasks,
+        "FEAT-021",
+        [("FEAT-021-a", "failed", "Slice A.")],
+    )
+    failed_dir = ai_tasks / "failed" / "FEAT-021-a"
+    _write_trace(failed_dir, "FEAT-021-a")
+    (failed_dir / "05-validation.json").write_text("{}")
+    worktree_path = root / "worktrees" / "FEAT-021-a"
+    worktree_path.mkdir(parents=True)
+    monkeypatch.setattr(task_manager, "_is_worktree_dirty", lambda path: True)
+
+    assert task_manager.prepare_failed_child_retry("FEAT-021-a") is False
+
+    out = capsys.readouterr().out
+    assert "uncommitted changes" in out
+    assert (ai_tasks / "failed" / "FEAT-021-a").exists()
+    assert not (ai_tasks / "active" / "FEAT-021-a").exists()
+    assert (failed_dir / "05-validation.json").exists()
+
+
+def test_prepare_failed_child_retry_rejects_failed_standalone(monkeypatch, tmp_path, capsys):
+    _, ai_tasks = _setup_tasks(monkeypatch, tmp_path)
+    _write_spec(
+        ai_tasks / "failed" / "FEAT-022",
+        {
+            "task_id": "FEAT-022",
+            "summary": "Standalone failed task",
+            "goal": "Exercise retry rejection for standalone tasks.",
+            "invariants": ["Invariant."],
+            "acceptance": ["Acceptance."],
+        },
+    )
+
+    assert task_manager.prepare_failed_child_retry("FEAT-022") is False
+
+    out = capsys.readouterr().out
+    assert "only authorized for failed child tasks" in out
+    assert (ai_tasks / "failed" / "FEAT-022").exists()
+    assert not (ai_tasks / "active" / "FEAT-022").exists()

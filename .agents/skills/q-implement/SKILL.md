@@ -33,7 +33,25 @@ Work only in:
 worktrees/<TASK_ID>/
 ```
 
-If the worktree does not exist, stop and tell the user to run:
+Normal implementation starts from an `active/` task. If the task is not in
+`active/` but is a **child task** in `failed/`, and this `/q-implement` dispatch
+was explicitly requested by the human/orchestrator as a retry, first prepare the
+retry from the repo root:
+
+```bash
+python - <<'PY'
+import sys
+sys.path.insert(0, ".agents")
+from cli.core.task_manager import prepare_failed_child_retry
+raise SystemExit(0 if prepare_failed_child_retry("<TASK_ID>") else 1)
+PY
+```
+
+This retry preflight is authorized only for failed child tasks. It preserves
+`07-trace.json` attempts, removes stale `05-validation.json`/`06-review.json`,
+restores the child to `active/`, and never invokes `quorum task back`.
+
+If the worktree still does not exist after that preflight, stop and tell the user to run:
 
 ```bash
 quorum task start <TASK_ID>
@@ -60,7 +78,9 @@ From repo root and worktree:
 git -C worktrees/<TASK_ID> status --short
 ```
 
-If unrelated dirty changes exist, stop with `BLOCKED`.
+If unrelated dirty changes exist, stop with `BLOCKED`. For retry dispatches, a
+dirty worktree must also block; do not stash, reset, discard, or call
+`quorum task back` yourself.
 
 ### 3. Implement Surgically
 
