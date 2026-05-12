@@ -96,13 +96,13 @@ Quorum usa `00` a `07` más memoria curada. No se agregan slots nuevos sin ADR, 
 
 ---
 
-## 🚀 Inicio Rápido
+## 🚀 Inicio Rápido: Ciclo de Vida End-to-End
 
-Quorum se instala como una herramienta global mediante `uv` para que puedas usarlo en cualquier proyecto de forma aislada.
+Este tutorial te guía por un ciclo completo de Quorum para implementar una funcionalidad (feature), utilizando el flujo de **Decomposition** (Feature grande dividida en tareas hijas). El flujo combina al **Orquestador** (tú, ejecutando comandos `quorum task`) y a los **Skills (AI)** (despachados con `/q-*`).
 
 ### 1. Instalación Global
 
-Clona el repositorio y utiliza `uv tool install`:
+Cloná el repositorio y utilizá `uv tool install` para tener el CLI de forma global:
 
 ```bash
 git clone https://github.com/usuario/quorum.git
@@ -110,98 +110,120 @@ cd quorum
 uv tool install --editable .
 ```
 
-Esto registrará el comando `quorum` en tu PATH. Al ser una instalación `--editable`, cualquier mejora que descargues o hagas en el código de Quorum se reflejará instantáneamente sin necesidad de re-instalar.
+### 2. Inicializar el Proyecto
 
-### 2. Inicializar un Proyecto
-
-Ve a tu proyecto de software (ej. `hsme`) y prepara la estructura de Quorum:
+Ubicáte en tu proyecto de software y prepará la estructura de Quorum:
 
 ```bash
 cd /ruta/a/tu/proyecto
 quorum init
 ```
 
-Esto creará automáticamente:
-- Directorios de tareas: `.ai/tasks/{inbox,active,done,failed}`.
-- Directorios de memoria curada: `memory/{decisions,patterns,lessons}`.
-- Configuración de `.gitignore` para proteger tus worktrees y artefactos temporales.
+*(Esto crea las carpetas `.ai/tasks/` y `memory/`)*
+
+### 3. Crear la Tarea Padre (Umbrella)
+
+Todo comienza con la creación de la tarea principal en el inbox.
+
+```bash
+quorum task specify FEAT-001
+```
+
+### 4. Especificar el Padre
+
+Usá el skill `/q-brief` para definir con el agente los objetivos, invariantes y criterios de aceptación.
+
+```bash
+/q-brief FEAT-001
+```
+
+> **Auto-transición:** Al finalizar con éxito, el skill ejecuta automáticamente `quorum task blueprint FEAT-001` y la tarea pasa a `active/`.
+
+### 5. Decomponer en Subtareas (Hijas)
+
+Como es una feature compleja, pedimos al agente que la divida:
+
+```bash
+/q-decompose FEAT-001
+```
+
+> **Auto-transición:** El skill propone una división (ej. `FEAT-001-a`, `FEAT-001-b`). Al confirmar, auto-ejecuta `quorum task split FEAT-001`, creando las hijas en `inbox/`.
+
+### 6. Ejecutar el Ciclo de cada Hija
+
+Para **cada hija** (ej. `FEAT-001-a`), seguí este flujo atómico. Los skills NO se auto-encadenan; vos despachás cada fase.
+
+```bash
+# a. Refinar spec de la hija (auto-mueve a active/)
+/q-brief FEAT-001-a
+
+# b. Generar Blueprint y Contrato (auto-crea worktree/rama ai/FEAT-001-a)
+/q-blueprint FEAT-001-a
+
+# c. (Opcional) Validar consistencia antes de codear
+/q-analyze FEAT-001-a
+
+# d. Implementar el código (escribe el diff en el worktree)
+/q-implement FEAT-001-a
+
+# e. Verificar (corre tests y linting definidos en el contrato)
+/q-verify FEAT-001-a
+
+# f. Revisar (el agente critica el diff y la validación)
+/q-review FEAT-001-a
+
+# g. Compuerta de aceptación (dictamen final: ready / not_ready)
+/q-accept FEAT-001-a
+```
+
+### 7. Merge Humano y Limpieza
+
+Cuando la hija está `ready` y pasaste tus pruebas manuales (BDD):
+
+```bash
+git checkout main
+git merge ai/FEAT-001-a
+
+# Mueve la hija a done/ y borra su worktree
+quorum task clean FEAT-001-a
+```
+
+*(Repetí los pasos 6 y 7 para el resto de las hijas: `FEAT-001-b`, etc.)*
+
+### 8. Cerrar la Tarea Padre y Extraer Memoria
+
+Una vez que **todas** las hijas están en `done/`, podés archivar la tarea padre:
+
+```bash
+quorum task clean FEAT-001
+```
+
+*(Opcional)* Si descubriste patrones arquitectónicos o lecciones valiosas:
+
+```bash
+/q-memory FEAT-001
+```
 
 ---
 
-## 🛠 Flujo de Trabajo Operativo
+## 🛠 Arquitectura y Reglas de Transición
 
-El ciclo combina dos actores. Saber qué hace cada uno es lo que evita pasos saltados.
+### ⚠️ Auto-transiciones y Rollback Humano
 
-| Actor | Responsabilidad | Herramienta |
-|---|---|---|
-| **Orquestador** (humano o runtime externo) | Crea tareas iniciales, decide qué skill despachar, hace `git merge` a `main`, ejecuta rollbacks (`quorum task back`) | Comandos `quorum task ...` + Git |
-| **Skill (AI)** | Produce artefactos (`00`–`07`, memoria) dentro de su fase, y auto-ejecuta UNA transición de estado forward al terminar con éxito (cuando aplica) | Slash commands `/q-*` |
+Para reducir fricción, algunos skills auto-ejecutan **una sola transición CLI hacia adelante** al terminar con éxito:
 
-### ⚠️ Auto-transición forward + indicador de espera + idioma (Regla #9 en `quorum.md`)
-
-Para reducir fricción operativa, los skills auto-ejecutan **una sola transición CLI hacia adelante** al cerrar su fase con éxito. Las únicas tres autorizadas:
-
-| Skill | Auto-ejecuta | Efecto |
-|---|---|---|
-| `/q-brief` | `quorum task blueprint <ID>` | Mueve la tarea de `inbox/` a `active/` |
-| `/q-decompose` | `quorum task split <PARENT_ID>` | Materializa hijos en `inbox/` desde el campo `decomposition` |
-| `/q-blueprint` | `quorum task start <ID>` | Crea el worktree y la rama `ai/<ID>` |
+- `/q-brief` → `quorum task blueprint <ID>`
+- `/q-decompose` → `quorum task split <PARENT_ID>`
+- `/q-blueprint` → `quorum task start <ID>`
 
 Los demás skills (`/q-analyze`, `/q-implement`, `/q-verify`, `/q-review`, `/q-accept`, `/q-memory`, `/q-status`) **no** ejecutan transiciones de estado.
 
-Reglas adicionales que cumple cada skill (impuestas en `SKILL.md`):
-
-- **Idioma**: cualquier output al usuario va en **español**, sin importar el idioma del input o de la documentación interna.
-- **Indicador de espera**: cada turno que termina esperando una respuesta cierra exactamente con `ESPERANDO RESPUESTA DEL USUARIO...` (mayúsculas, tres puntos) como última línea.
-- **Sin fence final**: los ejemplos pueden estar documentados en bloques Markdown, pero el output real del agente no debe dejar un cierre ``` después del indicador; la última línea visible tiene que ser `ESPERANDO RESPUESTA DEL USUARIO...`.
-- **Handoff explícito**: el cierre de cada skill enumera los próximos pasos, marcando cada uno como `[Obligatorio]` u `[Opcional]`, e incluye `quorum task back <ID>` como vía de rollback humana.
-- **Sin auto-encadenado de skills**: ningún skill activa al siguiente. La activación del próximo skill la decide el orquestador.
-
-Si querés volver a un estado anterior porque algo no quedó bien:
+Si necesitás **revertir** la última transición forward porque algo quedó mal, utilizá el rollback humano (ningún skill lo invoca por su cuenta):
 
 ```bash
 quorum task back <TASK_ID>
 ```
-
-Reversa la transición forward más reciente: si hay worktree, lo borra (y borra la rama si está vacía); si no hay worktree y la tarea está en `active/`, la devuelve a `inbox/`; si está en `done/` o `failed/`, la devuelve a `active/`. Es siempre humano: ningún skill ejecuta `back` por su cuenta.
-
-### Secuencia canónica para una tarea simple o no decompuesta (FEAT-001)
-
-| # | Actor | Acción | Comando o skill | Auto-transición | Artefacto / efecto |
-|---|---|---|---|---|---|
-| 1 | Orquestador | Crear tarea en `inbox/` | `quorum task specify FEAT-001` | — | Directorio + `00-spec.yaml` esqueleto |
-| 2 | Skill | Llenar la spec | `/q-brief FEAT-001` | `quorum task blueprint` ✓ | Spec lista; tarea en `active/` |
-| 3 | Skill — **opcional** | Decomposition | `/q-decompose FEAT-001` | `quorum task split` (solo si confirma) | Hijos en `inbox/` o continúa single-task |
-| 4 | Skill | Blueprint + contrato | `/q-blueprint FEAT-001` | `quorum task start` ✓ | `01`, `02`, `07-trace.json`; worktree creado |
-| 5 | Skill — **opcional** | Auditoría | `/q-analyze FEAT-001` | — | Reporte read-only |
-| 6 | Skill | Implementar | `/q-implement FEAT-001` | — | Diff committeado + `04-implementation-log.yaml` |
-| 7 | Skill | Verificar | `/q-verify FEAT-001` | — | `05-validation.json` |
-| 8 | Skill | Revisar | `/q-review FEAT-001` | — | `06-review.json` |
-| 9 | Skill | Compuerta de aceptación | `/q-accept FEAT-001` | — | Veredicto `ready` / `not_ready` |
-| 10 | Humano | Suite BDD (si el contrato la define) | `<acceptance.bdd_suite>` | — | Pase/fail manual |
-| 11 | Humano | Merge | `git checkout main && git merge ai/FEAT-001` | — | Código en `main` |
-| 12 | Orquestador | Archivar | `quorum task clean FEAT-001` | — | Tarea en `done/`, worktree borrado |
-| 13 | Skill — **opcional** | Memoria | `/q-memory FEAT-001` | — | `memory/{decisions,patterns,lessons}/` |
-
-Comparado con el modelo anterior, `quorum task blueprint` y `quorum task start` **ya no los corre normalmente el orquestador**: `/q-brief` auto-ejecuta el primero y `/q-blueprint` auto-ejecuta el segundo. El orquestador solo los corre manualmente para reparación o recuperación.
-
-### Variante con decomposition (feature grande → N hijos)
-
-Cuando la feature es lo bastante grande como para que un LLM modesto no pueda implementarla en una sola pasada, el orquestador despacha `/q-decompose` después de `/q-brief`. El padre queda como umbrella en `active/` y cada hijo recorre su propio ciclo completo.
-
-| # | Actor | Acción | Resultado |
-|---|---|---|---|
-| 1 | Orquestador | `quorum task specify FEAT-001` | Padre en `inbox/` |
-| 2 | Skill | `/q-brief FEAT-001` | Padre con spec; auto-mueve a `active/` |
-| 3 | Skill | `/q-decompose FEAT-001` | Aplica heurística de `.agents/policies/decomposition.yaml`, propone N hijos, espera confirmación, persiste `decomposition` en el spec del padre, auto-corre `quorum task split FEAT-001` → crea `FEAT-001-a`, `FEAT-001-b`, ... en `inbox/` con `parent_task: FEAT-001` y `depends_on` |
-| 4 | Orquestador | Para cada hijo, en orden topológico de `depends_on`: | |
-| 4a | Skill | `/q-brief FEAT-001-a` | Refina el spec del hijo (heredó invariantes y aceptación del padre); auto-mueve a `active/` |
-| 4b | Skill | `/q-blueprint FEAT-001-a` | Genera 01/02 del hijo y auto-crea worktree `worktrees/FEAT-001-a/` con rama `ai/FEAT-001-a` |
-| 4c..h | Skill / Humano | `/q-implement` → `/q-verify` → `/q-review` → `/q-accept` → BDD → merge `ai/FEAT-001-a` a `main` → `quorum task clean FEAT-001-a` → `/q-memory FEAT-001-a` (opcional) | Hijo cerrado |
-| 5 | (repetir 4 para `FEAT-001-b`, etc.) | | |
-| 6 | Orquestador | Cuando todos los hijos están en `done/`: `quorum task clean FEAT-001` | Padre archivado |
-
-Cada hijo mergea a `main` independientemente cuando está `ready`. No hay rama integradora; las dependencias se respetan sólo a nivel de orden de despacho (`depends_on` lo marca el spec del hijo). El CLI protege al padre: `quorum task clean <PARENT_ID>` falla si algún hijo de `decomposition` no está todavía en `done/`.
+*(Borra el worktree/rama o devuelve la tarea al estado anterior).*
 
 ### Detalle por fase
 
