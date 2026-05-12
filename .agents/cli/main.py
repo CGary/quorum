@@ -43,6 +43,16 @@ def main():
     # task clean
     clean_parser = task_subparsers.add_parser("clean", help="Clean up a task")
     clean_parser.add_argument("task_id", help="Task ID")
+    clean_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Discard uncommitted changes in the task worktree before removing it."
+    )
+    clean_parser.add_argument(
+        "--save",
+        action="store_true",
+        help="Stash uncommitted changes (including untracked) before removing the worktree."
+    )
 
     # task back
     back_parser = task_subparsers.add_parser(
@@ -76,7 +86,7 @@ def main():
         elif args.subcommand == "list":
             task.list_all()
         elif args.subcommand == "clean":
-            task.clean(args.task_id)
+            task.clean(args.task_id, force=args.force, save=args.save)
         elif args.subcommand == "back":
             task.back(args.task_id)
         elif args.subcommand == "split":

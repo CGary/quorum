@@ -34,9 +34,9 @@ def status(task_id):
     task_manager.show_status(task_id)
 
 
-def clean(task_id):
+def clean(task_id, force=False, save=False):
     print(f"[*] Cleaning up task {task_id}...")
-    task_manager.clean_task(task_id)
+    task_manager.clean_task(task_id, force=force, save=save)
 
 
 def list_all():

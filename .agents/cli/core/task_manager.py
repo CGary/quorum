@@ -383,7 +383,31 @@ def list_tasks():
                 if summary:
                     break
             print(f"{loc:6} {task_id:14} {summary}")
-def clean_task(task_id):
+def _is_worktree_dirty(worktree_path):
+    """Returns True if the worktree has uncommitted changes (tracked or untracked)."""
+    result = subprocess.run(
+        ["git", "-C", str(worktree_path), "status", "--porcelain"],
+        capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        return False
+    return bool(result.stdout.strip())
+
+
+def _save_worktree_changes(worktree_path, task_id):
+    """Creates a stash entry preserving worktree changes (including untracked) before removal."""
+    message = f"quorum:save:{task_id}"
+    result = subprocess.run(
+        ["git", "-C", str(worktree_path), "stash", "push", "--include-untracked", "-m", message],
+        capture_output=True, text=True
+    )
+    return result.returncode == 0, (result.stdout or "") + (result.stderr or "")
+
+
+def clean_task(task_id, force=False, save=False):
+    if force and save:
+        print(f"[!] --force and --save are mutually exclusive. Pick one: --force discards changes, --save stashes them.")
+        return
     task_dir, loc = find_task_dir(task_id, ["active", "done", "failed"])
     if not task_dir:
         print(f"[!] Task {task_id} not found.")
@@ -411,8 +435,28 @@ def clean_task(task_id):
                 return
     worktree_path = PROJECT_ROOT / "worktrees" / task_id
     if worktree_path.exists():
-        print(f"[*] Removing worktree {worktree_path}...")
-        subprocess.run(["git", "worktree", "remove", str(worktree_path)], check=False)
+        dirty = _is_worktree_dirty(worktree_path)
+        if dirty and not force and not save:
+            print(f"[!] Worktree {worktree_path} has uncommitted changes.")
+            print(f"[!] Refusing to clean task {task_id} silently. Choose one of:")
+            print(f"      cd {worktree_path} && git status      # inspect changes")
+            print(f"      cd {worktree_path} && git commit -am '...'  # commit, then re-run clean")
+            print(f"      quorum task clean {task_id} --save     # stash WIP and clean")
+            print(f"      quorum task clean {task_id} --force    # discard WIP and clean")
+            return
+        if dirty and save:
+            print(f"[*] Saving worktree changes as stash 'quorum:save:{task_id}'...")
+            ok, output = _save_worktree_changes(worktree_path, task_id)
+            if not ok:
+                print(f"[!] git stash push failed: {output.strip()}")
+                return
+        remove_cmd = ["git", "-C", str(PROJECT_ROOT), "worktree", "remove", str(worktree_path)]
+        if force and dirty:
+            remove_cmd.append("--force")
+            print(f"[*] Force-removing worktree {worktree_path} (discarding changes)...")
+        else:
+            print(f"[*] Removing worktree {worktree_path}...")
+        subprocess.run(remove_cmd, check=False)
     if loc == "active":
         target_dir = AI_TASKS / "done" / task_dir.name
         print(f"[*] Archiving task to done/...")
