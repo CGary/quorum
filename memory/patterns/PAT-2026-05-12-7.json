@@ -1,0 +1,10 @@
+{
+  "id": "PAT-2026-05-12-7",
+  "source_task": "FEAT-005-i",
+  "type": "pattern",
+  "title": "Guardia de integridad de archivos vía Git en el contrato",
+  "context": "Protección contra modificaciones accidentales en archivos fuera de scope o ramas stale.",
+  "content": "Incluir un script de Python en verify.commands que compare git diff --name-only main..HEAD contra una lista blanca de archivos (allowed) definidos en el contrato. Esto bloquea la validación funcional si existen cambios en archivos prohibidos, forzando la limpieza o el rebase antes de la revisión humana.",
+  "related": ["FEAT-005-i"],
+  "created_at": "2026-05-12"
+}

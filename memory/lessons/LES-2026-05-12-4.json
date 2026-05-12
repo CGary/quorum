@@ -1,0 +1,10 @@
+{
+  "id": "LES-2026-05-12-4",
+  "source_task": "FEAT-005-i",
+  "type": "lesson",
+  "title": "Riesgo de daño colateral en tareas de refactor especializadas",
+  "context": "Un agente eliminó lógica crítica de task_manager.py y tests asociados durante una tarea que solo debía extender /q-analyze.",
+  "content": "Las tareas especializadas que tocan el núcleo del framework tienen alto riesgo de regresiones si el agente realiza refactors no solicitados o limpiezas agresivas. El veredicto de reject en 06-review.json es la barrera final, pero la prevención requiere que q-blueprint sea explícito en forbid y que q-verify incluya guardias técnicas de integridad.",
+  "related": ["FEAT-005-i"],
+  "created_at": "2026-05-12"
+}

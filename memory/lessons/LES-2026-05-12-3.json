@@ -1,0 +1,10 @@
+{
+  "id": "LES-2026-05-12-3",
+  "source_task": "FEAT-005-h",
+  "type": "lesson",
+  "title": "Preservación de trazabilidad en reintentos de tareas",
+  "context": "Se descubrió que los artefactos de validación (05) y revisión (06) del intento anterior confundían al agente en el reintento.",
+  "content": "Los artefactos terminales (05-validation, 06-review) deben limpiarse al iniciar un retry para forzar una nueva validación/revisión fresca, pero nunca debe limpiarse 07-trace.json, ya que es el único registro de los intentos fallidos que HSME y Quorum usan para detectar patrones de fallo.",
+  "related": ["FEAT-005-h"],
+  "created_at": "2026-05-12"
+}
