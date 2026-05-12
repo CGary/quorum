@@ -1,0 +1,12 @@
+{
+  "id": "LES-2026-05-12-5",
+  "source_task": "FEAT-005-j",
+  "type": "lesson",
+  "title": "Documentation structure for dual workflows",
+  "context": "The README was rewritten to explain both single-task and decomposed workflows.",
+  "content": "When a framework supports both single-pass execution and parent-child decomposition, the Quick Start documentation should walk through the complex (decomposed) path as the primary tutorial, because it subsumes the single-pass mechanics while introducing necessary cross-task concepts like dependency waiting and umbrella cleanup.",
+  "related": [
+    "FEAT-005"
+  ],
+  "created_at": "2026-05-12"
+}
