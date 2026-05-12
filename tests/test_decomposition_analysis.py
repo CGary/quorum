@@ -51,8 +51,8 @@ def _child(child_id, **overrides):
 def test_parent_child_coverage_complete(tmp_path):
     root = tmp_path / ".ai/tasks"
     parent = _write(root, "active", "FEAT-010", _parent())
-    _write(root, "done", "FEAT-010-a", _child("FEAT-010-a", acceptance=[]))
-    _write(root, "active", "FEAT-010-b-new-spec", _child("FEAT-010-b", invariants=[], depends_on=["FEAT-010-a"]))
+    _write(root, "done", "FEAT-010-a", _child("FEAT-010-a", acceptance=["Child A local acceptance."]))
+    _write(root, "active", "FEAT-010-b-new-spec", _child("FEAT-010-b", invariants=["Child B local invariant."], depends_on=["FEAT-010-a"]))
     result = analyze_parent_child_coverage(parent, root, SPEC_SCHEMA)
     assert result["status"] == "pass"
     assert result["findings"] == []
@@ -66,7 +66,7 @@ def test_parent_child_coverage_reports_partial_gaps(tmp_path):
         acceptance=["Acceptance A is externally visible.", "Acceptance B is externally visible."],
     ))
     _write(root, "done", "FEAT-010-a", _child("FEAT-010-a"))
-    _write(root, "done", "FEAT-010-b", _child("FEAT-010-b", depends_on=["FEAT-010-a"], invariants=[], acceptance=[]))
+    _write(root, "done", "FEAT-010-b", _child("FEAT-010-b", depends_on=["FEAT-010-a"], invariants=["Child B local invariant."], acceptance=["Child B local acceptance."]))
     issues = [finding["issue"] for finding in analyze_parent_child_coverage(parent, root, SPEC_SCHEMA)["gaps"]]
     assert any("Invariant B remains true" in issue for issue in issues)
     assert any("Acceptance B is externally visible" in issue for issue in issues)
