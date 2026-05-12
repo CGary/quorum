@@ -1,9 +1,13 @@
 import argparse
 import sys
 from .commands import task, project
+from .core import task_manager
 
 
 def main():
+    prefix = task_manager.render_context_prefix()
+    if prefix:
+        print(prefix)
     parser = argparse.ArgumentParser(description="Quorum Agent CLI")
     subparsers = parser.add_subparsers(dest="command", help="Commands")
 

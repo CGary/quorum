@@ -21,6 +21,51 @@ def get_project_root():
         return Path(os.getcwd())
 PROJECT_ROOT = get_project_root()
 AI_TASKS = PROJECT_ROOT / ".ai" / "tasks"
+def get_execution_context():
+    """Detect whether CWD is the main repo root or a linked worktree.
+
+    Returns a (mode, identifier) tuple:
+      - ("root", None) when --git-dir and --git-common-dir resolve to the same path.
+      - ("worktree", "<basename of --show-toplevel>") when they differ.
+      - (None, None) when git rev-parse fails (cwd outside any git repo).
+
+    The identifier is derived exclusively from `git rev-parse --show-toplevel`;
+    callers must not hardcode IDs or infer them from directory naming conventions.
+    """
+    try:
+        git_dir = subprocess.run(
+            ["git", "rev-parse", "--git-dir"],
+            check=True, capture_output=True, text=True
+        ).stdout.strip()
+        common_dir = subprocess.run(
+            ["git", "rev-parse", "--git-common-dir"],
+            check=True, capture_output=True, text=True
+        ).stdout.strip()
+    except Exception:
+        return None, None
+    if Path(git_dir).resolve() == Path(common_dir).resolve():
+        return "root", None
+    try:
+        toplevel = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            check=True, capture_output=True, text=True
+        ).stdout.strip()
+    except Exception:
+        return None, None
+    return "worktree", Path(toplevel).name
+def render_context_prefix():
+    """Return the CLI context prefix line for the current execution context.
+
+    Emits "[root]" or "[worktree:<ID>]" based on get_execution_context().
+    Returns an empty string when git rev-parse fails so callers can omit the
+    prefix without aborting the underlying command.
+    """
+    mode, ident = get_execution_context()
+    if mode == "root":
+        return "[root]"
+    if mode == "worktree" and ident:
+        return f"[worktree:{ident}]"
+    return ""
 AGENTS_DIR = PROJECT_ROOT / ".agents" # Note: Local project settings if they exist
 SCHEMAS_DIR = Path(__file__).parent.parent.parent / "schemas" # Schemas are usually in the tool source
 POLICIES_DIR = Path(__file__).parent.parent.parent / "policies"
