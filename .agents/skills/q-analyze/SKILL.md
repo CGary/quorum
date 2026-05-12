@@ -24,6 +24,8 @@ Read-only. Analyze only:
 - `.ai/tasks/<state>/<TASK>/02-contract.yaml`
 - `.agents/schemas/*.schema.json`
 - `.agents/policies/*.yaml`
+- Para tareas padre con `decomposition`, también leer únicamente los `00-spec.yaml` de las hijas declaradas bajo `.ai/tasks/{inbox,active,done,failed}/`.
+- `.agents/cli/core/decomposition_analysis.py` como helper puro read-only para calcular cobertura padre-hijas.
 
 Do not modify files.
 
@@ -76,6 +78,35 @@ Flag:
 - slow BDD commands incorrectly placed in `verify.commands`
 - summary mismatch across artifacts
 
+### 6. Parent Decomposition Coverage
+
+If `00-spec.yaml` has a `decomposition` array, run a read-only parent-child coverage pass using `.agents/cli/core/decomposition_analysis.py`:
+
+```python
+import sys
+from pathlib import Path
+
+sys.path.insert(0, ".agents")
+
+from cli.core.decomposition_analysis import analyze_parent_child_coverage
+
+result = analyze_parent_child_coverage(
+    Path(".ai/tasks/<state>/<PARENT>/00-spec.yaml"),
+    Path(".ai/tasks"),
+    Path(".agents/schemas/spec.schema.json"),
+)
+```
+
+Report:
+
+- Parent invariants and acceptance criteria covered by at least one child `00-spec.yaml`.
+- Gaps where no child spec covers a parent invariant or acceptance criterion.
+- Missing or invalid child specs without traceback.
+- Child linkage inconsistencies: wrong `parent_task`, `depends_on` that references undeclared siblings, or child `depends_on` that diverges from the parent's `decomposition[].depends_on`.
+- Compatibility note when the target task has no `decomposition`: keep the existing 00/01/02 analysis and do not require child specs.
+
+This pass is strictly read-only: do not persist the report, do not edit `decomposition`, do not edit child specs, and do not run `quorum task back`, `blueprint`, `start`, `split`, `clean`, or any other state transition.
+
 ## Output
 
 Produce a concise report:
@@ -95,6 +126,7 @@ Next: <q-blueprint|q-implement|manual clarification>
 - Do not rewrite artifacts unless the user explicitly asks in a separate instruction.
 - Do not invent missing requirements.
 - Prefer exact artifact keys and paths over broad commentary.
+- For parent tasks, include a `Parent decomposition coverage` subsection when the helper result has `applies: true`.
 
 ## 🛑 Handoff (single-phase boundary)
 

@@ -36,3 +36,16 @@ def test_q_brief_handoff_omits_decompose_for_children():
     
     # Look for a section or instruction that omits q-decompose when it's a child
     assert "omite /q-decompose" in content or "sin sugerir /q-decompose" in content or "omita /q-decompose" in content
+
+def test_q_analyze_documents_parent_child_coverage():
+    """Verify q-analyze documents the read-only parent/child coverage pass."""
+    skill_file = SKILLS_DIR / "q-analyze" / "SKILL.md"
+    content = skill_file.read_text()
+
+    assert "Parent Decomposition Coverage" in content
+    assert "decomposition_analysis" in content
+    assert "analyze_parent_child_coverage" in content
+    assert "parent_task" in content
+    assert "depends_on" in content
+    assert "strictly read-only" in content
+    assert "do not run `quorum task back`, `blueprint`, `start`, `split`, `clean`" in content
