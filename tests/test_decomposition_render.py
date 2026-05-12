@@ -21,10 +21,11 @@ def test_render_ascii_dag_trivial_parallel_children():
     ]
 
     assert render_ascii_dag(decomposition) == """Decomposition DAG:
-  L0:
-    [FEAT-001-a]
-    [FEAT-001-b]
-    [FEAT-001-c]
+  order: L0
+  L0
+  [FEAT-001-a]
+  [FEAT-001-b]
+  [FEAT-001-c]
   edges:
     (none)"""
 
@@ -37,16 +38,9 @@ def test_render_ascii_dag_linear_children():
     ]
 
     assert render_ascii_dag(decomposition) == """Decomposition DAG:
-  L0:
-    [FEAT-001-a]
-     |
-     v
-  L1:
-    [FEAT-001-b]
-     |
-     v
-  L2:
-    [FEAT-001-c]
+  order: L0 -> L1 -> L2
+  L0            L1            L2
+  [FEAT-001-a]  [FEAT-001-b]  [FEAT-001-c]
   edges:
     FEAT-001-a -> FEAT-001-b
     FEAT-001-b -> FEAT-001-c"""
@@ -61,17 +55,10 @@ def test_render_ascii_dag_diamond_children():
     ]
 
     assert render_ascii_dag(decomposition) == """Decomposition DAG:
-  L0:
-    [FEAT-001-a]
-     |
-     v
-  L1:
-    [FEAT-001-b]
-    [FEAT-001-c]
-     |
-     v
-  L2:
-    [FEAT-001-d]
+  order: L0 -> L1 -> L2
+  L0            L1            L2
+  [FEAT-001-a]  [FEAT-001-b]  [FEAT-001-d]
+                [FEAT-001-c]
   edges:
     FEAT-001-a -> FEAT-001-b
     FEAT-001-a -> FEAT-001-c

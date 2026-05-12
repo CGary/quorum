@@ -55,15 +55,32 @@ def render_ascii_dag(decomposition):
     for child_id in child_ids:
         levels.setdefault(level_for(child_id), []).append(child_id)
 
+    ordered_levels = sorted(levels)
+    child_columns = [
+        [f"[{child_id}]" for child_id in sorted(levels[level])]
+        for level in ordered_levels
+    ]
+    headers = [f"L{level}" for level in ordered_levels]
+    widths = [
+        max(len(header), *(len(child) for child in children))
+        for header, children in zip(headers, child_columns)
+    ]
+    row_count = max(len(children) for children in child_columns)
+
     lines = ["Decomposition DAG:"]
-    for level in sorted(levels):
-        lines.append(f"  L{level}:")
-        for child_id in sorted(levels[level]):
-            lines.append(f"    [{child_id}]")
-        next_level = level + 1
-        if next_level in levels:
-            lines.append("     |")
-            lines.append("     v")
+    lines.append("  order: " + " -> ".join(headers))
+    lines.append(
+        ("  " + "  ".join(
+            header.ljust(width)
+            for header, width in zip(headers, widths)
+        )).rstrip()
+    )
+    for row in range(row_count):
+        cells = [
+            (children[row] if row < len(children) else "").ljust(width)
+            for children, width in zip(child_columns, widths)
+        ]
+        lines.append("  " + "  ".join(cells).rstrip())
 
     edges = []
     for child_id in child_ids:
