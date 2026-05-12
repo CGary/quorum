@@ -8,6 +8,7 @@ import re
 from pathlib import Path
 from jsonschema import validate, ValidationError
 import datetime
+from cli.core.decomposition_render import render_ascii_dag
 # Quorum v1.1: PROJECT_ROOT is now dynamic based on where the user is running the tool.
 # We look for the git root or fallback to CWD.
 def get_project_root():
@@ -610,4 +611,7 @@ def split_task(parent_id):
     if not created and not skipped:
         print(f"[!] No children materialised; check the decomposition entries in {spec_path}.")
     else:
+        dag = render_ascii_dag(decomposition)
+        if dag:
+            print(dag)
         print(f"[!] Each child still needs '/q-brief <child_id>' to refine its own spec, then 'quorum task blueprint <child_id>' will be auto-run by the skill on success.")

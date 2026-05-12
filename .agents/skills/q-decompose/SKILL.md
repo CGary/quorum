@@ -64,6 +64,8 @@ Para cada hijo escribí:
 - `summary`: ≤200 chars, denso y factual, qué subsection cubre.
 - `depends_on`: lista de IDs hermanos que deben implementarse antes (vacío si es independiente).
 
+Antes de mostrar la propuesta, renderizá el mapa ASCII con `cli.core.decomposition_render.render_ascii_dag(decomposition)` usando exactamente la lista propuesta. Incluí ese mapa bajo el encabezado `Mapa ASCII de ejecución:` para que el usuario vea orden izquierda-a-derecha por niveles, paralelismo y arcos `depends_on` antes de confirmar.
+
 Mostrá la propuesta al usuario en este formato (en español) y pedí confirmación EXPLÍCITA. Cerrá el turno con el indicador de espera. NO escribas a disco todavía:
 
 ```text
@@ -78,6 +80,9 @@ c) FEAT-001-c — <summary corto>
 
 Signals que dispararon: <lista>
 Heurística aplicada: .agents/policies/decomposition.yaml
+
+Mapa ASCII de ejecución:
+<salida de render_ascii_dag(decomposition)>
 
 ¿Confirmás la decomposition tal como está? Respondé:
 - "sí" para que persista la decomposition en el spec del padre y materialice los hijos.
@@ -95,7 +100,7 @@ Cuando el usuario confirme:
 
 1. Editá `.ai/tasks/active/<PARENT_ID>-<slug>/00-spec.yaml` agregando el campo `decomposition` con la lista confirmada. NO toques otros campos del spec (goal, invariants, acceptance, risk siguen igual). Validá contra `spec.schema.json` antes de guardar; si falla, reportá el error y abortá.
 
-2. Auto-ejecutá la transición CLI: `quorum task split <PARENT_ID>` una sola vez por shell. Esto crea cada hijo en `inbox/` con su `00-spec.yaml` derivado (parent_task, depends_on, invariantes y aceptación heredadas). Capturá la salida.
+2. Auto-ejecutá la transición CLI: `quorum task split <PARENT_ID>` una sola vez por shell. Esto crea cada hijo en `inbox/` con su `00-spec.yaml` derivado (parent_task, depends_on, invariantes y aceptación heredadas) e imprime el mismo mapa ASCII después de materializar o saltar hijos. Capturá la salida.
 
 3. Si el CLI falla, reportá `BLOCKED: <stderr>` y NO sigas. NO intentes crear los hijos manualmente.
 
@@ -150,7 +155,7 @@ Artefactos producidos:
 - ... (uno por hijo)
 
 Transición de estado ejecutada:
-- quorum task split <PARENT_ID> ✓ (hijos creados en inbox/ con parent_task y depends_on)
+- quorum task split <PARENT_ID> ✓ (hijos creados en inbox/ con parent_task y depends_on; el CLI imprimió el mapa ASCII de ejecución)
 
 Pasos siguientes (los despacha el orquestador, hijo por hijo, en orden topológico de depends_on):
 1. [Obligatorio] /q-brief <PARENT_ID>-a — refinar el spec del primer hijo (auto-ejecutará quorum task blueprint <PARENT_ID>-a al terminar).
