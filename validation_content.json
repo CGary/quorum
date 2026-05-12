@@ -1,0 +1,20 @@
+{
+  "task_id": "FEAT-005-g",
+  "summary": "Fast verification passed for contract commands.",
+  "executed_at": "2026-05-12T04:16:29Z",
+  "commands": [
+    {
+      "command": "uv run pytest tests/test_task_manager_decomposition.py -v",
+      "exit_code": 0,
+      "duration_s": 0.09,
+      "output_excerpt": "============================================ test session starts =============================================\nplatform linux -- Python 3.13.12, pytest-9.0.3, pluggy-1.6.0 -- /home/gary/dev/quorum/worktrees/FEAT-005-g/.venv/bin/python\ncachedir: .pytest_cache\nrootdir: /home/gary/dev/quorum/worktrees/FEAT-005-g\nconfigfile: pyproject.toml\ncollected 13 items                                                                                           \n\ntests/test_task_manager_decomposition.py::test_find_task_dir_does_not_confuse_parent_with_child PASSED [  7%]\ntests/test_task_manager_decomposition.py::test_split_task_materialises_valid_children PASSED           [ 15%]\ntests/test_task_manager_decomposition.py::test_split_task_requires_active_parent PASSED                [ 23%]\ntests/test_task_manager_decomposition.py::test_clean_parent_waits_for_children_done PASSED             [ 30%]\ntests/test_task_manager_decomposition.py::test_clean_last_child_auto_archives_parent PASSED            [ 38%]\ntests/test_clean_non_last_child_keeps_parent_active PASSED         [ 46%]\ntests/test_task_manager_decomposition.py::test_show_status_derives_parent_state[FEAT-012-children0-partial] PASSED [ 53%]\ntests/test_task_manager_decomposition.py::test_show_status_derives_parent_state[FEAT-013-children1-completed] PASSED [ 61%]\ntests/test_task_manager_decomposition.py::test_show_status_derives_parent_state[FEAT-014-children2-active] PASSED [ 69%]\ntests/test_task_manager_decomposition.py::test_show_status_omits_parent_state_for_standalone_task PASSED [ 76%]\ntests/test_task_manager_decomposition.py::test_clean_task_idempotent_after_parent_auto_archived PASSED [ 84%]\ntests/test_task_manager_decomposition.py::test_clean_standalone_task_does_not_touch_others PASSED      [ 92%]\ntests/test_task_manager_decomposition.py::test_clean_parent_direct_still_blocks_with_unfinished_children PASSED [100%]\n\n============================================= 13 passed in 0.09s ============================================="
+    },
+    {
+      "command": "uv run pytest -v",
+      "exit_code": 0,
+      "duration_s": 0.36,
+      "output_excerpt": "============================================ test session starts =============================================\nplatform linux -- Python 3.13.12, pytest-9.0.3, pluggy-1.6.0 -- /home/gary/dev/quorum/worktrees/FEAT-005-g/.venv/bin/python\ncachedir: .pytest_cache\nrootdir: /home/gary/dev/quorum/worktrees/FEAT-005-g\nconfigfile: pyproject.toml\ncollected 54 items                                                                                           \n\ntests/test_blueprint_context.py::test_retriever_output_changes_serialized_blueprint_yaml PASSED        [  1%]\n... (skipped for brevity in summary, full content used in file) ...\n============================================= 54 passed in 0.36s ============================================="
+    }
+  ],
+  "overall_result": "passed"
+}

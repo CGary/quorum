@@ -1,0 +1,10 @@
+{
+  "id": "DEC-2026-05-12-2",
+  "source_task": "FEAT-005-d",
+  "type": "decision",
+  "title": "Detección dinámica de contexto de ejecución (Root vs Worktree)",
+  "context": "Necesidad de indicar al usuario y a los agentes si el comando quorum se está ejecutando en la raíz principal o en un espacio de trabajo aislado de tarea.",
+  "content": "Se decidió usar la discrepancia entre 'git rev-parse --git-dir' y 'git rev-parse --git-common-dir' como el mecanismo canónico para distinguir entre el repositorio principal y un worktree. El ID del worktree se extrae dinámicamente del basename del path de nivel superior.",
+  "related": ["FEAT-005-d"],
+  "created_at": "2026-05-12"
+}

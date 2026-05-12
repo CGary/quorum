@@ -1,0 +1,10 @@
+{
+  "id": "LES-2026-05-12-1",
+  "source_task": "FEAT-005-e",
+  "type": "lesson",
+  "title": "Escapado de caracteres reservados en YAML (dos puntos + espacio)",
+  "context": "El parser de YAML fallaba al procesar invariantes que contenían la secuencia ': ' sin comillas.",
+  "content": "En las especificaciones (00-spec.yaml), cualquier campo de texto que contenga la secuencia ': ' (dos puntos seguidos de espacio) debe ser encerrado en comillas o usar bloques de texto (scalar blocks like > or |). De lo contrario, PyYAML lo interpreta como una clave anidada mal formada, rompiendo la carga del artefacto.",
+  "related": ["FEAT-005-e"],
+  "created_at": "2026-05-12"
+}

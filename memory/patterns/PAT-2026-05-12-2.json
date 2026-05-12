@@ -1,0 +1,10 @@
+{
+  "id": "PAT-2026-05-12-2",
+  "source_task": "FEAT-005-d",
+  "type": "pattern",
+  "title": "Decoración de output CLI mediante inyección en el punto de entrada",
+  "context": "Deseo de añadir metadatos (como el prefijo de contexto) a todas las salidas de la CLI sin modificar cada función individual de comando ni romper tests unitarios existentes.",
+  "content": "Inyectar la lógica de decoración (render_context_prefix) exclusivamente en la función main() del CLI. Esto asegura que el prefijo se emita solo en ejecuciones reales de usuario/orquestador, mientras que las funciones de lógica en task_manager.py permanecen 'limpias', permitiendo que los tests que capturan su stdout sigan pasando sin cambios en las aserciones.",
+  "related": ["FEAT-005-d"],
+  "created_at": "2026-05-12"
+}

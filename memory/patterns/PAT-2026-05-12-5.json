@@ -1,0 +1,10 @@
+{
+  "id": "PAT-2026-05-12-5",
+  "source_task": "FEAT-005-e",
+  "type": "pattern",
+  "title": "Renderizado ASCII determinista de DAGs de descomposición",
+  "context": "Implementación de un mapa visual para la descomposición de tareas en Quorum.",
+  "content": "Para visualizar dependencias complejas (diamante, lineal, paralelo) en la CLI, se utiliza un renderizador que calcula niveles topológicos y agrupa tareas en columnas de izquierda a derecha. Las dependencias se listan explícitamente como 'edges' (arcos) al final para evitar ambigüedades visuales en layouts ASCII puros.",
+  "related": ["FEAT-005-e"],
+  "created_at": "2026-05-12"
+}

@@ -1,0 +1,10 @@
+{
+  "id": "DEC-2026-05-12-1",
+  "source_task": "FEAT-005-f",
+  "type": "decision",
+  "title": "Resolución explícita de worktrees sucios en cleanup",
+  "context": "quorum task clean eliminaba worktrees sin advertir sobre cambios no commiteados, arriesgando pérdida de trabajo.",
+  "content": "Se decidió que el comando clean debe abortar con un error accionable si el worktree tiene cambios (tracked o untracked) detectados vía git status --porcelain. Se introducen los flags excluyentes --force (para descarte explícito) y --save (para preservación vía stash) como únicos caminos autorizados para remover un worktree no limpio.",
+  "related": ["FEAT-005-f"],
+  "created_at": "2026-05-12"
+}

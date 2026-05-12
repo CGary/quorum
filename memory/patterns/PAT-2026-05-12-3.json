@@ -1,0 +1,10 @@
+{
+  "id": "PAT-2026-05-12-3",
+  "source_task": "FEAT-005-e",
+  "type": "pattern",
+  "title": "Modelado de DAGs en YAML para descomposición de tareas",
+  "context": "Necesidad de definir dependencias entre tareas hijas de forma legible y procesable por agentes.",
+  "content": "Uso de una lista de objetos en el campo 'decomposition' donde cada entrada define 'task_id', 'summary' y un array opcional 'depends_on' que referencia otros task_id de la misma lista. Este patrón permite a los agentes razonar sobre el paralelismo y el orden secuencial mediante el análisis de grados de entrada en el grafo resultante.",
+  "related": ["FEAT-005-e"],
+  "created_at": "2026-05-12"
+}

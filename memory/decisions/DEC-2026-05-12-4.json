@@ -1,0 +1,10 @@
+{
+  "id": "DEC-2026-05-12-4",
+  "source_task": "FEAT-005-g",
+  "type": "decision",
+  "title": "Derived partial state for parent tasks",
+  "context": "Need to represent the state of a parent task when children fail, without adding redundant state fields to artifacts.",
+  "content": "The 'partial' state of a parent task is derived dynamically by TaskManager by checking if any of its declared children reside in '.ai/tasks/failed/'. This avoids adding a 'state' field to schemas and prevents synchronization bugs between the filesystem and artifact metadata.",
+  "related": ["FEAT-005"],
+  "created_at": "2026-05-12"
+}

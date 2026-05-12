@@ -1,0 +1,10 @@
+{
+  "id": "PAT-2026-05-12-4",
+  "source_task": "FEAT-005-g",
+  "type": "pattern",
+  "title": "Automatic parent archival on last child cleanup",
+  "context": "Coordinating the lifecycle of a parent task with its decomposed children.",
+  "content": "When 'quorum task clean <child_id>' is called for the final child of a parent task (i.e., all other children are already in 'done/'), the TaskManager automatically moves the parent task to 'done/' as well. This side-effect ensures that parent coordinators are archived as soon as their functional dependencies are satisfied, without requiring a separate human 'clean' command for the parent.",
+  "related": ["FEAT-005"],
+  "created_at": "2026-05-12"
+}

@@ -1,0 +1,10 @@
+{
+  "id": "PAT-2026-05-12-1",
+  "source_task": "FEAT-005-f",
+  "type": "pattern",
+  "title": "Detección y preservación de WIP en worktrees remotos",
+  "context": "Necesidad de validar el estado de un worktree git antes de su eliminación física en el ciclo de vida SDC.",
+  "content": "Uso de 'git status --porcelain' para detección determinista de cambios. Para la preservación del trabajo, se emplea 'git stash push --include-untracked -m \"quorum:save:<task_id>\"' desde el contexto del worktree, permitiendo que el trabajo incidental sea recuperable desde el historial de Git del repositorio principal incluso después de borrar el worktree.",
+  "related": ["FEAT-005-f"],
+  "created_at": "2026-05-12"
+}

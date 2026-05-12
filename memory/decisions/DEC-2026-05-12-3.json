@@ -1,0 +1,10 @@
+{
+  "id": "DEC-2026-05-12-3",
+  "source_task": "FEAT-005-e",
+  "type": "decision",
+  "title": "Renderizador ASCII desacoplado para visualización de dependencias",
+  "context": "La visualización de dependencias complejas (diamante, lineales, paralelas) en la fase de descomposición era difícil de validar mentalmente.",
+  "content": "Se decidió implementar un motor de renderizado puro (decomposition_render.py) independiente de la lógica de negocio de task_manager. Esto permite visualizar el grafo de ejecución (DAG) tanto en la fase de propuesta (/q-decompose) como en la de ejecución (quorum task split) sin acoplar la lógica de visualización a la de persistencia.",
+  "related": ["FEAT-005-e"],
+  "created_at": "2026-05-12"
+}

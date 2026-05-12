@@ -1,0 +1,10 @@
+{
+  "id": "DEC-2026-05-12-5",
+  "source_task": "FEAT-005-e",
+  "type": "decision",
+  "title": "Layout horizontal (izquierda-a-derecha) para el DAG de descomposición",
+  "context": "Elección del formato visual para representar la jerarquía y paralelismo de tareas hijas.",
+  "content": "Se optó por un layout de columnas horizontales (L0, L1, ...) en lugar de uno vertical. Esto permite una mejor visualización de la progresión del tiempo y el paralelismo de las tareas en terminales estándar, utilizando una lista de 'edges' al final para representar las dependencias cruzadas sin la fragilidad visual de los caracteres de flechas complejos en ASCII.",
+  "related": ["FEAT-005-e"],
+  "created_at": "2026-05-12"
+}

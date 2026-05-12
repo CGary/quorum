@@ -1,0 +1,14 @@
+{
+  "id": "LES-2026-05-12-2",
+  "source_task": "FEAT-005-e",
+  "type": "lesson",
+  "title": "Prevención de regresiones por ramas desactualizadas (Stale Branches)",
+  "context": "Durante la aceptación de FEAT-005-e, se detectó que la rama se basaba en un main antiguo, resultando en la eliminación accidental de archivos creados por tareas hermanas (FEAT-005-d/f/g) al comparar contra el main actual.",
+  "content": "Es imperativo que el orquestador o el humano aseguren que la rama de la tarea esté rebaseada contra el 'main' más reciente antes de iniciar la fase de implementación y revisión. Una rama desactualizada puede pasar validaciones aisladas pero causar regresiones críticas al mergear, ya que 'vuelve en el tiempo' archivos que ya habían sido modificados o creados por otros.",
+  "related": ["FEAT-005-e"],
+  "created_at": "2026-05-12",
+  "anti_patterns": [
+    "Evitar implementar cambios sobre ramas que no contienen los commits de tareas hermanas ya mergeadas.",
+    "No confiar en una revisión (06-review.json) que no compare el diff explícitamente contra la rama de destino actual (main), para detectar borrados accidentales."
+  ]
+}
