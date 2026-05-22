@@ -2,6 +2,44 @@ from pathlib import Path
 import os
 import shutil
 
+
+def _ensure_claude_skills_symlink(project_root: Path, resource_src: Path) -> None:
+    """Create or validate .claude/skills as a symlink to resource_src/skills.
+
+    Idempotent when the symlink already resolves to the expected target.
+    Refuses to overwrite any pre-existing content (regular file, directory,
+    or foreign symlink) and raises RuntimeError with an actionable message.
+    """
+    claude_dir = project_root / ".claude"
+    link_path = claude_dir / "skills"
+    expected_target = (resource_src / "skills").resolve()
+
+    claude_dir.mkdir(exist_ok=True)
+
+    if link_path.is_symlink():
+        current_target = link_path.resolve()
+        if current_target == expected_target:
+            print(f"  [=] .claude/skills already linked to {expected_target}")
+            return
+        raise RuntimeError(
+            ".claude/skills es un symlink hacia un destino distinto al esperado.\n"
+            f"  Encontrado: {current_target}\n"
+            f"  Esperado:   {expected_target}\n"
+            "Eliminá o ajustá el symlink manualmente antes de re-ejecutar quorum init."
+        )
+    if link_path.exists():
+        kind = "directorio" if link_path.is_dir() else "archivo"
+        raise RuntimeError(
+            f".claude/skills existe como {kind} y no como symlink.\n"
+            f"  Encontrado: {link_path} ({kind})\n"
+            f"  Esperado:   symlink hacia {expected_target}\n"
+            "Eliminá o renombrá el contenido existente antes de re-ejecutar quorum init."
+        )
+
+    print(f"  [+] Creating .claude/skills -> {expected_target}")
+    link_path.symlink_to(expected_target, target_is_directory=True)
+
+
 def init():
     # Detect project root
     project_root = Path(os.getcwd())
@@ -68,6 +106,9 @@ def init():
         print(f"  [*] Updating .agents/config.yaml...")
         config_tgt.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(config_src, config_tgt)
+
+    # 3b. Expose skills to Claude Code via .claude/skills symlink
+    _ensure_claude_skills_symlink(project_root, resource_src)
 
     # 4. .gitignore logic
     gitignore_path = project_root / ".gitignore"
