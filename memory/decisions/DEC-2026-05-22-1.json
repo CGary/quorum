@@ -1,0 +1,13 @@
+{
+  "id": "DEC-2026-05-22-1",
+  "source_task": "FEAT-006",
+  "type": "decision",
+  "title": "Skill language: Spanish for user chat, English for generated YAML artifacts",
+  "context": "q-brief operates bilingually: it interviews users in Spanish but must produce 00-spec.yaml with English field content so that downstream agents (q-blueprint, q-implement) receive concise, portable instructions without language translation overhead.",
+  "content": "Quorum skills enforce a strict two-layer language policy. The Communication Protocol layer (user-facing chat, handoff blocks, waiting indicators) MUST remain in Spanish as required by the skill protocol. The Artifact Generation layer (YAML field values in 00-spec.yaml: summary, goal, invariants, acceptance, non_goals, constraints) MUST be English so downstream agent consumption is unambiguous and token-efficient. These two concerns are orthogonal: a skill can satisfy both simultaneously by keeping the generated YAML content in English while all prose responses to the user remain in Spanish. This separation must be explicitly documented in each skill that generates artifacts.",
+  "related": ["FEAT-006"],
+  "anti_patterns": [
+    "Generating 00-spec.yaml field values in Spanish because the interview was in Spanish — this couples UI language to machine-readable artifact language, creating translation burden for downstream agents."
+  ],
+  "created_at": "2026-05-22"
+}
