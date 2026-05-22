@@ -49,3 +49,12 @@ def test_q_analyze_documents_parent_child_coverage():
     assert "depends_on" in content
     assert "strictly read-only" in content
     assert "do not run `quorum task back`, `blueprint`, `start`, `split`, `clean`" in content
+
+def test_q_brief_generated_spec_content_is_english():
+    """Verify q-brief explicitly requires English generated YAML field content."""
+    skill_file = SKILLS_DIR / "q-brief" / "SKILL.md"
+    content = skill_file.read_text()
+
+    assert "english" in content.lower(), "q-brief MUST require english for generated YAML."
+    assert "00-spec.yaml" in content.lower() or "yaml" in content.lower()
+

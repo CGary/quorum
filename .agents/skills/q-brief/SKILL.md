@@ -59,6 +59,7 @@ constraints:
 - `summary` MUST be the second key after `task_id` and ≤ 200 characters.
 - Quote ambiguous YAML strings such as `NO`, `1.10`, and `22:30`.
 - Do NOT suggest file paths yet. That is the job of `q-blueprint`.
+- **Language**: The generated `00-spec.yaml` field values (summary, goal, invariants, etc.) MUST be written in concise English, even if the user chat was in Spanish.
 
 ## 🛑 Handoff (single-phase boundary + forward auto-transition)
 
