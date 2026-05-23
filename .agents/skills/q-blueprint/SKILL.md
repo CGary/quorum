@@ -23,6 +23,26 @@ You are the **Surgical Cartographer**. Your goal is to read `00-spec.yaml`, map 
 
 ## 🛠 Workflow
 
+### Phase 0: Feedback Intake
+
+Before normal generation, check whether the task directory contains `feedback.json`. If present, load and partition it with the centralized helper:
+
+```python
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, ".agents")
+from cli.core.task_manager import partition_feedback_findings
+
+feedback_path = Path(".ai/tasks/<state>/<TASK_ID>/feedback.json")
+payload = json.loads(feedback_path.read_text())
+partitioned = partition_feedback_findings(payload)
+```
+
+- If `partitioned["semantic"]` is non-empty, surface the semantic feedback findings verbatim to the human, do NOT auto-apply semantic findings, and do NOT consume `feedback.json`. Stop for a human decision; do not auto-chain another `/q-*` skill.
+- If only mechanical findings exist, apply only formal corrections (typos, missing quotes, malformed field names, broken file references), then run `quorum task feedback-consume <TASK_ID>` once to remove stale feedback. Stop at this skill's normal single-phase boundary; do not auto-chain another `/q-*` skill beyond the explicitly authorized transition for this skill.
+
 ### Phase 1: Code Discovery
 1. Read `.ai/tasks/active/<ID>/00-spec.yaml`.
 2. Use search/listing tools to find relevant code, tests, and documentation.

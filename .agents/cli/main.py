@@ -37,6 +37,12 @@ def main():
     artifact_save_parser.add_argument("task_id", help="Task ID")
     artifact_save_parser.add_argument("artifact_path", help="Artifact path relative to the task directory")
 
+    feedback_consume_parser = task_subparsers.add_parser(
+        "feedback-consume",
+        help="Remove feedback.json after mechanical q-analyze findings are applied"
+    )
+    feedback_consume_parser.add_argument("task_id", help="Task ID")
+
     # task status
     status_parser = task_subparsers.add_parser("status", help="Get task status")
     status_parser.add_argument("task_id", help="Task ID")
@@ -85,6 +91,8 @@ def main():
             task.start(args.task_id)
         elif args.subcommand == "artifact-save":
             task.artifact_save(args.task_id, args.artifact_path)
+        elif args.subcommand == "feedback-consume":
+            task.feedback_consume(args.task_id)
         elif args.subcommand == "status":
             task.status(args.task_id)
         elif args.subcommand == "list":
