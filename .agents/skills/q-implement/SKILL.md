@@ -131,6 +131,18 @@ or
 BLOCKED: <specific reason>
 ```
 
+When the block is caused by a contract boundary problem, such as a required
+file missing from `touch`, the specific reason MUST use this parseable form:
+
+```text
+BLOCKED: missing_file=<path>; reason=<text>; severity=<critical|minor>
+```
+
+Use `severity=critical` when implementation cannot proceed under the current
+contract. Use `severity=minor` when work can continue but the contract omission
+should be recorded for later renegotiation analysis. This text shape maps to the
+future renegotiation-request fields `path`, `reason`, and `severity`.
+
 ## Rules
 
 - Do not run slow BDD suites.
@@ -174,7 +186,7 @@ Si querés volver atrás:
 === Fin de fase: Implementación ===
 
 Resultado: BLOCKED
-Razón específica: <descripción>
+Razón específica: <descripción; si es bloqueo de contrato, usar `BLOCKED: missing_file=<path>; reason=<text>; severity=<critical|minor>`>
 
 Pasos siguientes (los despacha el orquestador, NO yo):
 - Si el contrato es incorrecto (touch insuficiente, forbid mal puesto, verify.commands inadecuados):

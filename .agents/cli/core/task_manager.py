@@ -238,6 +238,36 @@ def append_trace_attempt(trace_path, attempt):
     trace_payload["attempts"] = attempts
     save_artifact(trace_path, trace_payload)
     return trace_payload
+
+def record_blocked_by_contract(trace_path, requested_path):
+    """Record passive contract-block telemetry in 07-trace.json.
+
+    This helper is observational only: it updates the optional
+    ``blocked_by_contract`` aggregate without changing task state, routing,
+    retries, model selection, or existing trace attempts. Persistence goes
+    through ``save_artifact`` so trace validation and append-only attempt
+    enforcement still apply.
+    """
+    trace_path = Path(trace_path)
+    if not trace_path.exists():
+        raise ArtifactValidationError(
+            f"artifact={trace_path}; field=$; reason=trace file must exist before recording contract blocks"
+        )
+    if not isinstance(requested_path, str) or not requested_path.strip():
+        raise ArtifactValidationError(
+            f"artifact={trace_path}; field=$.blocked_by_contract.requested_paths; reason=requested path must be a non-empty string"
+        )
+
+    trace_payload = _load_artifact_payload(trace_path)
+    existing = trace_payload.get("blocked_by_contract") or {}
+    requested_paths = list(existing.get("requested_paths") or [])
+    requested_paths.append(requested_path.strip())
+    trace_payload["blocked_by_contract"] = {
+        "count": int(existing.get("count") or 0) + 1,
+        "requested_paths": requested_paths,
+    }
+    save_artifact(trace_path, trace_payload)
+    return trace_payload
 def _validate_implementation_log(log):
     """Validate a 04-implementation-log.yaml payload against its schema."""
     validate(instance=log, schema=_load_json_schema("implementation-log.schema.json"))

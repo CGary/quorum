@@ -162,3 +162,45 @@ def test_initialize_and_start_keep_spec_and_contract_validation_paths(monkeypatc
     trace = json.loads((active_dir / "07-trace.json").read_text())
     assert trace["task_id"] == "FEAT-010"
     assert called["worktree_add"] is True
+
+
+def test_record_blocked_by_contract_accumulates_without_rewriting_attempts(monkeypatch, tmp_path):
+    root, _ = _setup_repo(monkeypatch, tmp_path)
+    trace_path = root / "07-trace.json"
+    task_manager.save_artifact(trace_path, VALID_TRACE)
+
+    first = task_manager.record_blocked_by_contract(trace_path, ".agents/cli/core/new_file.py")
+    assert first["blocked_by_contract"] == {
+        "count": 1,
+        "requested_paths": [".agents/cli/core/new_file.py"],
+    }
+    assert first["attempts"] == VALID_TRACE["attempts"]
+
+    second = task_manager.record_blocked_by_contract(trace_path, "tests/test_new_file.py")
+    assert second["blocked_by_contract"] == {
+        "count": 2,
+        "requested_paths": [".agents/cli/core/new_file.py", "tests/test_new_file.py"],
+    }
+    assert second["attempts"] == VALID_TRACE["attempts"]
+
+    persisted = json.loads(trace_path.read_text())
+    assert persisted == second
+
+
+def test_trace_schema_accepts_legacy_trace_without_blocked_by_contract(monkeypatch, tmp_path):
+    root, _ = _setup_repo(monkeypatch, tmp_path)
+    trace_path = root / "07-trace.json"
+
+    task_manager.save_artifact(trace_path, VALID_TRACE)
+
+    assert json.loads(trace_path.read_text()) == VALID_TRACE
+
+
+def test_trace_schema_rejects_malformed_blocked_by_contract(monkeypatch, tmp_path):
+    root, _ = _setup_repo(monkeypatch, tmp_path)
+    trace_path = root / "07-trace.json"
+    invalid = json.loads(json.dumps(VALID_TRACE))
+    invalid["blocked_by_contract"] = {"count": 0, "requested_paths": []}
+
+    with pytest.raises(task_manager.ArtifactValidationError, match="blocked_by_contract"):
+        task_manager.save_artifact(trace_path, invalid)

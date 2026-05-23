@@ -133,6 +133,28 @@
       "items": {
         "type": "string"
       }
+    },
+    "blocked_by_contract": {
+      "type": "object",
+      "required": [
+        "count",
+        "requested_paths"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "requested_paths": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        }
+      }
     }
   }
 }
