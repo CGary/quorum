@@ -1,0 +1,14 @@
+{
+  "id": "DEC-2026-05-23-1",
+  "source_task": "FEAT-008",
+  "type": "decision",
+  "title": "Use non-numbered feedback.json for backward diagnostic feedback",
+  "context": "Planning skills like q-brief and q-blueprint need diagnostic/consistency feedback from read-only analytical skills like q-analyze without modifying the immutable 00..07 lifecycle sequence.",
+  "content": "Diagnostic feedback findings are captured in a schema-validated, non-numbered feedback.json artifact in the task directory. Planning skills selectively consume and clean up this file (mechanical fixes auto-applied, semantic ones presented to human) to close the planning loop.",
+  "related": ["FEAT-008"],
+  "anti_patterns": [
+    "Do not introduce new numbered lifecycle artifacts like 08-feedback.json because they violate the canonical SDC 00..07 structure.",
+    "Do not allow q-analyze to write directly to 00-spec.yaml or 01-blueprint.yaml, keeping diagnostic skills strictly read-only on core lifecycle files."
+  ],
+  "created_at": "2026-05-23"
+}

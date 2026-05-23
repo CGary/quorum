@@ -1,0 +1,14 @@
+{
+  "id": "PAT-2026-05-23-1",
+  "source_task": "FEAT-008",
+  "type": "pattern",
+  "title": "Safe branch cleanup via dynamic base branch merge check",
+  "context": "In the SDC cleanup phase, task branches must be deleted locally only if they have been safely merged, without hardcoding 'main' or affecting remote repositories.",
+  "content": "Resolve the base branch dynamically using task_manager.get_base_branch() and perform a local-only merge check using 'git merge-base --is-ancestor'. Safely delete the local branch with 'git branch -d' (never -D), preserving branches with unmerged commits and failing gracefully if the branch was already deleted.",
+  "related": ["FEAT-008"],
+  "anti_patterns": [
+    "Do not hardcode git base branches like main or master during merge verification.",
+    "Do not use git branch -D or push deletes during cleanup to avoid accidental loss of unmerged work or modification of remote state."
+  ],
+  "created_at": "2026-05-23"
+}
