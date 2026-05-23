@@ -1,0 +1,10 @@
+{
+  "id": "PAT-2026-05-22-2",
+  "source_task": "FEAT-007",
+  "type": "pattern",
+  "title": "Conditional use of the waiting indicator in skills",
+  "context": "Skills were unconditionally outputting the waiting indicator 'ESPERANDO RESPUESTA DEL USUARIO...', even on informational success handoffs.",
+  "content": "Skills must end with the waiting indicator only when asking for input or stopping before a pending human decision (e.g., block state, human merge). Informational success handoffs must omit the waiting indicator to cleanly end the turn.",
+  "related": ["FEAT-007"],
+  "created_at": "2026-05-22"
+}

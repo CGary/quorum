@@ -1,4 +1,0 @@
-- Quitar "ESPERANDO RESPUESTA DEL USUARIO..." si no se espera respuesta del usuario.
-- las instrucciones en yaml las hace en español, las tiene que hacer en inglés.
-- cuando q-analize encuentre problemas que arroje un archivo que el q-blueprint pueda leer.
-- cuando se ejecute quorum task clean [task] que tambien borre la rama de git asociada a esa tarea.

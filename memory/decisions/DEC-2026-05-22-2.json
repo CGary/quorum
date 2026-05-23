@@ -1,0 +1,10 @@
+{
+  "id": "DEC-2026-05-22-2",
+  "source_task": "FEAT-007",
+  "type": "decision",
+  "title": "Artifact field values must be written in English",
+  "context": "There was ambiguity regarding the language used for generated artifact fields when interacting with a user in another language (e.g., Spanish).",
+  "content": "All Quorum generated artifacts (00 to 07, plus memory) MUST use concise English for their field values, while chat interactions remain in the user's preferred language. This ensures programmatic parsing and repository history remain consistently in English.",
+  "related": ["FEAT-007"],
+  "created_at": "2026-05-22"
+}
