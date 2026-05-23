@@ -58,3 +58,32 @@ def test_q_brief_generated_spec_content_is_english():
     assert "english" in content.lower(), "q-brief MUST require english for generated YAML."
     assert "00-spec.yaml" in content.lower() or "yaml" in content.lower()
 
+
+
+def test_semantic_feedback_findings_not_auto_applied_instruction():
+    """q-brief and q-blueprint must preserve human authority for semantic feedback."""
+    for skill_name in ["q-brief", "q-blueprint"]:
+        content = (SKILLS_DIR / skill_name / "SKILL.md").read_text()
+
+        assert "feedback.json" in content
+        assert "partition_feedback_findings" in content
+        assert re.search(
+            r"semantic[^\n]*(surface|surface the semantic feedback findings|human)",
+            content,
+            re.IGNORECASE,
+        ), f"{skill_name} must surface semantic feedback to the human"
+        assert re.search(
+            r"semantic[^\n]*do NOT auto-apply semantic findings",
+            content,
+            re.IGNORECASE,
+        ), f"{skill_name} must not auto-apply semantic feedback"
+        assert re.search(
+            r"semantic[^\n]*do NOT consume `feedback\.json`",
+            content,
+            re.IGNORECASE,
+        ), f"{skill_name} must leave semantic feedback.json in place"
+        semantic_line = next(
+            line for line in content.splitlines()
+            if "semantic" in line.lower() and "feedback.json" in line
+        )
+        assert "quorum task feedback-consume" not in semantic_line

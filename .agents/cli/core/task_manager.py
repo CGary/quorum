@@ -81,6 +81,7 @@ ARTIFACT_SCHEMA_MAP = {
     "05-validation.json": "validation.schema.json",
     "06-review.json": "review.schema.json",
     "07-trace.json": "trace.schema.json",
+    "feedback.json": "feedback.schema.json",
 }
 class ArtifactValidationError(Exception):
     """Raised when an artifact cannot be safely persisted."""
@@ -195,6 +196,36 @@ def save_artifact(artifact_path, payload):
     artifact_path.parent.mkdir(parents=True, exist_ok=True)
     _dump_artifact_payload(artifact_path, payload)
     return artifact_path
+def save_feedback(task_dir, payload):
+    """Persist q-analyze feedback.json through the normal artifact validator."""
+    return save_artifact(Path(task_dir) / "feedback.json", payload)
+
+def consume_feedback(task_dir):
+    """Remove feedback.json after mechanical findings are applied.
+
+    Returns True when a file was consumed and False when there was no feedback
+    file, so callers may invoke it idempotently.
+    """
+    feedback_path = Path(task_dir) / "feedback.json"
+    if not feedback_path.exists():
+        return False
+    feedback_path.unlink()
+    return True
+
+def partition_feedback_findings(payload):
+    """Partition feedback findings by authority.
+
+    Only explicit ``category: mechanical`` findings are machine-applicable.
+    Unknown or malformed categories are treated as semantic so the human remains
+    the authority for meaning-changing corrections.
+    """
+    result = {"mechanical": [], "semantic": []}
+    for finding in (payload or {}).get("findings") or []:
+        if isinstance(finding, dict) and finding.get("category") == "mechanical":
+            result["mechanical"].append(finding)
+        else:
+            result["semantic"].append(finding)
+    return result
 def append_trace_attempt(trace_path, attempt):
     trace_path = Path(trace_path)
     if not trace_path.exists():
@@ -475,6 +506,44 @@ def _save_worktree_changes(worktree_path, task_id):
     return result.returncode == 0, (result.stdout or "") + (result.stderr or "")
 
 
+def _branch_exists(branch_name):
+    result = subprocess.run(
+        ["git", "-C", str(PROJECT_ROOT), "show-ref", "--verify", f"refs/heads/{branch_name}"],
+        capture_output=True, text=True
+    )
+    return result.returncode == 0
+
+def _delete_branch_if_merged(branch_name, base_branch):
+    """Safely delete a local task branch only when merged into base_branch."""
+    if not _branch_exists(branch_name):
+        print(f"[*] Branch {branch_name} is absent; skipping local branch cleanup.")
+        return False
+
+    merged = subprocess.run(
+        ["git", "-C", str(PROJECT_ROOT), "merge-base", "--is-ancestor", branch_name, base_branch],
+        capture_output=True, text=True
+    )
+    if merged.returncode == 0:
+        deleted = subprocess.run(
+            ["git", "-C", str(PROJECT_ROOT), "branch", "-d", branch_name],
+            capture_output=True, text=True
+        )
+        if deleted.returncode == 0:
+            print(f"[+] Deleted merged local branch {branch_name}.")
+            return True
+        output = (deleted.stderr or deleted.stdout or "").strip()
+        print(f"[!] Could not delete merged local branch {branch_name}: {output}")
+        return False
+    if merged.returncode == 1:
+        print(f"[!] Preserving local branch {branch_name}; it has commits not merged into {base_branch}.")
+        print(f"    After merging, delete it manually with: git branch -d {branch_name}")
+        return False
+
+    output = (merged.stderr or merged.stdout or "").strip()
+    print(f"[!] Could not determine whether {branch_name} is merged into {base_branch}; preserving branch. {output}")
+    return False
+
+
 def _ensure_retry_worktree(task_id):
     """Ensure a failed child has a safe worktree for a new /q-implement dispatch.
 
@@ -669,6 +738,7 @@ def clean_task(task_id, force=False, save=False):
         else:
             print(f"[*] Removing worktree {worktree_path}...")
         subprocess.run(remove_cmd, check=False)
+    _delete_branch_if_merged(f"ai/{task_id}", get_base_branch())
     if loc == "active":
         target_dir = AI_TASKS / "done" / task_dir.name
         print(f"[*] Archiving task to done/...")

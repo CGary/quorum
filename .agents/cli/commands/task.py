@@ -71,3 +71,16 @@ def artifact_save(task_id, artifact_path):
         raise SystemExit(1) from error
 
     print(f"[+] Saved artifact: {destination}")
+
+
+def feedback_consume(task_id):
+    task_dir, _ = task_manager.find_task_dir(task_id)
+    if not task_dir:
+        print(f"[!] Task {task_id} not found.")
+        raise SystemExit(1)
+
+    consumed = task_manager.consume_feedback(task_dir)
+    if consumed:
+        print(f"[+] Consumed feedback: {task_dir / 'feedback.json'}")
+    else:
+        print(f"[*] No feedback.json present for {task_id}.")

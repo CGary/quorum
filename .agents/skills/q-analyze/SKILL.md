@@ -17,7 +17,7 @@ You are the **Artifact Consistency Analyst**. Treat planning artifacts as execut
 
 ## Scope
 
-Read-only. Analyze only:
+Read-only for planning artifacts. Analyze only:
 
 - `.ai/tasks/<state>/<TASK>/00-spec.yaml`
 - `.ai/tasks/<state>/<TASK>/01-blueprint.yaml`
@@ -27,7 +27,7 @@ Read-only. Analyze only:
 - Para tareas padre con `decomposition`, también leer únicamente los `00-spec.yaml` de las hijas declaradas bajo `.ai/tasks/{inbox,active,done,failed}/`.
 - `.agents/cli/core/decomposition_analysis.py` como helper puro read-only para calcular cobertura padre-hijas.
 
-Do not modify files.
+Do not modify `00-spec.yaml`, `01-blueprint.yaml`, or `02-contract.yaml`. The only permitted write is a schema-validated non-numbered `feedback.json` file in the task directory when findings exist.
 
 ## Analysis Passes
 
@@ -107,6 +107,27 @@ Report:
 
 This pass is strictly read-only: do not persist the report, do not edit `decomposition`, do not edit child specs, and do not run `quorum task back`, `blueprint`, `start`, `split`, `clean`, or any other state transition.
 
+## Feedback Artifact
+
+When findings exist, also persist a backward feedback channel for planning skills:
+
+1. Build a JSON payload named exactly `feedback.json` with:
+   - `task_id`: the current task ID
+   - `summary`: concise English summary of findings
+   - `produced_by`: `q-analyze`
+   - `generated_at`: current UTC ISO-8601 timestamp
+   - `findings[]`: each finding has `severity`, `category`, `artifact`, `path`, `issue`, and `suggested_fix`
+2. Set `category` to `mechanical` only for formal corrections such as typos, missing quotes, malformed field names, or broken file references. Set `category` to `semantic` for scope, intent, risk, missing coverage, or contract-authority changes.
+3. Pipe the payload through schema validation:
+
+```bash
+quorum task artifact-save <TASK_ID> feedback.json <<'JSON'
+{...}
+JSON
+```
+
+If there are zero findings, do not write `feedback.json`; a consistent task should leave no stale feedback file behind.
+
 ## Output
 
 Produce a concise report:
@@ -123,7 +144,7 @@ Next: <q-blueprint|q-implement|manual clarification>
 
 ## Rules
 
-- Do not rewrite artifacts unless the user explicitly asks in a separate instruction.
+- Do not rewrite `00-spec.yaml`, `01-blueprint.yaml`, or `02-contract.yaml`; feedback is persisted only as `feedback.json`.
 - Do not invent missing requirements.
 - Prefer exact artifact keys and paths over broad commentary.
 - For parent tasks, include a `Parent decomposition coverage` subsection when the helper result has `applies: true`.
@@ -139,8 +160,9 @@ Cerrá el mensaje final exactamente con este bloque (en español):
 ```text
 === Fin de fase: Análisis de consistencia ===
 
-Artefacto producido:
-- Reporte read-only emitido en este turno (no se persiste a disco).
+Artefactos producidos:
+- Reporte read-only emitido en este turno.
+- feedback.json sólo si hubo findings; si no hubo findings, no se persiste nada a disco.
 
 Veredicto: pass | issues_found | blocked
 
