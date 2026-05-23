@@ -93,7 +93,6 @@ Pasos siguientes (los despacha el orquestador, NO yo):
 Si algo no quedó bien y querés volver atrás:
 - quorum task back <TASK_ID> — revierte la transición que acabo de ejecutar (active/ → inbox/) para refinar el spec.
 
-ESPERANDO RESPUESTA DEL USUARIO...
 ```
 
 Auto-encadenar al siguiente skill viola la Regla #9 (Skills Are Single-Phase Units) y la #7 (Cost Bounded by Policy, Not Trust). La auto-transición de estado SÍ está autorizada porque elimina fricción sin saltar fases ni decidir routing.

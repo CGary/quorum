@@ -4,6 +4,17 @@ import re
 
 SKILLS_DIR = Path(".agents/skills")
 SKILL_FILES = list(SKILLS_DIR.glob("q-*/SKILL.md"))
+WAIT_INDICATOR = "ESPERANDO RESPUESTA DEL USUARIO..."
+
+ARTIFACT_PRODUCING_SKILLS = {
+    "q-brief": ["00-spec.yaml"],
+    "q-blueprint": ["01-blueprint.yaml", "02-contract.yaml"],
+    "q-decompose": ["00-spec.yaml"],
+    "q-implement": ["04-implementation-log.yaml"],
+    "q-verify": ["05-validation.json"],
+    "q-review": ["06-review.json"],
+    "q-memory": ["memory/"],
+}
 
 def test_communication_protocol_is_conditional():
     """Verify that all skills have a conditional wait indicator instruction."""
@@ -58,3 +69,56 @@ def test_q_brief_generated_spec_content_is_english():
     assert "english" in content.lower(), "q-brief MUST require english for generated YAML."
     assert "00-spec.yaml" in content.lower() or "yaml" in content.lower()
 
+
+def test_success_handoff_omits_waiting_indicator():
+    """Verify successful/informational handoff templates do not end with a wait indicator."""
+    success_markers = (
+        "Artefacto producido:",
+        "Artefactos producidos:",
+        "Transición de estado ejecutada:",
+        "Resultado: DONE",
+        "Resultado: NO decomponer",
+        "Resultado: decompuesto",
+        "Veredicto: ready",
+        "Veredicto: approve",
+        "Reporte: emitido",
+    )
+    conditional_markers = (
+        "BLOCKED",
+        "Razón específica:",
+        "not_ready",
+        "Bloqueantes:",
+        "¿Confirmás",
+        "Respondé:",
+    )
+
+    fenced_text_block = re.compile(r"```text\n(.*?)\n```", re.DOTALL)
+    for skill_file in SKILL_FILES:
+        content = skill_file.read_text()
+        for block in fenced_text_block.findall(content):
+            if block.rstrip().endswith(WAIT_INDICATOR):
+                assert any(marker in block for marker in conditional_markers), (
+                    f"Wait indicator in {skill_file} is not in a conditional handoff block."
+                )
+            if not any(marker in block for marker in success_markers):
+                continue
+            if any(marker in block for marker in conditional_markers):
+                continue
+            assert not block.rstrip().endswith(WAIT_INDICATOR), (
+                f"Successful handoff in {skill_file} must omit the wait indicator."
+            )
+
+
+def test_artifact_producing_skills_require_english():
+    """Verify every persisted-artifact producer declares English artifact content."""
+    for skill_name, expected_artifacts in ARTIFACT_PRODUCING_SKILLS.items():
+        skill_file = SKILLS_DIR / skill_name / "SKILL.md"
+        content = skill_file.read_text()
+        lower_content = content.lower()
+
+        assert "english" in lower_content, f"{skill_name} MUST require English artifact content."
+        assert "field values" in lower_content, f"{skill_name} MUST scope English to artifact field values."
+        for artifact in expected_artifacts:
+            assert artifact.lower() in lower_content, (
+                f"{skill_name} English rule must reference {artifact}."
+            )

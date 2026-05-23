@@ -114,6 +114,7 @@ NO actives `/q-brief`, `/q-blueprint` ni ningún otro skill por los hijos — es
 - NO decomponés tareas que ya tienen `parent_task` (sin decomposition recursiva).
 - NO toques `01-blueprint.yaml`, `02-contract.yaml` ni nada fuera de `00-spec.yaml` del padre.
 - NO movés estado de hijos manualmente. `quorum task split` los pone en `inbox/`; ahí se quedan hasta que el orquestador despache `/q-brief <child>`.
+- **Language**: The generated `00-spec.yaml` decomposition field values and derived child spec field values MUST be written in concise English, even if the user chat was in Spanish.
 
 ## 🛑 Handoff (single-phase boundary + forward auto-transition)
 
@@ -137,7 +138,6 @@ Pasos siguientes (los despacha el orquestador, NO yo):
 Si querés volver atrás:
 - quorum task back <PARENT_ID> — devuelve la tarea a inbox/ para refinar el spec con /q-brief <PARENT_ID>.
 
-ESPERANDO RESPUESTA DEL USUARIO...
 ```
 
 ### Caso B: SÍ se decompone (usuario confirmó la propuesta)
@@ -169,7 +169,6 @@ Si algo no quedó bien y querés volver atrás:
 - quorum task back <hijo_id> — revierte la última transición del hijo (después de que su /q-brief lo haya movido a active/).
 - Para deshacer la decomposition entera: editá manualmente el spec del padre quitando `decomposition` y borrá los directorios de hijos en inbox/.
 
-ESPERANDO RESPUESTA DEL USUARIO...
 ```
 
 NO actives ningún otro skill. La auto-transición a `quorum task split` está autorizada porque elimina fricción sin saltar fases ni decidir routing. Auto-encadenar al `/q-brief` de cada hijo violaría la Regla #9.

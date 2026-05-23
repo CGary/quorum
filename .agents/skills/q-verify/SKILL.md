@@ -115,6 +115,7 @@ Failed commands: <none or list>
 - Do not change source code.
 - Do not fix failures in this skill.
 - Do not run BDD acceptance suites.
+- **Language**: The generated `05-validation.json` field values MUST be written in concise English, even if the user chat was in Spanish.
 
 ## 🛑 Handoff (single-phase boundary)
 
@@ -147,7 +148,6 @@ Pasos siguientes (los despacha el orquestador, NO yo):
 Si querés volver atrás:
 - quorum task back <TASK_ID> — borra worktree y rama (perdés commits no mergeados).
 
-ESPERANDO RESPUESTA DEL USUARIO...
 ```
 
 Auto-encadenar viola la Regla #9.

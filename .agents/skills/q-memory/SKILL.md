@@ -136,6 +136,7 @@ python -m jsonschema -i memory/<type>/<file>.json .agents/schemas/memory.schema.
 - Prefer one useful memory over many weak ones.
 - Do not edit source code.
 - Do not overwrite existing memory IDs.
+- **Language**: The generated `memory/{decisions,patterns,lessons}/*.json` field values MUST be written in concise English, even if the user chat was in Spanish.
 
 ## 🛑 Handoff (single-phase boundary)
 
@@ -159,7 +160,6 @@ Pasos siguientes:
 - [Opcional] /q-status — vista global para confirmar que la tarea quedó en done/ y la memoria está registrada.
 - [Terminal] El ciclo Quorum cerró para esta tarea. Si esta era una tarea hija (parent_task definido en el spec), considerá despachar /q-status <PARENT_ID> para ver si todas sus hermanas también cerraron.
 
-ESPERANDO RESPUESTA DEL USUARIO...
 ```
 
 Auto-encadenar o auto-ingestar viola la Regla #9, la Memory Governance ("human-invoked, never automatic") y la Regla #7.

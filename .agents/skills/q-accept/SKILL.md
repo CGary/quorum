@@ -89,7 +89,6 @@ Pasos posteriores (los despacha el orquestador después del merge):
 Si querés volver atrás antes de mergear:
 - quorum task back <TASK_ID> — borra worktree y rama (perdés commits no mergeados).
 
-ESPERANDO RESPUESTA DEL USUARIO...
 ```
 
 **Caso not_ready**:
@@ -108,7 +107,6 @@ Pasos siguientes (los despacha el orquestador, NO yo):
 - Si hay archivos prohibidos tocados o refactor no pedido:
   1. [Obligatorio] /q-implement <TASK_ID> revirtiendo los cambios fuera de scope.
 
-ESPERANDO RESPUESTA DEL USUARIO...
 ```
 
 Auto-mergear o auto-encadenar viola las Reglas #9, #6 y #7.

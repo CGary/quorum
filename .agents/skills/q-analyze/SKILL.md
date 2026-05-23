@@ -155,7 +155,6 @@ Pasos siguientes (los despacha el orquestador, NO yo):
 Si querés volver atrás antes de implementar:
 - quorum task back <TASK_ID> — borra el worktree y la rama vacía; la tarea queda en active/ con artefactos intactos.
 
-ESPERANDO RESPUESTA DEL USUARIO...
 ```
 
 Auto-encadenar al siguiente skill viola la Regla #9.

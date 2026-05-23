@@ -112,7 +112,6 @@ Pasos siguientes (los despacha el orquestador, NO yo):
 Si querés volver atrás en alguna tarea:
 - quorum task back <TASK_ID> — revierte la última transición de esa tarea.
 
-ESPERANDO RESPUESTA DEL USUARIO...
 ```
 
 Auto-encadenar a la acción recomendada viola la Regla #9.

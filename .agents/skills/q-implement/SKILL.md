@@ -137,6 +137,7 @@ BLOCKED: <specific reason>
 - Do not merge.
 - Do not edit task schemas or policies unless explicitly in `touch`.
 - Do not expand the contract yourself. If the contract is wrong, block.
+- **Language**: The generated `04-implementation-log.yaml` field values MUST be written in concise English, even if the user chat was in Spanish.
 
 ## 🛑 Handoff (single-phase boundary)
 
@@ -166,7 +167,6 @@ Si querés volver atrás:
 - git -C worktrees/<TASK_ID> reset --hard HEAD~1 — descarta el último commit del worktree.
 - quorum task back <TASK_ID> — borra worktree y rama (perdés todos los commits no mergeados).
 
-ESPERANDO RESPUESTA DEL USUARIO...
 ```
 
 **Caso bloqueado**:

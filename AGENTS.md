@@ -136,7 +136,8 @@ These are enforced by both the manifesto and the code paths above. Violations ar
 When editing or writing `.agents/skills/q-*/SKILL.md`, every skill must:
 
 - **Output in Spanish** to the user, regardless of input or doc language.
-- **End every waiting turn** with the exact line `ESPERANDO RESPUESTA DEL USUARIO...` (uppercase, three dots, nothing after — no trailing fence).
+- **End only waiting turns** with the exact line `ESPERANDO RESPUESTA DEL USUARIO...` (uppercase, three dots, nothing after — no trailing fence). A waiting turn is one that asks an explicit user question, reports a blocked dispatch, or leaves a pending human decision; successful informational completions must omit it.
+- **Persisted artifact field values MUST be written in concise English** (`00-spec.yaml`, `01-blueprint.yaml`, `02-contract.yaml`, `04-implementation-log.yaml`, `05-validation.json`, `06-review.json`, `07-trace.json`, and `memory/{decisions,patterns,lessons}/*.json`), even when user-facing chat stays Spanish.
 - **Mark next-step actions** as `[Obligatorio]` or `[Opcional]` and reference `quorum task back <ID>` as the human rollback path.
 - **Never auto-activate** another `/q-*` skill. The only authorized auto-action is the forward CLI transition for the three skills listed above.
 

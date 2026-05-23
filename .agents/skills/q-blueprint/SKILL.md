@@ -114,6 +114,7 @@ strategy:
 - Stay within the `active/` directory for artifact generation.
 - Keep YAML shallow. Intended max nesting depth is 3 levels.
 - Quote ambiguous YAML scalar strings.
+- **Language**: The generated `01-blueprint.yaml`, `02-contract.yaml`, and `07-trace.json` field values MUST be written in concise English, even if the user chat was in Spanish.
 
 ### Phase 4: Risk Scoring (Advisory)
 
@@ -177,7 +178,6 @@ Pasos siguientes (los despacha el orquestador, NO yo):
 Si algo no quedó bien y querés volver atrás:
 - quorum task back <TASK_ID> — borra el worktree y la rama (si está vacía). La tarea queda en active/ con 01/02 intactos para que vuelvas a despachar /q-blueprint y reescribirlos.
 
-ESPERANDO RESPUESTA DEL USUARIO...
 ```
 
 Auto-encadenar al siguiente skill viola la Regla #9. La auto-transición a `quorum task start` está autorizada porque elimina fricción sin saltar fases.
