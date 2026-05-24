@@ -47,9 +47,11 @@ partitioned = partition_feedback_findings(payload)
 Use `.agents/policies/risk.yaml` and `.agents/policies/routing.yaml` to classify risk as `low`, `medium`, or `high`. Do not assign ceremony profiles.
 
 ### Phase 2: Logical Interview
-Ask questions one by one to fill the `00-spec.yaml` structure:
+Ask questions one by one to fill the `00-spec.yaml` structure. You MUST enforce Domain-Driven Design (SDD) concepts:
 - What is the core functional change?
-- What must ALWAYS remain true after the change? (Invariants)
+- Which Domain Aggregate (*Aggregate Root*) is responsible for this change?
+- What must ALWAYS remain true after the change? (Invariants - must be enforced by the Aggregate)
+- Are there any new Business Policies or Operational Limits? (Constraints)
 - How will we verify success without looking at the code? (Acceptance)
 
 ### Phase 3: Generation
@@ -80,6 +82,7 @@ constraints:
 - Quote ambiguous YAML strings such as `NO`, `1.10`, and `22:30`.
 - Do NOT suggest file paths yet. That is the job of `q-blueprint`.
 - **Language**: The generated `00-spec.yaml` field values (summary, goal, invariants, etc.) MUST be written in concise English, even if the user chat was in Spanish.
+- **Strict Schema**: Do NOT invent new YAML keys (e.g. `aggregate:`). Embed domain concepts within the existing `goal`, `invariants`, and `constraints` fields.
 
 ## 🛑 Handoff (single-phase boundary + forward auto-transition)
 

@@ -86,9 +86,9 @@ partitioned = partition_feedback_findings(payload)
 
 
 ### Phase 2: Technical Strategy
-Design the implementation path:
-- Which files need modification?
-- Which symbols need creation or modification?
+Design the implementation path using Domain-Driven Design (SDD) principles. For each file, explicitly determine its architectural role:
+- Which files need modification? (Categorize them internally as Entities, Value Objects, Application Services, or Validators).
+- Which symbols need creation or modification? DO NOT mix domain logic with orchestration logic.
 - What existing tests must pass?
 - What new tests must be written?
 
@@ -135,6 +135,7 @@ strategy:
 - Keep YAML shallow. Intended max nesting depth is 3 levels.
 - Quote ambiguous YAML scalar strings.
 - **Language**: The generated `01-blueprint.yaml`, `02-contract.yaml`, and `07-trace.json` field values MUST be written in concise English, even if the user chat was in Spanish.
+- **Strict Schema**: Do NOT invent new YAML keys (e.g. `entities:`). Embed architectural roles inside the `summary` or `strategy[].action` fields.
 
 ### Phase 4: Risk Scoring (Advisory)
 
