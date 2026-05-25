@@ -1,0 +1,12 @@
+{
+  "id": "DEC-2026-05-24-2",
+  "source_task": "F-03-b",
+  "type": "decision",
+  "title": "Go CLI uses spf13/cobra with no other external dependencies",
+  "context": "Porting the Python argparse CLI to Go required selecting a framework that can replicate the exact subcommand structure without bloat.",
+  "content": "Use spf13/cobra for the Go CLI implementation of Quorum to match the Python argparse structure perfectly. Strictly forbid any other external dependencies in go.mod to maintain a zero-bloat footprint.",
+  "related": [
+    "F-03-b"
+  ],
+  "created_at": "2026-05-24"
+}

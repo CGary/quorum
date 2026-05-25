@@ -1,0 +1,12 @@
+{
+  "id": "LES-2026-05-24-1",
+  "source_task": "F-03-b",
+  "type": "lesson",
+  "title": "Include testing scaffolding in contract read list",
+  "context": "q-analyze rejected the contract because the Go CLI port needed to ensure compatibility with existing test infrastructure but didn't explicitly read the golden master test.",
+  "content": "When porting components across languages that must remain compatible with existing test infrastructure (e.g., golden_master.py), explicitly include those test files in the contract's read list to satisfy semantic consistency checks.",
+  "related": [
+    "F-03-b"
+  ],
+  "created_at": "2026-05-24"
+}
