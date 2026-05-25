@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 var parentIDRE = regexp.MustCompile(`^[A-Z]+-[0-9]+$`)
@@ -146,4 +148,296 @@ func sameJSON(a, b any) bool {
 	aj, _ := json.Marshal(a)
 	bj, _ := json.Marshal(b)
 	return string(aj) == string(bj)
+}
+
+func LoadArtifactPayload(path string) (any, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var payload any
+	if filepath.Ext(path) == ".json" {
+		if err := json.Unmarshal(b, &payload); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := yaml.Unmarshal(b, &payload); err != nil {
+			return nil, err
+		}
+	}
+	return payload, nil
+}
+
+func DumpArtifactPayload(path string, payload any) error {
+	var b []byte
+	var err error
+	if filepath.Ext(path) == ".json" {
+		b, err = json.MarshalIndent(payload, "", "  ")
+		if err != nil {
+			return err
+		}
+		b = append(b, '\n')
+	} else {
+		b, err = yaml.Marshal(payload)
+		if err != nil {
+			return err
+		}
+	}
+	return os.WriteFile(path, b, 0644)
+}
+
+func SaveArtifact(artifactPath string, payload any) (string, error) {
+	var existingPayload any
+	if _, err := os.Stat(artifactPath); err == nil {
+		existingPayload, _ = LoadArtifactPayload(artifactPath)
+	}
+
+	if filepath.Base(artifactPath) == "07-trace.json" && existingPayload != nil {
+		if err := EnsureTraceAppendOnly(artifactPath, existingPayload, payload); err != nil {
+			return "", err
+		}
+	}
+
+	if err := ValidateArtifact(artifactPath, payload); err != nil {
+		return "", err
+	}
+
+	if err := os.MkdirAll(filepath.Dir(artifactPath), 0755); err != nil {
+		return "", err
+	}
+	if err := DumpArtifactPayload(artifactPath, payload); err != nil {
+		return "", err
+	}
+	return artifactPath, nil
+}
+
+func ConsumeFeedback(taskDir string) (bool, error) {
+	feedbackPath := filepath.Join(taskDir, "feedback.json")
+	if _, err := os.Stat(feedbackPath); os.IsNotExist(err) {
+		return false, nil
+	}
+	if err := os.Remove(feedbackPath); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func InitializeSpecify(taskID string) (string, error) {
+	if taskID == "" {
+		return "", fmt.Errorf("task ID is required")
+	}
+	taskDir, err := FindTaskDir(taskID, []string{"inbox", "active", "done", "failed"})
+	if err != nil {
+		return "", err
+	}
+	if taskDir != nil {
+		fmt.Printf("[!] Task %s already exists in %s/.\n", taskID, taskDir.Location)
+		return taskDir.Path, nil
+	}
+	
+	root, err := ProjectRoot()
+	if err != nil {
+		return "", err
+	}
+	dirPath := filepath.Join(root, ".ai", "tasks", "inbox", taskID+"-new-spec")
+	if err := os.MkdirAll(dirPath, 0755); err != nil {
+		return "", err
+	}
+	specPath := filepath.Join(dirPath, "00-spec.yaml")
+	spec := map[string]any{
+		"task_id": taskID,
+		"summary": "Draft spec; fill goal, invariants, and acceptance before blueprint.",
+		"goal": "TODO: define the feature goal.",
+		"invariants": []any{"TODO: define invariant."},
+		"acceptance": []any{"TODO: define acceptance criterion."},
+		"risk": "medium",
+	}
+	_, err = SaveArtifact(specPath, spec)
+	return dirPath, err
+}
+
+func PrepareBlueprint(taskID string) (string, error) {
+	taskDir, err := FindTaskDir(taskID, []string{"inbox"})
+	if err != nil {
+		return "", err
+	}
+	if taskDir == nil {
+		activeDir, err := FindTaskDir(taskID, []string{"active"})
+		if err != nil {
+			return "", err
+		}
+		if activeDir != nil {
+			fmt.Printf("[*] Task %s is already in active.\n", taskID)
+			return activeDir.Path, nil
+		}
+		return "", fmt.Errorf("Task %s not found in inbox.", taskID)
+	}
+	
+	root, err := ProjectRoot()
+	if err != nil {
+		return "", err
+	}
+	activePath := filepath.Join(root, ".ai", "tasks", "active", filepath.Base(taskDir.Path))
+	if err := os.MkdirAll(filepath.Dir(activePath), 0755); err != nil {
+		return "", err
+	}
+	if err := os.Rename(taskDir.Path, activePath); err != nil {
+		return "", err
+	}
+	return activePath, nil
+}
+
+func SplitTask(parentID string) error {
+	if !parentIDRE.MatchString(parentID) {
+		fmt.Printf("[!] '%s' is not a valid parent task ID (expected '<PREFIX>-<NUMBER>', e.g. FEAT-001).\n", parentID)
+		return nil
+	}
+	parentDir, err := FindTaskDir(parentID, nil)
+	if err != nil {
+		return err
+	}
+	if parentDir == nil {
+		fmt.Printf("[!] Parent task %s not found.\n", parentID)
+		return nil
+	}
+	if parentDir.Location != "active" {
+		fmt.Printf("[!] Parent task %s must be in active/ before splitting (currently in %s/).\n", parentID, parentDir.Location)
+		return nil
+	}
+	specPath := filepath.Join(parentDir.Path, "00-spec.yaml")
+	if _, err := os.Stat(specPath); os.IsNotExist(err) {
+		fmt.Printf("[!] Parent %s has no 00-spec.yaml.\n", parentID)
+		return nil
+	}
+	payload, err := LoadArtifactPayload(specPath)
+	if err != nil {
+		return err
+	}
+	parentSpec, ok := payload.(map[string]any)
+	if !ok {
+		parentSpec = map[string]any{}
+	}
+	if parentSpec["parent_task"] != nil {
+		fmt.Printf("[!] Task %s is already a child task; recursive decomposition is not supported.\n", parentID)
+		return nil
+	}
+	
+	decompObj := parentSpec["decomposition"]
+	if decompObj == nil {
+		fmt.Printf("[!] Parent task %s has no 'decomposition' field in 00-spec.yaml.\n", parentID)
+		return nil
+	}
+	decomp, ok := asSlice(decompObj)
+	if !ok {
+		return nil
+	}
+	
+	root, err := ProjectRoot()
+	if err != nil {
+		return err
+	}
+	
+	letters := "abcdefghijklmnopqrstuvwxyz"
+	for i, itemAny := range decomp {
+		if i >= len(letters) {
+			break
+		}
+		item, ok := itemAny.(map[string]any)
+		if !ok {
+			continue
+		}
+		childID := fmt.Sprintf("%s-%c", parentID, letters[i])
+		childName := childID
+		if slug, ok := item["slug"].(string); ok && slug != "" {
+			childName = childID + "-" + slug
+		}
+		
+		childDir := filepath.Join(root, ".ai", "tasks", "inbox", childName)
+		if _, err := os.Stat(childDir); err == nil {
+			fmt.Printf("[-] Child task %s already exists, skipping.\n", childID)
+			continue
+		}
+		
+		if err := os.MkdirAll(childDir, 0755); err != nil {
+			return err
+		}
+		
+		childSpec := map[string]any{
+			"task_id": childID,
+			"summary": item["summary"],
+			"goal": "Subset of " + parentID + ": " + fmt.Sprintf("%v", item["summary"]),
+			"invariants": parentSpec["invariants"],
+			"acceptance": parentSpec["acceptance"],
+			"risk": parentSpec["risk"],
+			"parent_task": parentID,
+			"non_goals": parentSpec["non_goals"],
+			"constraints": parentSpec["constraints"],
+		}
+		if deps := item["depends_on"]; deps != nil {
+			childSpec["depends_on"] = deps
+		}
+		
+		childSpecPath := filepath.Join(childDir, "00-spec.yaml")
+		if _, err := SaveArtifact(childSpecPath, childSpec); err != nil {
+			return err
+		}
+		fmt.Printf("[+] Materialized %s in inbox/.\n", childID)
+	}
+	return nil
+}
+
+func ListTasks() error {
+	root, err := ProjectRoot()
+	if err != nil {
+		return err
+	}
+	locations := []string{"active", "inbox", "done", "failed"}
+	for _, loc := range locations {
+		entries, err := os.ReadDir(filepath.Join(root, ".ai", "tasks", loc))
+		if os.IsNotExist(err) || err != nil {
+			continue
+		}
+		hasPrinted := false
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			if !hasPrinted {
+				fmt.Printf("\n[%s]\n", strings.ToUpper(loc))
+				hasPrinted = true
+			}
+			dir := filepath.Join(root, ".ai", "tasks", loc, entry.Name())
+			id, _ := readSpecTaskID(dir)
+			if id == "" {
+				id = "???"
+			}
+			fmt.Printf("  %s (%s)\n", entry.Name(), id)
+		}
+	}
+	return nil
+}
+
+func ShowStatus(taskID string) error {
+	taskDir, err := FindTaskDir(taskID, nil)
+	if err != nil {
+		return err
+	}
+	if taskDir == nil {
+		fmt.Printf("[!] Task %s not found.\n", taskID)
+		return nil
+	}
+	fmt.Printf("Task ID: %s\n", taskID)
+	fmt.Printf("Location: %s/\n", taskDir.Location)
+	fmt.Printf("Directory: %s\n", filepath.Base(taskDir.Path))
+	
+	artifacts := []string{"00-spec.yaml", "01-blueprint.yaml", "02-contract.yaml", "04-implementation-log.yaml", "05-validation.json", "06-review.json", "07-trace.json", "feedback.json"}
+	fmt.Printf("\nArtifacts:\n")
+	for _, a := range artifacts {
+		if _, err := os.Stat(filepath.Join(taskDir.Path, a)); err == nil {
+			fmt.Printf("  [x] %s\n", a)
+		} else {
+			fmt.Printf("  [ ] %s\n", a)
+		}
+	}
+	return nil
 }

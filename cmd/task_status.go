@@ -1,19 +1,25 @@
 package cmd
 
 import (
-    "fmt"
-    "github.com/spf13/cobra"
+	"fmt"
+	"os"
+	"quorum/internal/core"
+
+	"github.com/spf13/cobra"
 )
 
 var statusCmd = &cobra.Command{
-    Use:   "status [task_id]",
-    Short: "Get task status",
-    Args:  cobra.ExactArgs(1),
-    Run: func(cmd *cobra.Command, args []string) {
-        fmt.Println("status stub", args[0])
-    },
+	Use:   "status [task_id]",
+	Short: "Show task status",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		if err := core.ShowStatus(args[0]); err != nil {
+			fmt.Println("[!] Error:", err)
+			os.Exit(1)
+		}
+	},
 }
 
 func init() {
-    taskCmd.AddCommand(statusCmd)
+	taskCmd.AddCommand(statusCmd)
 }
