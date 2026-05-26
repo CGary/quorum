@@ -7,7 +7,7 @@ sys.path.insert(0, ".agents")
 
 from cli.core.risk_scorer import assign_risk_level, build_risk_trace_events
 
-task_id = "F-03-b"
+task_id = "F-03-e"
 
 try:
     with open(".agents/policies/risk.yaml") as f:

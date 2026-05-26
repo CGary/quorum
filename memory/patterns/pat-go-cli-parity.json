@@ -1,0 +1,8 @@
+{
+  "id": "pat-go-cli-parity",
+  "type": "pattern",
+  "title": "Strict CLI Invariant Parity",
+  "context": "When porting CLI state-mutating commands (like task specify, blueprint, split, artifact-save) from Python to Go.",
+  "resolution": "State mutations in Go must enforce identical invariants (e.g. preventing recursive decomposition, ensuring active parent state, atomic file writes) and error output formats (e.g. field=$.path; reason=...) as the Python original.",
+  "task_ref": "F-03-d"
+}
