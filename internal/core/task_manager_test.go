@@ -1,17 +1,106 @@
 package core
 
 import (
+	"encoding/json"
+	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
 
-func mkRoot(t *testing.T) string {
+func sourceRoot(t *testing.T) string {
 	t.Helper()
-	return t.TempDir()
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	return filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
 }
-func mkSpec(t *testing.T, root, loc, dir, id string) {
+
+func useSchemas(t *testing.T) {
+	t.Helper()
+	t.Setenv("QUORUM_SCHEMAS_DIR", filepath.Join(sourceRoot(t), ".agents", "schemas"))
+}
+
+func chdir(t *testing.T, dir string) {
+	t.Helper()
+	old, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+}
+
+func run(t *testing.T, dir, name string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command(name, args...)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("%s %s failed: %v\n%s", name, strings.Join(args, " "), err, out)
+	}
+	return string(out)
+}
+
+func runErr(t *testing.T, dir, name string, args ...string) (string, error) {
+	t.Helper()
+	cmd := exec.Command(name, args...)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	return string(out), err
+}
+
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	old := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = w
+	fn()
+	_ = w.Close()
+	os.Stdout = old
+	out, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(out)
+}
+
+func initGitRepo(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	run(t, root, "git", "init", "-q", "-b", "main", ".")
+	run(t, root, "git", "config", "user.email", "test@example.com")
+	run(t, root, "git", "config", "user.name", "Test User")
+	if err := os.WriteFile(filepath.Join(root, "seed.txt"), []byte("seed\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	run(t, root, "git", "add", "seed.txt")
+	run(t, root, "git", "commit", "-q", "-m", "init")
+	return root
+}
+
+func ensureTaskDirs(t *testing.T, root string) {
+	t.Helper()
+	for _, loc := range []string{"inbox", "active", "done", "failed"} {
+		if err := os.MkdirAll(filepath.Join(root, ".ai", "tasks", loc), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.MkdirAll(filepath.Join(root, "worktrees"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func mkSpec(t *testing.T, root, loc, dir, id string) string {
 	t.Helper()
 	p := filepath.Join(root, ".ai", "tasks", loc, dir)
 	if err := os.MkdirAll(p, 0o755); err != nil {
@@ -20,14 +109,72 @@ func mkSpec(t *testing.T, root, loc, dir, id string) {
 	if err := os.WriteFile(filepath.Join(p, "00-spec.yaml"), []byte("task_id: "+id+"\nsummary: test\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	return p
 }
-func useSchemas(t *testing.T) {
+
+func mkFullSpec(t *testing.T, dir, taskID string) {
 	t.Helper()
-	t.Setenv("QUORUM_SCHEMAS_DIR", filepath.Join(os.Getenv("PWD"), "..", "..", ".agents", "schemas"))
+	raw := "task_id: " + taskID + "\n" +
+		"summary: Test task\n" +
+		"goal: Exercise native Go task manager behavior.\n" +
+		"invariants:\n  - Preserve task artifacts.\n" +
+		"acceptance:\n  - Behavior is covered by this test.\n" +
+		"risk: medium\n" +
+		"non_goals: []\n" +
+		"constraints: []\n"
+	if err := os.WriteFile(filepath.Join(dir, "00-spec.yaml"), []byte(raw), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func mkContract(t *testing.T, dir, taskID string) {
+	t.Helper()
+	raw := "task_id: " + taskID + "\n" +
+		"summary: Valid test contract\n" +
+		"goal: Exercise task start contract validation.\n" +
+		"read:\n  - internal/core/task_manager.go\n" +
+		"touch:\n  - internal/core/task_manager_test.go\n" +
+		"forbid:\n  files: []\n  behaviors: []\n" +
+		"verify:\n  commands:\n    - go test ./internal/core\n" +
+		"acceptance:\n  human_gate: true\n" +
+		"limits:\n  max_files_changed: 1\n  max_diff_lines: 200\n" +
+		"execution:\n  mode: worktree_edit\n" +
+		"retry_policy:\n  max_attempts: 2\n"
+	if err := os.WriteFile(filepath.Join(dir, "02-contract.yaml"), []byte(raw), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func mkActiveTask(t *testing.T, root, taskID string) string {
+	t.Helper()
+	ensureTaskDirs(t, root)
+	dir := filepath.Join(root, ".ai", "tasks", "active", taskID+"-new-spec")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mkFullSpec(t, dir, taskID)
+	return dir
+}
+
+func mkActiveTaskWithWorktree(t *testing.T, taskID string) (root, taskDir, worktree string) {
+	t.Helper()
+	root = initGitRepo(t)
+	chdir(t, root)
+	taskDir = mkActiveTask(t, root, taskID)
+	worktree = filepath.Join(root, "worktrees", taskID)
+	run(t, root, "git", "worktree", "add", "-q", "-b", "ai/"+taskID, worktree)
+	return root, taskDir, worktree
+}
+
+func buildQuorumCLI(t *testing.T) string {
+	t.Helper()
+	bin := filepath.Join(t.TempDir(), "quorum-test")
+	run(t, sourceRoot(t), "go", "build", "-o", bin, ".")
+	return bin
 }
 
 func TestFindTaskDirParity(t *testing.T) {
-	root := mkRoot(t)
+	root := t.TempDir()
 	mkSpec(t, root, "active", "LEGACY-999-slug", "FEAT-001")
 	mkSpec(t, root, "active", "FEAT-001", "OTHER-001")
 	m, err := FindTaskDirIn(root, "FEAT-001", []string{"active"})
@@ -59,7 +206,7 @@ func TestFindTaskDirParity(t *testing.T) {
 	}
 }
 
-func TestValidateArtifactPythonErrorFormat(t *testing.T) {
+func TestValidateArtifactErrorFormatAndTraceAppendOnly(t *testing.T) {
 	useSchemas(t)
 	cases := []struct {
 		path    string
@@ -75,9 +222,7 @@ func TestValidateArtifactPythonErrorFormat(t *testing.T) {
 			t.Fatalf("%s error = %v, want %s", tc.path, err, tc.want)
 		}
 	}
-}
 
-func TestEnsureTraceAppendOnly(t *testing.T) {
 	existing := map[string]any{"attempts": []any{map[string]any{"phase": "blueprint", "result": "passed", "duration_s": 1.0}}}
 	appended := map[string]any{"attempts": []any{map[string]any{"phase": "blueprint", "result": "passed", "duration_s": 1.0}, map[string]any{"phase": "execute", "result": "passed", "duration_s": 2.0}}}
 	if err := EnsureTraceAppendOnly("07-trace.json", existing, appended); err != nil {
@@ -94,26 +239,330 @@ func TestEnsureTraceAppendOnly(t *testing.T) {
 	}
 }
 
-func TestGetBaseBranch(t *testing.T) {
-	// Minimal coverage for GetBaseBranch to ensure no panic
-	branch := GetBaseBranch()
-	if branch == "" {
-		t.Errorf("GetBaseBranch returned empty string")
+func TestSaveArtifactValidatesBeforeOverwrite(t *testing.T) {
+	useSchemas(t)
+	root := t.TempDir()
+	blueprintPath := filepath.Join(root, "01-blueprint.yaml")
+	valid := map[string]any{"task_id": "FEAT-001", "summary": "valid blueprint", "affected_files": []any{"src/a.py"}, "symbols": []any{}, "dependencies": []any{}, "test_scenarios": []any{"works"}}
+	if _, err := SaveArtifact(blueprintPath, valid); err != nil {
+		t.Fatal(err)
+	}
+	invalid := map[string]any{"task_id": "FEAT-001", "summary": "broken", "affected_files": []any{}}
+	if _, err := SaveArtifact(blueprintPath, invalid); err == nil {
+		t.Fatal("expected invalid blueprint to be rejected")
+	}
+	persisted, err := LoadArtifactPayload(blueprintPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(mustJSON(t, persisted)) != string(mustJSON(t, valid)) {
+		t.Fatalf("invalid save overwrote existing artifact: %#v", persisted)
 	}
 }
 
-func TestStartCleanBackStub(t *testing.T) {
-	// Due to diff constraints, comprehensive git integration tests run via Python golden-master.
-	// This ensures the Go functions are structurally invocable.
-	root := mkRoot(t)
-	t.Setenv("PWD", root)
-	
-	mkSpec(t, root, "inbox", "F-99-new-spec", "F-99")
-	contractPath := filepath.Join(root, ".ai", "tasks", "inbox", "F-99-new-spec", "02-contract.yaml")
-	os.WriteFile(contractPath, []byte("task_id: F-99\nsummary: stub\ngoal: stub\nread: []\ntouch: []\nforbid:\n  files: []\n  behaviors: []\nverify:\n  commands: []\nacceptance:\n  human_gate: true\nlimits:\n  max_files_changed: 10\n  max_diff_lines: 500\nexecution:\n  mode: patch_only\nretry_policy:\n  max_attempts: 2\n"), 0644)
-	
-	// StartTask relies on exec.Command("git", ...) which fails gracefully in isolated tmp without git repo.
-	StartTask("F-99")
-	CleanTask("F-99", true, false)
-	BackTask("F-99")
+func mustJSON(t *testing.T, v any) []byte {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+func TestTaskLifecycleSpecifyBlueprintStartBackAndSplit(t *testing.T) {
+	useSchemas(t)
+	root := initGitRepo(t)
+	chdir(t, root)
+	ensureTaskDirs(t, root)
+
+	dir, err := InitializeSpecify("FEAT-010")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Base(dir) != "FEAT-010-new-spec" {
+		t.Fatalf("spec dir = %s", filepath.Base(dir))
+	}
+	active, err := PrepareBlueprint("FEAT-010")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mkContract(t, active, "FEAT-010")
+
+	StartTask("FEAT-010")
+	worktree := filepath.Join(root, "worktrees", "FEAT-010")
+	if st, err := os.Stat(worktree); err != nil || !st.IsDir() {
+		t.Fatalf("worktree was not created: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(active, "04-implementation-log.yaml")); err != nil {
+		t.Fatalf("implementation log missing: %v", err)
+	}
+	trace, err := LoadArtifactPayload(filepath.Join(active, "07-trace.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := trace.(map[string]any)["task_id"]; got != "FEAT-010" {
+		t.Fatalf("trace task_id = %v", got)
+	}
+
+	BackTask("FEAT-010")
+	if _, err := os.Stat(worktree); !os.IsNotExist(err) {
+		t.Fatalf("worktree still exists after back: %v", err)
+	}
+	if _, err := os.Stat(active); err != nil {
+		t.Fatalf("active task should remain after reversing start: %v", err)
+	}
+
+	parentDir := filepath.Join(root, ".ai", "tasks", "active", "FEAT-020-parent")
+	if err := os.MkdirAll(parentDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	parentSpec := "task_id: FEAT-020\nsummary: Parent task\ngoal: Coordinate split children.\ninvariants:\n  - Keep child order.\nacceptance:\n  - Children are materialized.\nrisk: medium\nnon_goals: []\nconstraints: []\ndecomposition:\n  - child_id: FEAT-020-a\n    summary: First child\n  - child_id: FEAT-020-b\n    summary: Second child\n"
+	if err := os.WriteFile(filepath.Join(parentDir, "00-spec.yaml"), []byte(parentSpec), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := SplitTask("FEAT-020"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".ai", "tasks", "inbox", "FEAT-020-a", "00-spec.yaml")); err != nil {
+		t.Fatalf("child a missing: %v", err)
+	}
+
+	out := captureStdout(t, func() { CleanTask("FEAT-020", false, false) })
+	if !strings.Contains(out, "unfinished children") {
+		t.Fatalf("parent clean did not report unfinished children: %q", out)
+	}
+	for _, child := range []string{"FEAT-020-a", "FEAT-020-b"} {
+		from := filepath.Join(root, ".ai", "tasks", "inbox", child)
+		to := filepath.Join(root, ".ai", "tasks", "done", child)
+		if err := os.Rename(from, to); err != nil {
+			t.Fatal(err)
+		}
+	}
+	CleanTask("FEAT-020", false, false)
+	if _, err := os.Stat(filepath.Join(root, ".ai", "tasks", "done", "FEAT-020-parent")); err != nil {
+		t.Fatalf("completed parent was not archived: %v", err)
+	}
+}
+
+func TestCleanTaskDirtyWorktreeModes(t *testing.T) {
+	cases := []struct {
+		name         string
+		dirty        bool
+		force        bool
+		save         bool
+		wantWorktree bool
+		wantDone     bool
+		wantOut      []string
+		wantStash    bool
+		wantNoStash  bool
+	}{
+		{name: "clean archives without flags", wantDone: true, wantNoStash: true},
+		{name: "dirty without flags aborts", dirty: true, wantWorktree: true, wantOut: []string{"uncommitted changes", "--force", "--save"}},
+		{name: "dirty force discards and archives", dirty: true, force: true, wantDone: true, wantNoStash: true},
+		{name: "dirty save stashes and archives", dirty: true, save: true, wantDone: true, wantStash: true},
+		{name: "force and save abort", dirty: true, force: true, save: true, wantWorktree: true, wantOut: []string{"mutually exclusive"}},
+	}
+	for i, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			taskID := "FEAT-1" + string(rune('0'+i))
+			root, taskDir, worktree := mkActiveTaskWithWorktree(t, taskID)
+			if tc.dirty {
+				if err := os.WriteFile(filepath.Join(worktree, "wip.txt"), []byte("uncommitted\n"), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			out := captureStdout(t, func() { CleanTask(taskID, tc.force, tc.save) })
+			for _, want := range tc.wantOut {
+				if !strings.Contains(out, want) {
+					t.Fatalf("output %q missing %q", out, want)
+				}
+			}
+			if _, err := os.Stat(worktree); (err == nil) != tc.wantWorktree {
+				t.Fatalf("worktree exists = %v, want %v", err == nil, tc.wantWorktree)
+			}
+			if _, err := os.Stat(filepath.Join(root, ".ai", "tasks", "done", filepath.Base(taskDir))); (err == nil) != tc.wantDone {
+				t.Fatalf("done task exists = %v, want %v", err == nil, tc.wantDone)
+			}
+			stash := run(t, root, "git", "stash", "list")
+			if tc.wantStash && !strings.Contains(stash, "quorum:save:"+taskID) {
+				t.Fatalf("stash missing quorum save entry: %q", stash)
+			}
+			if tc.wantNoStash && strings.Contains(stash, "quorum:save:"+taskID) {
+				t.Fatalf("unexpected stash entry: %q", stash)
+			}
+		})
+	}
+}
+
+func TestTaskCLIArtifactSaveFeedbackConsumeAndRunRemoval(t *testing.T) {
+	useSchemas(t)
+	bin := buildQuorumCLI(t)
+	root := initGitRepo(t)
+	chdir(t, root)
+	taskDir := mkActiveTask(t, root, "FEAT-001")
+
+	out, _ := runErr(t, root, bin, "task", "run", "FEAT-001")
+	if strings.Contains(out, "\n  run") {
+		t.Fatalf("task run unexpectedly appears as a registered subcommand: %q", out)
+	}
+	entries, err := os.ReadDir(taskDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || entries[0].Name() != "00-spec.yaml" {
+		t.Fatalf("task run created side effects: %#v", entries)
+	}
+
+	feedback := map[string]any{
+		"task_id":      "FEAT-001",
+		"summary":      "q-analyze found reusable feedback.",
+		"produced_by":  "q-analyze",
+		"generated_at": "2026-05-22T20:00:00Z",
+		"findings": []any{map[string]any{
+			"severity":      "low",
+			"category":      "mechanical",
+			"artifact":      "00-spec.yaml",
+			"path":          "$.summary",
+			"issue":         "Typo in summary.",
+			"suggested_fix": "Fix the typo.",
+		}},
+	}
+	raw := string(mustJSON(t, feedback))
+	cmd := exec.Command(bin, "task", "artifact-save", "FEAT-001", "feedback.json")
+	cmd.Dir = root
+	cmd.Stdin = strings.NewReader(raw)
+	outBytes, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("artifact-save failed: %v\n%s", err, outBytes)
+	}
+	if !strings.Contains(string(outBytes), "Saved artifact") {
+		t.Fatalf("artifact-save output = %q", outBytes)
+	}
+	persisted, err := LoadArtifactPayload(filepath.Join(taskDir, "feedback.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(mustJSON(t, persisted)) != string(mustJSON(t, feedback)) {
+		t.Fatalf("feedback mismatch: %#v", persisted)
+	}
+
+	out = run(t, root, bin, "task", "feedback-consume", "FEAT-001")
+	if !strings.Contains(out, "Consumed feedback") {
+		t.Fatalf("feedback-consume output = %q", out)
+	}
+	if _, err := os.Stat(filepath.Join(taskDir, "feedback.json")); !os.IsNotExist(err) {
+		t.Fatalf("feedback.json still exists: %v", err)
+	}
+	if consumed, err := ConsumeFeedback(taskDir); err != nil || consumed {
+		t.Fatalf("ConsumeFeedback idempotency = %v, %v", consumed, err)
+	}
+}
+
+func TestInitializeProjectScaffoldingAndClaudeSkillsGuards(t *testing.T) {
+	root := initGitRepo(t)
+	chdir(t, root)
+	resourceAgents := filepath.Join(root, ".agents")
+	for _, path := range []string{
+		filepath.Join(resourceAgents, "templates"),
+		filepath.Join(resourceAgents, "skills", "q-brief"),
+		filepath.Join(resourceAgents, "schemas"),
+		filepath.Join(resourceAgents, "policies"),
+		filepath.Join(resourceAgents, "prompts"),
+	} {
+		if err := os.MkdirAll(path, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, file := range []string{
+		filepath.Join(resourceAgents, "templates", "00-spec.yaml"),
+		filepath.Join(resourceAgents, "templates", "01-blueprint.yaml"),
+		filepath.Join(resourceAgents, "templates", "02-contract.yaml"),
+		filepath.Join(resourceAgents, "skills", "q-brief", "SKILL.md"),
+		filepath.Join(resourceAgents, "schemas", "spec.schema.json"),
+		filepath.Join(resourceAgents, "schemas", "implementation-log.schema.json"),
+		filepath.Join(resourceAgents, "policies", "risk.yaml"),
+		filepath.Join(resourceAgents, "prompts", "brief.md"),
+		filepath.Join(resourceAgents, "config.yaml"),
+	} {
+		if err := os.WriteFile(file, []byte("seed\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	InitializeProject()
+	for _, path := range []string{
+		".ai/tasks/inbox",
+		".ai/tasks/active",
+		"memory/patterns",
+		"memory/lessons",
+		"worktrees",
+		".ai/tasks/_template/00-spec.yaml",
+		".ai/tasks/_template/01-blueprint.yaml",
+		".ai/tasks/_template/02-contract.yaml",
+		".agents/schemas/spec.schema.json",
+		".agents/schemas/implementation-log.schema.json",
+	} {
+		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(path))); err != nil {
+			t.Fatalf("missing %s: %v", path, err)
+		}
+	}
+	gitignore, err := os.ReadFile(filepath.Join(root, ".gitignore"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(gitignore), "worktrees/") || !strings.Contains(string(gitignore), ".ai/tasks/active/*") {
+		t.Fatalf("gitignore missing quorum entries: %s", gitignore)
+	}
+	link := filepath.Join(root, ".claude", "skills")
+	if target, err := filepath.EvalSymlinks(link); err != nil || target != filepath.Join(resourceAgents, "skills") {
+		t.Fatalf("skills symlink target = %s, %v", target, err)
+	}
+
+	guardRoot := t.TempDir()
+	guardResource := filepath.Join(t.TempDir(), "resources")
+	if err := os.MkdirAll(filepath.Join(guardResource, "skills"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	blockingDir := filepath.Join(guardRoot, ".claude", "skills")
+	if err := os.MkdirAll(blockingDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	marker := filepath.Join(blockingDir, "user-content.txt")
+	if err := os.WriteFile(marker, []byte("preserve me"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := ensureClaudeSkillsSymlink(guardRoot, guardResource); err == nil || !strings.Contains(err.Error(), ".claude/skills") {
+		t.Fatalf("expected directory guard error, got %v", err)
+	}
+	if _, err := os.Stat(marker); err != nil {
+		t.Fatalf("guard overwrote existing directory content: %v", err)
+	}
+}
+
+func TestSkillsMentionContextPrefixInCommunicationProtocol(t *testing.T) {
+	skillsDir := filepath.Join(sourceRoot(t), ".agents", "skills")
+	entries, err := os.ReadDir(skillsDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := 0
+	for _, entry := range entries {
+		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), "q-") {
+			continue
+		}
+		count++
+		content, err := os.ReadFile(filepath.Join(skillsDir, entry.Name(), "SKILL.md"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		beforeHandoff := strings.SplitN(string(content), "## 🛑 Handoff", 2)[0]
+		for _, want := range []string{"Communication Protocol", "Prefijo de contexto", "[root]", "[worktree:"} {
+			if !strings.Contains(beforeHandoff, want) {
+				t.Fatalf("%s missing %q in communication protocol", entry.Name(), want)
+			}
+		}
+	}
+	if count != 10 {
+		t.Fatalf("expected 10 q-* skills, found %d", count)
+	}
 }
