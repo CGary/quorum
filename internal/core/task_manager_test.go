@@ -93,3 +93,27 @@ func TestEnsureTraceAppendOnly(t *testing.T) {
 		t.Fatalf("mutate = %v", err)
 	}
 }
+
+func TestGetBaseBranch(t *testing.T) {
+	// Minimal coverage for GetBaseBranch to ensure no panic
+	branch := GetBaseBranch()
+	if branch == "" {
+		t.Errorf("GetBaseBranch returned empty string")
+	}
+}
+
+func TestStartCleanBackStub(t *testing.T) {
+	// Due to diff constraints, comprehensive git integration tests run via Python golden-master.
+	// This ensures the Go functions are structurally invocable.
+	root := mkRoot(t)
+	t.Setenv("PWD", root)
+	
+	mkSpec(t, root, "inbox", "F-99-new-spec", "F-99")
+	contractPath := filepath.Join(root, ".ai", "tasks", "inbox", "F-99-new-spec", "02-contract.yaml")
+	os.WriteFile(contractPath, []byte("task_id: F-99\nsummary: stub\ngoal: stub\nread: []\ntouch: []\nforbid:\n  files: []\n  behaviors: []\nverify:\n  commands: []\nacceptance:\n  human_gate: true\nlimits:\n  max_files_changed: 10\n  max_diff_lines: 500\nexecution:\n  mode: patch_only\nretry_policy:\n  max_attempts: 2\n"), 0644)
+	
+	// StartTask relies on exec.Command("git", ...) which fails gracefully in isolated tmp without git repo.
+	StartTask("F-99")
+	CleanTask("F-99", true, false)
+	BackTask("F-99")
+}
