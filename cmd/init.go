@@ -1,18 +1,18 @@
 package cmd
 
 import (
-    "fmt"
-    "github.com/spf13/cobra"
+	"quorum/internal/core"
+	"github.com/spf13/cobra"
 )
 
 var initCmd = &cobra.Command{
-    Use:   "init",
-    Short: "Initialize Quorum in the current project",
-    Run: func(cmd *cobra.Command, args []string) {
-        fmt.Println("init stub")
-    },
+	Use:   "init",
+	Short: "Initialize Quorum in the current project",
+	Run: func(cmd *cobra.Command, args []string) {
+		core.InitializeProject()
+	},
 }
 
 func init() {
-    rootCmd.AddCommand(initCmd)
+	rootCmd.AddCommand(initCmd)
 }

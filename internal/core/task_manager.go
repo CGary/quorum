@@ -3,12 +3,14 @@ package core
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -440,4 +442,554 @@ func ShowStatus(taskID string) error {
 		}
 	}
 	return nil
+}
+
+func GetBaseBranch() string {
+	out, err := exec.Command("git", "symbolic-ref", "refs/remotes/origin/HEAD").Output()
+	if err == nil {
+		parts := strings.Split(strings.TrimSpace(string(out)), "/")
+		if len(parts) > 0 {
+			return parts[len(parts)-1]
+		}
+	}
+	for _, b := range []string{"main", "master", "develop", "trunk"} {
+		out, err := exec.Command("git", "show-ref", "--verify", "refs/heads/"+b).Output()
+		if err == nil && len(out) > 0 {
+			return b
+		}
+	}
+	out, err = exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD").Output()
+	if err == nil {
+		return strings.TrimSpace(string(out))
+	}
+	return "main"
+}
+
+func StartTask(taskID string) {
+	fmt.Printf("[*] Starting task %s...\n", taskID)
+	taskDir, err := FindTaskDir(taskID, []string{"active", "inbox"})
+	if err != nil || taskDir == nil {
+		fmt.Printf("[!] Task %s not found.\n", taskID)
+		return
+	}
+	contractPath := filepath.Join(taskDir.Path, "02-contract.yaml")
+	if _, err := os.Stat(contractPath); os.IsNotExist(err) {
+		fmt.Printf("[!] Contract (02-contract.yaml) not found for %s.\n", taskID)
+		fmt.Printf("[!] Please run 'quorum task blueprint %s' first.\n", taskID)
+		return
+	}
+	contract, err := LoadArtifactPayload(contractPath)
+	if err != nil {
+		fmt.Printf("[!] Contract validation failed for %s: %v\n", taskID, err)
+		return
+	}
+	if err := ValidateArtifact(contractPath, contract); err != nil {
+		fmt.Printf("[!] Contract validation failed for %s: %v\n", taskID, err)
+		return
+	}
+	if taskDir.Location == "inbox" {
+		root, _ := ProjectRoot()
+		activePath := filepath.Join(root, ".ai", "tasks", "active", filepath.Base(taskDir.Path))
+		os.MkdirAll(filepath.Dir(activePath), 0755)
+		fmt.Printf("[*] Moving task from inbox to active...\n")
+		os.Rename(taskDir.Path, activePath)
+		taskDir.Path = activePath
+		taskDir.Location = "active"
+	}
+
+	root, _ := ProjectRoot()
+	worktreePath := filepath.Join(root, "worktrees", taskID)
+	branchName := "ai/" + taskID
+	baseBranch := GetBaseBranch()
+
+	if _, err := os.Stat(worktreePath); err == nil {
+		fmt.Printf("[*] Worktree for %s already exists.\n", taskID)
+	} else {
+		fmt.Printf("[*] Creating worktree in %s (base: %s)...\n", worktreePath, baseBranch)
+		cmd := exec.Command("git", "worktree", "add", worktreePath, "-b", branchName, baseBranch)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			fmt.Printf("[!] Error creating worktree: %s\n", strings.TrimSpace(string(out)))
+			return
+		}
+	}
+
+	logPath := filepath.Join(taskDir.Path, "04-implementation-log.yaml")
+	if _, err := os.Stat(logPath); os.IsNotExist(err) {
+		summary := "Implementation log initialized."
+		if c, ok := contract.(map[string]any); ok {
+			if s, ok := c["summary"].(string); ok {
+				summary = s
+			}
+		}
+		log := map[string]any{
+			"task_id": taskID,
+			"summary": summary,
+			"entries": []any{},
+		}
+		if _, err := SaveArtifact(logPath, log); err != nil {
+			fmt.Printf("[!] Error initializing implementation log: %v\n", err)
+			return
+		}
+	}
+
+	tracePath := filepath.Join(taskDir.Path, "07-trace.json")
+	if _, err := os.Stat(tracePath); os.IsNotExist(err) {
+		summary := "Trace initialized for task."
+		execMode := "patch_only"
+		if c, ok := contract.(map[string]any); ok {
+			if s, ok := c["summary"].(string); ok {
+				summary = s
+			}
+			if ex, ok := c["execution"].(map[string]any); ok {
+				if m, ok := ex["mode"].(string); ok {
+					execMode = m
+				}
+			}
+		}
+		trace := map[string]any{
+			"task_id":           taskID,
+			"summary":           summary,
+			"started_at":        time.Now().UTC().Format(time.RFC3339Nano)[:19] + "Z",
+			"execution_mode":    execMode,
+			"attempts":          []any{},
+			"total_cost_usd":    0.0,
+			"violations":        []any{},
+			"context_overflows": []any{},
+		}
+		SaveArtifact(tracePath, trace)
+	}
+	fmt.Printf("[+] Task %s initialized and worktree ready.\n", taskID)
+}
+
+func IsWorktreeDirty(worktreePath string) bool {
+	out, err := exec.Command("git", "-C", worktreePath, "status", "--porcelain").CombinedOutput()
+	if err != nil {
+		return false
+	}
+	return len(strings.TrimSpace(string(out))) > 0
+}
+
+func SaveWorktreeChanges(worktreePath, taskID string) (bool, string) {
+	msg := "quorum:save:" + taskID
+	out, err := exec.Command("git", "-C", worktreePath, "stash", "push", "--include-untracked", "-m", msg).CombinedOutput()
+	return err == nil, string(out)
+}
+
+func BranchExists(branchName string) bool {
+	root, _ := ProjectRoot()
+	err := exec.Command("git", "-C", root, "show-ref", "--verify", "refs/heads/"+branchName).Run()
+	return err == nil
+}
+
+func DeleteBranchIfMerged(branchName, baseBranch string) bool {
+	if !BranchExists(branchName) {
+		fmt.Printf("[*] Branch %s is absent; skipping local branch cleanup.\n", branchName)
+		return false
+	}
+	root, _ := ProjectRoot()
+	err := exec.Command("git", "-C", root, "merge-base", "--is-ancestor", branchName, baseBranch).Run()
+	if err == nil {
+		out, err2 := exec.Command("git", "-C", root, "branch", "-d", branchName).CombinedOutput()
+		if err2 == nil {
+			fmt.Printf("[+] Deleted merged local branch %s.\n", branchName)
+			return true
+		}
+		fmt.Printf("[!] Could not delete merged local branch %s: %s\n", branchName, strings.TrimSpace(string(out)))
+		return false
+	}
+	if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+		fmt.Printf("[!] Preserving local branch %s; it has commits not merged into %s.\n", branchName, baseBranch)
+		fmt.Printf("    After merging, delete it manually with: git branch -d %s\n", branchName)
+		return false
+	}
+	fmt.Printf("[!] Could not determine whether %s is merged into %s; preserving branch. \n", branchName, baseBranch)
+	return false
+}
+
+func CleanTask(taskID string, force, save bool) {
+	if force && save {
+		fmt.Printf("[!] --force and --save are mutually exclusive. Pick one: --force discards changes, --save stashes them.\n")
+		return
+	}
+	
+	taskDir, err := FindTaskDir(taskID, []string{"active", "done", "failed"})
+	if err != nil || taskDir == nil {
+		fmt.Printf("[!] Task %s not found.\n", taskID)
+		return
+	}
+	
+	specPath := filepath.Join(taskDir.Path, "00-spec.yaml")
+	var parentID string
+	if taskDir.Location == "active" {
+		if _, err := os.Stat(specPath); err == nil {
+			if payload, err := LoadArtifactPayload(specPath); err == nil {
+				if spec, ok := payload.(map[string]any); ok {
+					if p, ok := spec["parent_task"].(string); ok {
+						parentID = p
+					}
+					if decompObj, ok := spec["decomposition"]; ok {
+						if decomp, ok := decompObj.([]any); ok {
+							var notDone []string
+							for _, entryAny := range decomp {
+								if entry, ok := entryAny.(map[string]any); ok {
+									if childID, ok := entry["child_id"].(string); ok && childID != "" {
+										_, childLoc := "", ""
+										if c, err := FindTaskDir(childID, nil); err == nil && c != nil {
+											childLoc = c.Location
+										}
+										if childLoc != "done" {
+											if childLoc == "" {
+												childLoc = "missing"
+											}
+											notDone = append(notDone, fmt.Sprintf("%s (%s)", childID, childLoc))
+										}
+									}
+								}
+							}
+							if len(notDone) > 0 {
+								fmt.Printf("[!] Parent task %s still has unfinished children: %s\n", taskID, strings.Join(notDone, ", "))
+								fmt.Printf("[!] Clean each child after its human merge before cleaning the parent.\n")
+								return
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	root, _ := ProjectRoot()
+	worktreePath := filepath.Join(root, "worktrees", taskID)
+	if _, err := os.Stat(worktreePath); err == nil {
+		dirty := IsWorktreeDirty(worktreePath)
+		if dirty && !force && !save {
+			fmt.Printf("[!] Worktree %s has uncommitted changes.\n", worktreePath)
+			fmt.Printf("[!] Refusing to clean task %s silently. Choose one of:\n", taskID)
+			fmt.Printf("      cd %s && git status      # inspect changes\n", worktreePath)
+			fmt.Printf("      cd %s && git commit -am '...'  # commit, then re-run clean\n", worktreePath)
+			fmt.Printf("      quorum task clean %s --save     # stash WIP and clean\n", taskID)
+			fmt.Printf("      quorum task clean %s --force    # discard WIP and clean\n", taskID)
+			return
+		}
+		if dirty && save {
+			fmt.Printf("[*] Saving worktree changes as stash 'quorum:save:%s'...\n", taskID)
+			if ok, out := SaveWorktreeChanges(worktreePath, taskID); !ok {
+				fmt.Printf("[!] git stash push failed: %s\n", strings.TrimSpace(out))
+				return
+			}
+		}
+		if force && dirty {
+			fmt.Printf("[*] Force-removing worktree %s (discarding changes)...\n", worktreePath)
+			exec.Command("git", "-C", root, "worktree", "remove", "--force", worktreePath).Run()
+		} else {
+			fmt.Printf("[*] Removing worktree %s...\n", worktreePath)
+			exec.Command("git", "-C", root, "worktree", "remove", worktreePath).Run()
+		}
+	}
+	
+	DeleteBranchIfMerged("ai/"+taskID, GetBaseBranch())
+	if taskDir.Location == "active" {
+		targetDir := filepath.Join(root, ".ai", "tasks", "done", filepath.Base(taskDir.Path))
+		fmt.Printf("[*] Archiving task to done/...\n")
+		os.MkdirAll(filepath.Dir(targetDir), 0755)
+		os.Rename(taskDir.Path, targetDir)
+	}
+	fmt.Printf("[+] Task %s cleaned up.\n", taskID)
+	if parentID != "" {
+		AutoArchiveParentIfComplete(parentID)
+	}
+}
+
+func AutoArchiveParentIfComplete(parentID string) {
+	parentDir, err := FindTaskDir(parentID, []string{"active"})
+	if err != nil || parentDir == nil || parentDir.Location != "active" {
+		return
+	}
+	specPath := filepath.Join(parentDir.Path, "00-spec.yaml")
+	payload, err := LoadArtifactPayload(specPath)
+	if err != nil {
+		return
+	}
+	spec, ok := payload.(map[string]any)
+	if !ok {
+		return
+	}
+	decompObj := spec["decomposition"]
+	if decompObj == nil {
+		return
+	}
+	decomp, ok := decompObj.([]any)
+	if !ok || len(decomp) == 0 {
+		return
+	}
+	for _, entryAny := range decomp {
+		if entry, ok := entryAny.(map[string]any); ok {
+			if childID, ok := entry["child_id"].(string); ok && childID != "" {
+				c, err := FindTaskDir(childID, nil)
+				if err != nil || c == nil || c.Location != "done" {
+					return
+				}
+			}
+		}
+	}
+	root, _ := ProjectRoot()
+	targetDir := filepath.Join(root, ".ai", "tasks", "done", filepath.Base(parentDir.Path))
+	fmt.Printf("[*] All children of %s are in done/; auto-archiving parent...\n", parentID)
+	os.MkdirAll(filepath.Dir(targetDir), 0755)
+	os.Rename(parentDir.Path, targetDir)
+	fmt.Printf("[+] Parent task %s archived to done/.\n", parentID)
+}
+
+func BackTask(taskID string) {
+	taskDir, err := FindTaskDir(taskID, nil)
+	if err != nil || taskDir == nil {
+		fmt.Printf("[!] Task %s not found.\n", taskID)
+		return
+	}
+	root, _ := ProjectRoot()
+	worktreePath := filepath.Join(root, "worktrees", taskID)
+	if _, err := os.Stat(worktreePath); err == nil {
+		fmt.Printf("[*] Reversing 'start': removing worktree %s...\n", worktreePath)
+		out, err := exec.Command("git", "worktree", "remove", "--force", worktreePath).CombinedOutput()
+		if err != nil {
+			fmt.Printf("[!] git worktree remove failed: %s\n", strings.TrimSpace(string(out)))
+			return
+		}
+		branchName := "ai/" + taskID
+		baseBranch := GetBaseBranch()
+		out, err = exec.Command("git", "rev-list", "--count", baseBranch+".."+branchName).CombinedOutput()
+		if err == nil {
+			if strings.TrimSpace(string(out)) == "0" {
+				exec.Command("git", "branch", "-D", branchName).Run()
+				fmt.Printf("[+] Removed empty branch %s.\n", branchName)
+			} else {
+				fmt.Printf("[!] Branch %s has commits; not deleted. Use 'git branch -D %s' if you really want to drop them.\n", branchName, branchName)
+			}
+		}
+		fmt.Printf("[+] Worktree removed. Task %s stays in %s/. Re-run '/q-blueprint %s' if the contract needs changes, or 'quorum task start %s' when ready.\n", taskID, taskDir.Location, taskID, taskID)
+		return
+	}
+	if taskDir.Location == "done" || taskDir.Location == "failed" {
+		targetDir := filepath.Join(root, ".ai", "tasks", "active", filepath.Base(taskDir.Path))
+		os.MkdirAll(filepath.Dir(targetDir), 0755)
+		fmt.Printf("[*] Reversing 'clean': moving task from %s/ back to active/...\n", taskDir.Location)
+		os.Rename(taskDir.Path, targetDir)
+		fmt.Printf("[+] Task %s restored to active/.\n", taskID)
+		return
+	}
+	if taskDir.Location == "active" {
+		targetDir := filepath.Join(root, ".ai", "tasks", "inbox", filepath.Base(taskDir.Path))
+		os.MkdirAll(filepath.Dir(targetDir), 0755)
+		fmt.Printf("[*] Reversing 'blueprint': moving task from active/ back to inbox/...\n")
+		os.Rename(taskDir.Path, targetDir)
+		fmt.Printf("[+] Task %s returned to inbox/. Re-run '/q-brief %s' to refine the spec.\n", taskID, taskID)
+		return
+	}
+	if taskDir.Location == "inbox" {
+		fmt.Printf("[!] Task %s is already in inbox/. There is no earlier state. Edit '00-spec.yaml' directly or delete the directory if you want to start over.\n", taskID)
+		return
+	}
+}
+
+func CopyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	_, err = io.Copy(out, in)
+	return err
+}
+
+func CopyDir(src, dst string) error {
+	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(dst, rel)
+		if info.IsDir() {
+			return os.MkdirAll(target, info.Mode())
+		}
+		return CopyFile(path, target)
+	})
+}
+
+func ensureClaudeSkillsSymlink(projectRoot, resourceSrc string) error {
+	claudeDir := filepath.Join(projectRoot, ".claude")
+	linkPath := filepath.Join(claudeDir, "skills")
+	expectedTarget, err := filepath.EvalSymlinks(filepath.Join(resourceSrc, "skills"))
+	if err != nil {
+		expectedTarget, err = filepath.Abs(filepath.Join(resourceSrc, "skills"))
+		if err != nil {
+			return err
+		}
+	}
+	os.MkdirAll(claudeDir, 0755)
+	
+	info, err := os.Lstat(linkPath)
+	if err == nil {
+		if info.Mode()&os.ModeSymlink != 0 {
+			currentTarget, err := filepath.EvalSymlinks(linkPath)
+			if err != nil {
+				currentTarget, _ = os.Readlink(linkPath)
+				if !filepath.IsAbs(currentTarget) {
+					currentTarget = filepath.Join(claudeDir, currentTarget)
+				}
+			}
+			if currentTarget == expectedTarget {
+				fmt.Printf("  [=] .claude/skills already linked to %s\n", expectedTarget)
+				return nil
+			}
+			return fmt.Errorf(".claude/skills es un symlink hacia un destino distinto al esperado.\n  Encontrado: %s\n  Esperado:   %s\nEliminá o ajustá el symlink manualmente antes de re-ejecutar quorum init.", currentTarget, expectedTarget)
+		}
+		kind := "archivo"
+		if info.IsDir() {
+			kind = "directorio"
+		}
+		return fmt.Errorf(".claude/skills existe como %s y no como symlink.\n  Encontrado: %s (%s)\n  Esperado:   symlink hacia %s\nEliminá o renombrá el contenido existente antes de re-ejecutar quorum init.", kind, linkPath, kind, expectedTarget)
+	}
+	
+	fmt.Printf("  [+] Creating .claude/skills -> %s\n", expectedTarget)
+	return os.Symlink(expectedTarget, linkPath)
+}
+
+func getResourceSrc() string {
+	root, err := ProjectRoot()
+	if err == nil {
+		if _, err := os.Stat(filepath.Join(root, ".agents")); err == nil {
+			return filepath.Join(root, ".agents")
+		}
+	}
+	exe, _ := os.Executable()
+	dir := filepath.Dir(exe)
+	if _, err := os.Stat(filepath.Join(dir, ".agents")); err == nil {
+		return filepath.Join(dir, ".agents")
+	}
+	return filepath.Join(root, ".agents")
+}
+
+func InitializeProject() {
+	projectRoot, err := ProjectRoot()
+	if err != nil {
+		fmt.Printf("[!] Could not determine project root.\n")
+		return
+	}
+	resourceSrc := getResourceSrc()
+	
+	fmt.Printf("[*] Initializing Quorum in %s...\n", projectRoot)
+	
+	dirs := []string{
+		".ai/tasks/inbox",
+		".ai/tasks/active",
+		".ai/tasks/done",
+		".ai/tasks/failed",
+		"memory/decisions",
+		"memory/patterns",
+		"memory/lessons",
+		"worktrees",
+	}
+	for _, d := range dirs {
+		p := filepath.Join(projectRoot, filepath.FromSlash(d))
+		if _, err := os.Stat(p); os.IsNotExist(err) {
+			fmt.Printf("  [+] Creating %s/\n", d)
+			os.MkdirAll(p, 0755)
+			if d != "worktrees" {
+				os.WriteFile(filepath.Join(p, ".gitkeep"), []byte(""), 0644)
+			}
+		}
+	}
+	
+	scaffoldMap := map[string]string{
+		"templates": ".ai/tasks/_template",
+		"skills":    ".agents/skills",
+		"schemas":   ".agents/schemas",
+		"policies":  ".agents/policies",
+		"prompts":   ".agents/prompts",
+	}
+	for srcSub, tgtSub := range scaffoldMap {
+		srcPath := filepath.Join(resourceSrc, filepath.FromSlash(srcSub))
+		tgtPath := filepath.Join(projectRoot, filepath.FromSlash(tgtSub))
+		
+		info, err := os.Stat(srcPath)
+		if err == nil {
+			fmt.Printf("  [*] Scaffolding %s...\n", tgtSub)
+			if info.IsDir() {
+				CopyDir(srcPath, tgtPath)
+			} else {
+				CopyFile(srcPath, tgtPath)
+			}
+		} else {
+			if srcSub == "templates" {
+				fallbackSrc := filepath.Join(filepath.Dir(resourceSrc), ".ai", "tasks", "_template")
+				if info, err := os.Stat(fallbackSrc); err == nil && info.IsDir() {
+					fmt.Printf("  [*] Scaffolding %s from fallback...\n", tgtSub)
+					CopyDir(fallbackSrc, tgtPath)
+					continue
+				}
+			}
+			fmt.Printf("  [!] Warning: Source %s not found in %s\n", srcSub, resourceSrc)
+		}
+	}
+	
+	configSrc := filepath.Join(resourceSrc, "config.yaml")
+	configTgt := filepath.Join(projectRoot, ".agents", "config.yaml")
+	if _, err := os.Stat(configSrc); err == nil {
+		fmt.Printf("  [*] Updating .agents/config.yaml...\n")
+		os.MkdirAll(filepath.Dir(configTgt), 0755)
+		CopyFile(configSrc, configTgt)
+	}
+	
+	if err := ensureClaudeSkillsSymlink(projectRoot, resourceSrc); err != nil {
+		fmt.Printf("[!] %v\n", err)
+		os.Exit(1)
+	}
+	
+	gitignorePath := filepath.Join(projectRoot, ".gitignore")
+	ignoreEntries := []string{
+		"\n# Quorum",
+		"worktrees/",
+		".ai/tasks/active/*",
+		".ai/tasks/done/*",
+		".ai/tasks/failed/*",
+		".ai/tasks/inbox/*",
+		"!.ai/tasks/active/.gitkeep",
+		"!.ai/tasks/done/.gitkeep",
+		"!.ai/tasks/failed/.gitkeep",
+		"!.ai/tasks/inbox/.gitkeep",
+	}
+	if _, err := os.Stat(gitignorePath); err == nil {
+		contentBytes, _ := os.ReadFile(gitignorePath)
+		content := string(contentBytes)
+		var newEntries []string
+		for _, e := range ignoreEntries {
+			if strings.TrimSpace(e) != "" && !strings.Contains(content, strings.TrimSpace(e)) {
+				newEntries = append(newEntries, e)
+			}
+		}
+		if len(newEntries) > 0 {
+			fmt.Printf("[*] Updating .gitignore...\n")
+			f, _ := os.OpenFile(gitignorePath, os.O_APPEND|os.O_WRONLY, 0644)
+			for _, e := range newEntries {
+				f.WriteString(e + "\n")
+			}
+			f.Close()
+		}
+	} else {
+		fmt.Printf("[*] Creating .gitignore...\n")
+		f, _ := os.Create(gitignorePath)
+		for _, e := range ignoreEntries {
+			f.WriteString(e + "\n")
+		}
+		f.Close()
+	}
+	fmt.Printf("[+] Quorum initialized successfully.\n")
 }
