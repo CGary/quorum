@@ -1,0 +1,16 @@
+{
+  "id": "LES-2026-05-26-2",
+  "source_task": "F-03-e",
+  "type": "lesson",
+  "title": "Contract verify.commands and read arrays must be perfectly aligned with reality",
+  "context": "The task required a re-blueprint because the original contract had incorrect test references in verify.commands and the read list.",
+  "content": "When q-blueprint defines verify.commands, it must ensure the referenced tests either already exist or will be explicitly created during implementation. Pre-existing tests required for verification must be included in the read array so agents have the necessary context.",
+  "anti_patterns": [
+    "Referencing non-existent or hallucinated test files in verify.commands.",
+    "Omitting required verification test files from the read array."
+  ],
+  "related": [
+    "F-03-e"
+  ],
+  "created_at": "2026-05-26"
+}
