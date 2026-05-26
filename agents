@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
-# Quorum Agent CLI Wrapper (uv version)
+# Quorum Agent CLI Wrapper (Go version)
 
-# Ensure we are in the project root
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-export PYTHONPATH="$DIR/.agents:$PYTHONPATH"
-
-exec uv run python3 -m cli.main "$@"
+exec "$DIR/quorum_go" "$@"

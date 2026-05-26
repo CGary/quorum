@@ -61,10 +61,10 @@ def generate_corpus(golden_dir: Path):
         shutil.rmtree(golden_dir)
     golden_dir.mkdir(parents=True)
     
-    python_cli = [sys.executable, "-m", "cli.main"]
+    go_cli = ["./quorum_go"]
     
     # 1. Normal task list
-    capture = capture_command(python_cli + ["task", "list"])
+    capture = capture_command(go_cli + ["task", "list"])
     save_golden_capture("task_list", capture, golden_dir)
     
     # 2. Invalid spec / validation error (field=$.path; reason=...)
@@ -74,7 +74,7 @@ def generate_corpus(golden_dir: Path):
     broken_spec = broken_dir / "00-spec.yaml"
     broken_spec.write_text("task_id: BROKEN-999\nsummary: broken\n")
     
-    capture = capture_command(python_cli + ["task", "blueprint", broken_task_id])
+    capture = capture_command(go_cli + ["task", "blueprint", broken_task_id])
     save_golden_capture("validation_error", capture, golden_dir)
     
     shutil.rmtree(broken_dir, ignore_errors=True)
@@ -89,7 +89,7 @@ def generate_corpus(golden_dir: Path):
     (ambig_1 / "00-spec.yaml").write_text("task_id: AMBIG-100\n")
     (ambig_2 / "00-spec.yaml").write_text("task_id: AMBIG-1000\n")
     
-    capture = capture_command(python_cli + ["task", "status", "AMBIG-100"])
+    capture = capture_command(go_cli + ["task", "status", "AMBIG-100"])
     save_golden_capture("ambiguous_resolution", capture, golden_dir)
     
     shutil.rmtree(ambig_1, ignore_errors=True)
