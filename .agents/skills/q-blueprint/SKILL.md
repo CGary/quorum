@@ -152,14 +152,14 @@ Artefactos producidos:
 - .ai/tasks/active/<TASK_ID>-<slug>/07-trace.json (eventos risk_level_calculated y, si aplica, risk_level_divergence)
 
 Transición de estado ejecutada:
-- quorum task start <TASK_ID> ✓ (worktree en worktrees/<TASK_ID>/, rama ai/<TASK_ID>)
+- [ROOT] quorum task start <TASK_ID> ✓ (worktree en worktrees/<TASK_ID>/, rama ai/<TASK_ID>)
 
 Pasos siguientes (los despacha el orquestador, NO yo):
 1. [Opcional pero recomendado] /q-analyze <TASK_ID> — auditoría read-only de consistencia entre 00/01/02 antes de tocar código. Despachalo a un modelo barato.
 2. [Obligatorio] /q-implement <TASK_ID> — implementa dentro del contrato en el worktree.
 
 Si algo no quedó bien y querés volver atrás:
-- quorum task back <TASK_ID> — borra el worktree y la rama (si está vacía). La tarea queda en active/ con 01/02 intactos para que vuelvas a despachar /q-blueprint y reescribirlos.
+- [ROOT] quorum task back <TASK_ID> — borra el worktree y la rama (si está vacía). La tarea queda en active/ con 01/02 intactos para que vuelvas a despachar /q-blueprint y reescribirlos.
 
 ```
 

@@ -110,7 +110,7 @@ Pasos siguientes (los despacha el orquestador, NO yo):
 2. [Opcional] Si el reporte muestra múltiples tareas, podés despachar /q-status <TASK_ID> para zoom-in en una específica.
 
 Si querés volver atrás en alguna tarea:
-- quorum task back <TASK_ID> — revierte la última transición de esa tarea.
+- [ROOT] quorum task back <TASK_ID> — revierte la última transición de esa tarea.
 
 ```
 

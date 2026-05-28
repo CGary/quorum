@@ -147,7 +147,7 @@ Pasos siguientes (los despacha el orquestador, NO yo):
   1. [Obligatorio] Inspeccionar 05-validation.json y resolver el bloqueo (verify.commands faltantes, worktree corrupto), luego re-despachar /q-verify <TASK_ID>.
 
 Si querés volver atrás:
-- quorum task back <TASK_ID> — borra worktree y rama (perdés commits no mergeados).
+- [ROOT] quorum task back <TASK_ID> — borra worktree y rama (perdés commits no mergeados).
 
 ```
 

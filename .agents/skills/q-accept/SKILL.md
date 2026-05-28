@@ -83,11 +83,11 @@ Pasos siguientes que tiene que ejecutar el HUMANO (no el orquestador automático
    git checkout main && git merge ai/<TASK_ID>
 
 Pasos posteriores (los despacha el orquestador después del merge):
-4. [Obligatorio] quorum task clean <TASK_ID> — archiva la tarea en done/ y borra el worktree.
+4. [Obligatorio] [ROOT] quorum task clean <TASK_ID> — archiva la tarea en done/ y borra el worktree.
 5. [Opcional pero recomendado] /q-memory <TASK_ID> — captura lecciones, decisiones o patrones durables.
 
 Si querés volver atrás antes de mergear:
-- quorum task back <TASK_ID> — borra worktree y rama (perdés commits no mergeados).
+- [ROOT] quorum task back <TASK_ID> — borra worktree y rama (perdés commits no mergeados).
 
 ```
 

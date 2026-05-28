@@ -95,7 +95,7 @@ Artefacto producido:
 - .ai/tasks/active/<TASK_ID>-<slug>/00-spec.yaml
 
 Transición de estado ejecutada:
-- quorum task blueprint <TASK_ID> ✓ (la tarea pasó de inbox/ a active/)
+- [ROOT] quorum task blueprint <TASK_ID> ✓ (la tarea pasó de inbox/ a active/)
 
 Pasos siguientes (los despacha el orquestador, NO yo):
 - Si es una tarea padre o independiente (sin `parent_task`):
@@ -105,7 +105,7 @@ Pasos siguientes (los despacha el orquestador, NO yo):
   1. [Obligatorio] /q-blueprint <TASK_ID> — diseña 01-blueprint.yaml + 02-contract.yaml para esta sub-tarea. (Se omite /q-decompose para tareas hijas).
 
 Si algo no quedó bien y querés volver atrás:
-- quorum task back <TASK_ID> — revierte la transición que acabo de ejecutar (active/ → inbox/) para refinar el spec.
+- [ROOT] quorum task back <TASK_ID> — revierte la transición que acabo de ejecutar (active/ → inbox/) para refinar el spec.
 
 ```
 

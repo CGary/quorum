@@ -150,3 +150,17 @@ def test_semantic_feedback_findings_not_auto_applied_instruction():
             if "semantic" in line.lower() and "feedback.json" in line
         )
         assert "quorum task feedback-consume" not in semantic_line
+
+
+def test_fenced_command_context_prefix():
+    """Verify that every quorum or git CLI command in the handoff block has an execution context prefix."""
+    fenced_text_block = re.compile(r"```text\n(.*?)\n```", re.DOTALL)
+    for skill_file in SKILL_FILES:
+        content = skill_file.read_text()
+        blocks = fenced_text_block.findall(content)
+        for block in blocks:
+            for line in block.splitlines():
+                if re.match(r'^\s*(?:-\s|\d+\.\s(?:\[.*?\]\s*)?)(quorum|git)', line):
+                    assert "[ROOT]" in line or "[WORKTREE" in line, (
+                        f"Missing context prefix in {skill_file.name} handoff block: {line}"
+                    )

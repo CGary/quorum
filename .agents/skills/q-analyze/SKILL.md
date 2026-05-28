@@ -164,7 +164,7 @@ Pasos siguientes (los despacha el orquestador, NO yo):
   1. [Obligatorio] Resolución manual del bloqueo (artefacto faltante, schema corrupto, etc.) y luego re-despachar /q-analyze <TASK_ID>.
 
 Si querés volver atrás antes de implementar:
-- quorum task back <TASK_ID> — borra el worktree y la rama vacía; la tarea queda en active/ con artefactos intactos.
+- [ROOT] quorum task back <TASK_ID> — borra el worktree y la rama vacía; la tarea queda en active/ con artefactos intactos.
 
 ```
 

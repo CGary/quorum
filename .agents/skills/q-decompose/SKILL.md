@@ -136,7 +136,7 @@ Pasos siguientes (los despacha el orquestador, NO yo):
 1. [Obligatorio] /q-blueprint <PARENT_ID> — diseña 01-blueprint.yaml y 02-contract.yaml para la tarea como una unidad, y auto-ejecuta quorum task start <PARENT_ID> al terminar.
 
 Si querés volver atrás:
-- quorum task back <PARENT_ID> — devuelve la tarea a inbox/ para refinar el spec con /q-brief <PARENT_ID>.
+- [ROOT] quorum task back <PARENT_ID> — devuelve la tarea a inbox/ para refinar el spec con /q-brief <PARENT_ID>.
 
 ```
 
@@ -156,7 +156,7 @@ Artefactos producidos:
 - ... (uno por hijo)
 
 Transición de estado ejecutada:
-- quorum task split <PARENT_ID> ✓ (hijos creados en inbox/ con parent_task y depends_on; el CLI imprimió el mapa ASCII de ejecución)
+- [ROOT] quorum task split <PARENT_ID> ✓ (hijos creados en inbox/ con parent_task y depends_on; el CLI imprimió el mapa ASCII de ejecución)
 
 Pasos siguientes (los despacha el orquestador, hijo por hijo, en orden topológico de depends_on):
 1. [Obligatorio] /q-brief <PARENT_ID>-a — refinar el spec del primer hijo (auto-ejecutará quorum task blueprint <PARENT_ID>-a al terminar).
@@ -166,7 +166,7 @@ Pasos siguientes (los despacha el orquestador, hijo por hijo, en orden topológi
 El padre <PARENT_ID> NO se implementa directamente. Queda en active/ como coordinador. Cuando todos los hijos pasen por done/, el padre se considera completo y podés ejecutar quorum task clean <PARENT_ID> para archivarlo.
 
 Si algo no quedó bien y querés volver atrás:
-- quorum task back <hijo_id> — revierte la última transición del hijo (después de que su /q-brief lo haya movido a active/).
+- [ROOT] quorum task back <hijo_id> — revierte la última transición del hijo (después de que su /q-brief lo haya movido a active/).
 - Para deshacer la decomposition entera: editá manualmente el spec del padre quitando `decomposition` y borrá los directorios de hijos en inbox/.
 
 ```

@@ -129,7 +129,7 @@ Pasos siguientes (los despacha el orquestador, NO yo):
   1. [Obligatorio] Escalación humana — la implementación o el contrato tienen defectos fundamentales. Considerá quorum task back <TASK_ID> hasta el punto correcto y rediseñar.
 
 Si querés volver atrás:
-- quorum task back <TASK_ID> — borra worktree y rama (perdés commits no mergeados).
+- [ROOT] quorum task back <TASK_ID> — borra worktree y rama (perdés commits no mergeados).
 
 ```
 

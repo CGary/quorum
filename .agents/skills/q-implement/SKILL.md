@@ -179,8 +179,8 @@ Pasos siguientes (los despacha el orquestador, NO yo):
 1. [Obligatorio] /q-verify <TASK_ID> — corre verify.commands del contrato dentro del worktree y escribe 05-validation.json.
 
 Si querés volver atrás:
-- git -C worktrees/<TASK_ID> reset --hard HEAD~1 — descarta el último commit del worktree.
-- quorum task back <TASK_ID> — borra worktree y rama (perdés todos los commits no mergeados).
+- [WORKTREE:<TASK_ID>] git -C worktrees/<TASK_ID> reset --hard HEAD~1 — descarta el último commit del worktree.
+- [ROOT] quorum task back <TASK_ID> — borra worktree y rama (perdés todos los commits no mergeados).
 
 ```
 
@@ -195,7 +195,7 @@ Pasos siguientes (los despacha el orquestador, NO yo):
 - Si el contrato es incorrecto (touch insuficiente, forbid mal puesto, verify.commands inadecuados):
   1. [Obligatorio] /q-blueprint <TASK_ID> — rediseñar 01/02.
 - Si la spec es ambigua o cambió la intención:
-  1. [Obligatorio] quorum task back <TASK_ID> (dos veces si hace falta) hasta volver a inbox/ y luego /q-brief <TASK_ID>.
+  1. [Obligatorio] [ROOT] quorum task back <TASK_ID> (dos veces si hace falta) hasta volver a inbox/ y luego /q-brief <TASK_ID>.
 - Si el bloqueo es ambiental (dependencia faltante, permisos):
   1. [Obligatorio] Resolución manual fuera del agent loop, luego re-despachar /q-implement <TASK_ID>.
 
