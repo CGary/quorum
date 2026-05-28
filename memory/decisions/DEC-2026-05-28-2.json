@@ -1,0 +1,13 @@
+{
+  "id": "DEC-2026-05-28-2",
+  "source_task": "FEAT-009-b",
+  "type": "decision",
+  "title": "Elimination of Python runtime dependencies and schema-based verification in skill testing",
+  "context": "During the final cutover of the Go CLI migration, we needed to update all q-skills and eliminate Python-based utility runs without breaking SDC lifecycle rules.",
+  "content": "We decided to completely remove Python runtime dependencies from pyproject.toml, leaving only dev tools like pytest and pyyaml. All q-skills now exclusively use the Go 'quorum' binary. To prevent future regression, we updated the pytest harness and Go task manager tests to statically scan all SKILL.md files, ensuring no legacy Python imports or manual jsonschema commands are recommended to agents.",
+  "related": ["FEAT-009-b", "FEAT-009-a"],
+  "anti_patterns": [
+    "Do not retain obsolete Python helper scripts or libraries in pyproject.toml; clean cutovers require complete removal to avoid runtime confusion and mixed environments."
+  ],
+  "created_at": "2026-05-28"
+}

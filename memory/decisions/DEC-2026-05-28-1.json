@@ -1,0 +1,10 @@
+{
+  "id": "DEC-2026-05-28-1",
+  "source_task": "FEAT-009-a",
+  "type": "decision",
+  "title": "Consolidate schema validation and analytical helpers in the Go binary",
+  "context": "We needed a clear separation of execution between analytical CLI steps, schema validation, and Python scripting during the migration.",
+  "content": "We decided to rename the Go binary to 'quorum' and make it the single entry point for all analytical helpers and JSON Schema validations. This eliminates duplicate implementation and speeds up fast validation execution, using Cobra subcommands for high cohesive modularity.",
+  "related": ["FEAT-009-a"],
+  "created_at": "2026-05-28"
+}
