@@ -665,18 +665,51 @@ func StartTask(taskID string) {
 	fmt.Printf("[+] Task %s initialized and worktree ready.\n", taskID)
 }
 
-func IsWorktreeDirty(worktreePath string) bool {
+func WorktreeDirtyPaths(worktreePath string) []string {
 	out, err := exec.Command("git", "-C", worktreePath, "status", "--porcelain").CombinedOutput()
-	if err != nil {
-		return false
+	if err != nil { return nil }
+	var paths []string
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" { continue }
+		path := strings.TrimSpace(line[2:])
+		if strings.Contains(path, " -> ") {
+			parts := strings.Split(path, " -> ")
+			path = parts[len(parts)-1]
+		}
+		paths = append(paths, path)
 	}
-	return len(strings.TrimSpace(string(out))) > 0
+	return paths
+}
+
+func IsWorktreeDirty(worktreePath string) bool {
+	return len(WorktreeDirtyPaths(worktreePath)) > 0
 }
 
 func SaveWorktreeChanges(worktreePath, taskID string) (bool, string) {
-	msg := "quorum:save:" + taskID
-	out, err := exec.Command("git", "-C", worktreePath, "stash", "push", "--include-untracked", "-m", msg).CombinedOutput()
-	return err == nil, string(out)
+	root, err := ProjectRoot()
+	if err != nil { return false, err.Error() }
+	stashDir := filepath.Join(root, "worktrees", ".stash")
+	if err := os.MkdirAll(stashDir, 0755); err != nil { return false, err.Error() }
+	patchPath := filepath.Join(stashDir, fmt.Sprintf("%s-%s.patch", taskID, time.Now().UTC().Format("20060102T150405Z")))
+	_ = exec.Command("git", "-C", worktreePath, "add", "-N", ".").Run()
+	out, err := exec.Command("git", "-C", worktreePath, "diff", "--binary", "HEAD").CombinedOutput()
+	if err != nil { return false, string(out) }
+	if len(out) == 0 { return false, "no patch content produced" }
+	if err := os.WriteFile(patchPath, out, 0644); err != nil { return false, err.Error() }
+	return true, patchPath
+}
+
+func appendCleanupTrace(taskDirPath, phase, result, notes string) {
+	tracePath := filepath.Join(taskDirPath, "07-trace.json")
+	payload, err := LoadArtifactPayload(tracePath)
+	if err != nil { return }
+	trace, ok := payload.(map[string]any)
+	if !ok { return }
+	items, _ := asSlice(trace["attempts"])
+	items = append(items, map[string]any{"phase": phase, "result": result, "duration_s": 0.0, "notes": notes})
+	trace["attempts"] = items
+	_, _ = SaveArtifact(tracePath, trace)
 }
 
 func BranchExists(branchName string) bool {
@@ -710,9 +743,9 @@ func DeleteBranchIfMerged(branchName, baseBranch string) bool {
 	return false
 }
 
-func CleanTask(taskID string, force, save bool) {
-	if force && save {
-		fmt.Printf("[!] --force and --save are mutually exclusive. Pick one: --force discards changes, --save stashes them.\n")
+func CleanTask(taskID string, force, stash bool) {
+	if force && stash {
+		fmt.Printf("[!] --force and --stash are mutually exclusive. Pick one: --force discards changes, --stash saves them to a patch.\n")
 		return
 	}
 	
@@ -765,25 +798,34 @@ func CleanTask(taskID string, force, save bool) {
 	root, _ := ProjectRoot()
 	worktreePath := filepath.Join(root, "worktrees", taskID)
 	if _, err := os.Stat(worktreePath); err == nil {
-		dirty := IsWorktreeDirty(worktreePath)
-		if dirty && !force && !save {
+		dirtyPaths := WorktreeDirtyPaths(worktreePath)
+		dirty := len(dirtyPaths) > 0
+		if dirty && !force && !stash {
+			appendCleanupTrace(taskDir.Path, "execute", "blocked", "dirty_worktree_detected: "+strings.Join(dirtyPaths, ", "))
 			fmt.Printf("[!] Worktree %s has uncommitted changes.\n", worktreePath)
+			fmt.Printf("[!] Dirty paths: %s\n", strings.Join(dirtyPaths, ", "))
 			fmt.Printf("[!] Refusing to clean task %s silently. Choose one of:\n", taskID)
 			fmt.Printf("      cd %s && git status      # inspect changes\n", worktreePath)
 			fmt.Printf("      cd %s && git commit -am '...'  # commit, then re-run clean\n", worktreePath)
-			fmt.Printf("      quorum task clean %s --save     # stash WIP and clean\n", taskID)
+			fmt.Printf("      quorum task clean %s --stash    # save WIP patch and clean\n", taskID)
 			fmt.Printf("      quorum task clean %s --force    # discard WIP and clean\n", taskID)
 			return
 		}
-		if dirty && save {
-			fmt.Printf("[*] Saving worktree changes as stash 'quorum:save:%s'...\n", taskID)
-			if ok, out := SaveWorktreeChanges(worktreePath, taskID); !ok {
-				fmt.Printf("[!] git stash push failed: %s\n", strings.TrimSpace(out))
-				return
+		if dirty && stash {
+			fmt.Printf("[*] Saving worktree changes as patch...\n")
+			if ok, patchPath := SaveWorktreeChanges(worktreePath, taskID); !ok {
+				fmt.Printf("[!] patch save failed: %s\n", strings.TrimSpace(patchPath)); return
+			} else {
+				fmt.Printf("[+] Saved worktree patch: %s\n", patchPath)
+				appendCleanupTrace(taskDir.Path, "execute", "passed", "stash_path: "+patchPath)
 			}
 		}
 		if force && dirty {
+			appendCleanupTrace(taskDir.Path, "execute", "passed", "force_cleanup: dirty paths "+strings.Join(dirtyPaths, ", "))
 			fmt.Printf("[*] Force-removing worktree %s (discarding changes)...\n", worktreePath)
+			exec.Command("git", "-C", root, "worktree", "remove", "--force", worktreePath).Run()
+		} else if stash && dirty {
+			fmt.Printf("[*] Removing worktree %s after saving patch...\n", worktreePath)
 			exec.Command("git", "-C", root, "worktree", "remove", "--force", worktreePath).Run()
 		} else {
 			fmt.Printf("[*] Removing worktree %s...\n", worktreePath)
@@ -844,7 +886,19 @@ func AutoArchiveParentIfComplete(parentID string) {
 	fmt.Printf("[+] Parent task %s archived to done/.\n", parentID)
 }
 
-func BackTask(taskID string) {
+func BackTask(taskID string, opts ...bool) {
+	force := false
+	stash := false
+	if len(opts) > 0 {
+		force = opts[0]
+	}
+	if len(opts) > 1 {
+		stash = opts[1]
+	}
+	if force && stash {
+		fmt.Printf("[!] --force and --stash are mutually exclusive. Pick one: --force discards changes, --stash saves them to a patch.\n")
+		return
+	}
 	taskDir, err := FindTaskDir(taskID, nil)
 	if err != nil || taskDir == nil {
 		fmt.Printf("[!] Task %s not found.\n", taskID)
@@ -853,8 +907,39 @@ func BackTask(taskID string) {
 	root, _ := ProjectRoot()
 	worktreePath := filepath.Join(root, "worktrees", taskID)
 	if _, err := os.Stat(worktreePath); err == nil {
+		dirtyPaths := WorktreeDirtyPaths(worktreePath)
+		dirty := len(dirtyPaths) > 0
+		if dirty && !force && !stash {
+			appendCleanupTrace(taskDir.Path, "execute", "blocked", "dirty_worktree_detected: "+strings.Join(dirtyPaths, ", "))
+			fmt.Printf("[!] Worktree %s has uncommitted changes.\n", worktreePath)
+			fmt.Printf("[!] Dirty paths: %s\n", strings.Join(dirtyPaths, ", "))
+			fmt.Printf("[!] Refusing to remove task %s worktree silently. Choose one of:\n", taskID)
+			fmt.Printf("      cd %s && git status      # inspect changes\n", worktreePath)
+			fmt.Printf("      cd %s && git commit -am '...'  # commit, then re-run back\n", worktreePath)
+			fmt.Printf("      quorum task back %s --stash     # save WIP patch and remove worktree\n", taskID)
+			fmt.Printf("      quorum task back %s --force     # discard WIP and remove worktree\n", taskID)
+			return
+		}
+		if dirty && stash {
+			fmt.Printf("[*] Saving worktree changes as patch...\n")
+			if ok, patchPath := SaveWorktreeChanges(worktreePath, taskID); !ok {
+				fmt.Printf("[!] patch save failed: %s\n", strings.TrimSpace(patchPath))
+				return
+			} else {
+				fmt.Printf("[+] Saved worktree patch: %s\n", patchPath)
+				appendCleanupTrace(taskDir.Path, "execute", "passed", "stash_path: "+patchPath)
+			}
+		}
 		fmt.Printf("[*] Reversing 'start': removing worktree %s...\n", worktreePath)
-		out, err := exec.Command("git", "worktree", "remove", "--force", worktreePath).CombinedOutput()
+		args := []string{"worktree", "remove"}
+		if dirty && (force || stash) {
+			args = append(args, "--force")
+			if force {
+				appendCleanupTrace(taskDir.Path, "execute", "passed", "force_cleanup: dirty paths "+strings.Join(dirtyPaths, ", "))
+			}
+		}
+		args = append(args, worktreePath)
+		out, err := exec.Command("git", args...).CombinedOutput()
 		if err != nil {
 			fmt.Printf("[!] git worktree remove failed: %s\n", strings.TrimSpace(string(out)))
 			return

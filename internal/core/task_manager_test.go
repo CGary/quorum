@@ -357,10 +357,10 @@ func TestCleanTaskDirtyWorktreeModes(t *testing.T) {
 		wantNoStash  bool
 	}{
 		{name: "clean archives without flags", wantDone: true, wantNoStash: true},
-		{name: "dirty without flags aborts", dirty: true, wantWorktree: true, wantOut: []string{"uncommitted changes", "--force", "--save"}},
+		{name: "dirty without flags aborts", dirty: true, wantWorktree: true, wantOut: []string{"uncommitted changes", "wip.txt", "--force", "--stash"}},
 		{name: "dirty force discards and archives", dirty: true, force: true, wantDone: true, wantNoStash: true},
-		{name: "dirty save stashes and archives", dirty: true, save: true, wantDone: true, wantStash: true},
-		{name: "force and save abort", dirty: true, force: true, save: true, wantWorktree: true, wantOut: []string{"mutually exclusive"}},
+		{name: "dirty stash saves patch and archives", dirty: true, save: true, wantDone: true, wantStash: true},
+		{name: "force and stash abort", dirty: true, force: true, save: true, wantWorktree: true, wantOut: []string{"mutually exclusive"}},
 	}
 	for i, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -383,13 +383,43 @@ func TestCleanTaskDirtyWorktreeModes(t *testing.T) {
 			if _, err := os.Stat(filepath.Join(root, ".ai", "tasks", "done", filepath.Base(taskDir))); (err == nil) != tc.wantDone {
 				t.Fatalf("done task exists = %v, want %v", err == nil, tc.wantDone)
 			}
-			stash := run(t, root, "git", "stash", "list")
-			if tc.wantStash && !strings.Contains(stash, "quorum:save:"+taskID) {
-				t.Fatalf("stash missing quorum save entry: %q", stash)
+			patches, _ := filepath.Glob(filepath.Join(root, "worktrees", ".stash", taskID+"-*.patch"))
+			if tc.wantStash && len(patches) != 1 {
+				t.Fatalf("stash patch count = %d, want 1", len(patches))
 			}
-			if tc.wantNoStash && strings.Contains(stash, "quorum:save:"+taskID) {
-				t.Fatalf("unexpected stash entry: %q", stash)
+			if tc.wantNoStash && len(patches) != 0 {
+				t.Fatalf("unexpected stash patches: %#v", patches)
 			}
+		})
+	}
+}
+
+
+func TestBackTaskDirtyWorktreeModes(t *testing.T) {
+	cases := []struct { name, dirtyKind string; force, stash, wantWorktree, wantPatch bool; wantOut []string }{
+		{name: "modified without flags aborts", dirtyKind: "modified", wantWorktree: true, wantOut: []string{"uncommitted changes", "seed.txt", "--force", "--stash"}},
+		{name: "untracked force removes", dirtyKind: "untracked", force: true},
+		{name: "mixed stash saves patch and removes", dirtyKind: "mixed", stash: true, wantPatch: true, wantOut: []string{"Saved worktree patch"}},
+	}
+	for i, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			taskID := "FEAT-2" + string(rune('0'+i))
+			root, _, worktree := mkActiveTaskWithWorktree(t, taskID)
+			if tc.dirtyKind == "modified" || tc.dirtyKind == "mixed" {
+				if err := os.WriteFile(filepath.Join(worktree, "seed.txt"), []byte("changed\n"), 0o644); err != nil { t.Fatal(err) }
+			}
+			if tc.dirtyKind == "untracked" || tc.dirtyKind == "mixed" {
+				if err := os.WriteFile(filepath.Join(worktree, "new.txt"), []byte("new\n"), 0o644); err != nil { t.Fatal(err) }
+			}
+			out := captureStdout(t, func() { BackTask(taskID, tc.force, tc.stash) })
+			for _, want := range tc.wantOut {
+				if !strings.Contains(out, want) { t.Fatalf("output %q missing %q", out, want) }
+			}
+			if _, err := os.Stat(worktree); (err == nil) != tc.wantWorktree {
+				t.Fatalf("worktree exists = %v, want %v", err == nil, tc.wantWorktree)
+			}
+			patches, _ := filepath.Glob(filepath.Join(root, "worktrees", ".stash", taskID+"-*.patch"))
+			if tc.wantPatch && len(patches) != 1 { t.Fatalf("stash patch count = %d, want 1", len(patches)) }
 		})
 	}
 }
