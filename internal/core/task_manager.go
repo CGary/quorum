@@ -393,27 +393,65 @@ func ListTasks() error {
 	if err != nil {
 		return err
 	}
-	locations := []string{"active", "inbox", "done", "failed"}
+	locations := []string{"inbox", "active", "done", "failed"}
 	for _, loc := range locations {
-		entries, err := os.ReadDir(filepath.Join(root, ".ai", "tasks", loc))
+		locPath := filepath.Join(root, ".ai", "tasks", loc)
+		entries, err := os.ReadDir(locPath)
 		if os.IsNotExist(err) || err != nil {
 			continue
 		}
-		hasPrinted := false
+		var taskDirs []string
 		for _, entry := range entries {
-			if !entry.IsDir() {
-				continue
+			if entry.IsDir() {
+				taskDirs = append(taskDirs, entry.Name())
 			}
-			if !hasPrinted {
-				fmt.Printf("\n[%s]\n", strings.ToUpper(loc))
-				hasPrinted = true
-			}
-			dir := filepath.Join(root, ".ai", "tasks", loc, entry.Name())
+		}
+		sort.Strings(taskDirs)
+
+		for _, taskDirName := range taskDirs {
+			dir := filepath.Join(locPath, taskDirName)
 			id, _ := readSpecTaskID(dir)
 			if id == "" {
-				id = "???"
+				parts := strings.Split(taskDirName, "-")
+				if len(parts) >= 3 && len(parts[2]) == 1 && parts[2] >= "a" && parts[2] <= "z" {
+					id = strings.Join(parts[:3], "-")
+				} else if len(parts) >= 2 {
+					id = strings.Join(parts[:2], "-")
+				} else {
+					id = taskDirName
+				}
 			}
-			fmt.Printf("  %s (%s)\n", entry.Name(), id)
+
+			summary := ""
+			var spec map[string]any
+			for _, artifact := range []string{"00-spec.yaml", "01-blueprint.yaml", "02-contract.yaml", "07-trace.json"} {
+				path := filepath.Join(dir, artifact)
+				if _, err := os.Stat(path); err == nil {
+					if payload, err := LoadArtifactPayload(path); err == nil {
+						if data, ok := payload.(map[string]any); ok {
+							if artifact == "00-spec.yaml" {
+								spec = data
+							}
+							if s, ok := data["summary"].(string); ok && summary == "" {
+								summary = s
+							}
+						}
+					} else {
+						summary = "<unreadable summary>"
+					}
+				}
+				if summary != "" && spec != nil {
+					break
+				}
+			}
+			
+			stateMarker := ""
+			if spec != nil && spec["decomposition"] != nil {
+				state := DeriveParentState(spec)
+				stateMarker = fmt.Sprintf(" [%s]", state)
+			}
+
+			fmt.Printf("%-6s %-14s %s%s\n", loc, id, summary, stateMarker)
 		}
 	}
 	return nil
@@ -432,6 +470,20 @@ func ShowStatus(taskID string) error {
 	fmt.Printf("Location: %s/\n", taskDir.Location)
 	fmt.Printf("Directory: %s\n", filepath.Base(taskDir.Path))
 	
+	tracePath := filepath.Join(taskDir.Path, "07-trace.json")
+	if _, err := os.Stat(tracePath); err == nil {
+		if payload, err := LoadArtifactPayload(tracePath); err == nil {
+			if trace, ok := payload.(map[string]any); ok {
+				if summary, ok := trace["summary"].(string); ok {
+					fmt.Printf("Summary: %s\n", summary)
+				}
+				if cost, ok := trace["total_cost_usd"].(float64); ok {
+					fmt.Printf("Cost: $%.3f\n", cost)
+				}
+			}
+		}
+	}
+
 	artifacts := []string{"00-spec.yaml", "01-blueprint.yaml", "02-contract.yaml", "04-implementation-log.yaml", "05-validation.json", "06-review.json", "07-trace.json", "feedback.json"}
 	fmt.Printf("\nArtifacts:\n")
 	for _, a := range artifacts {
@@ -441,6 +493,58 @@ func ShowStatus(taskID string) error {
 			fmt.Printf("  [ ] %s\n", a)
 		}
 	}
+
+	root, _ := ProjectRoot()
+	worktreePath := filepath.Join(root, "worktrees", taskID)
+	worktreeStatus := "Missing"
+	if _, err := os.Stat(worktreePath); err == nil {
+		worktreeStatus = "Present"
+	}
+	fmt.Printf("- worktree: %s\n", worktreeStatus)
+
+	specPath := filepath.Join(taskDir.Path, "00-spec.yaml")
+	if _, err := os.Stat(specPath); err == nil {
+		if payload, err := LoadArtifactPayload(specPath); err == nil {
+			if spec, ok := payload.(map[string]any); ok {
+				if p, ok := spec["parent_task"].(string); ok && p != "" {
+					fmt.Printf("- parent_task: %s\n", p)
+					if deps, ok := asSlice(spec["depends_on"]); ok && len(deps) > 0 {
+						var depStrs []string
+						for _, d := range deps {
+							depStrs = append(depStrs, fmt.Sprintf("%v", d))
+						}
+						fmt.Printf("- depends_on: %s\n", strings.Join(depStrs, ", "))
+					}
+				}
+				if decompObj, ok := spec["decomposition"]; ok {
+					if decomp, ok := decompObj.([]any); ok && len(decomp) > 0 {
+						var children []string
+						for _, entryAny := range decomp {
+							if entry, ok := entryAny.(map[string]any); ok {
+								if childID, ok := entry["child_id"].(string); ok && childID != "" {
+									children = append(children, childID)
+								} else {
+									children = append(children, "?")
+								}
+							} else {
+								children = append(children, "?")
+							}
+						}
+						fmt.Printf("- decomposition (children): %s\n", strings.Join(children, ", "))
+						for _, childID := range children {
+							loc := "missing"
+							if c, err := FindTaskDir(childID, nil); err == nil && c != nil {
+								loc = c.Location
+							}
+							fmt.Printf("  - %s: %s\n", childID, loc)
+						}
+						fmt.Printf("- parent_state: %s\n", DeriveParentState(spec))
+					}
+				}
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -992,4 +1096,184 @@ func InitializeProject() {
 		f.Close()
 	}
 	fmt.Printf("[+] Quorum initialized successfully.\n")
+}
+
+func ensureRetryWorktree(taskID string) bool {
+	root, _ := ProjectRoot()
+	worktreePath := filepath.Join(root, "worktrees", taskID)
+	if _, err := os.Stat(worktreePath); err == nil {
+		if IsWorktreeDirty(worktreePath) {
+			fmt.Printf("[!] Worktree %s has uncommitted changes.\n", worktreePath)
+			fmt.Printf("[!] Refusing retry for %s until the worktree is clean.\n", taskID)
+			fmt.Printf("      cd %s && git status\n", worktreePath)
+			return false
+		}
+		return true
+	}
+
+	branchName := "ai/" + taskID
+	var cmd *exec.Cmd
+	if err := exec.Command("git", "-C", root, "rev-parse", "--verify", branchName).Run(); err == nil {
+		cmd = exec.Command("git", "-C", root, "worktree", "add", worktreePath, branchName)
+	} else {
+		cmd = exec.Command("git", "-C", root, "worktree", "add", worktreePath, "-b", branchName, GetBaseBranch())
+	}
+	
+	if out, err := cmd.CombinedOutput(); err != nil {
+		fmt.Printf("[!] Could not prepare retry worktree for %s: %s\n", taskID, strings.TrimSpace(string(out)))
+		return false
+	}
+	return true
+}
+
+func clearRetryArtifacts(taskDir string) []string {
+	var removed []string
+	for _, name := range []string{"05-validation.json", "06-review.json"} {
+		p := filepath.Join(taskDir, name)
+		if _, err := os.Stat(p); err == nil {
+			os.Remove(p)
+			removed = append(removed, name)
+		}
+	}
+	return removed
+}
+
+func restoreParentForChildRetry(parentID string) bool {
+	parentDir, err := FindTaskDir(parentID, []string{"active", "done"})
+	if err != nil || parentDir == nil {
+		fmt.Printf("[!] Parent task %s not found for retry.\n", parentID)
+		return false
+	}
+	if parentDir.Location == "active" {
+		return true
+	}
+
+	root, _ := ProjectRoot()
+	targetDir := filepath.Join(root, ".ai", "tasks", "active", filepath.Base(parentDir.Path))
+	if _, err := os.Stat(targetDir); err == nil {
+		fmt.Printf("[!] Cannot restore parent %s: active/%s already exists.\n", parentID, filepath.Base(parentDir.Path))
+		return false
+	}
+	fmt.Printf("[*] Restoring parent task %s from done/ to active/ for child retry...\n", parentID)
+	os.MkdirAll(filepath.Dir(targetDir), 0755)
+	os.Rename(parentDir.Path, targetDir)
+	return true
+}
+
+func PrepareFailedChildRetry(taskID string) bool {
+	taskDir, err := FindTaskDir(taskID, []string{"active", "failed"})
+	if err != nil || taskDir == nil {
+		fmt.Printf("[!] Task %s not found in active/ or failed/.\n", taskID)
+		return false
+	}
+	if taskDir.Location == "active" {
+		fmt.Printf("[*] Task %s is already active; retry preparation not needed.\n", taskID)
+		return true
+	}
+	if taskDir.Location != "failed" {
+		fmt.Printf("[!] Task %s is in %s/; retry preparation only handles failed/ children.\n", taskID, taskDir.Location)
+		return false
+	}
+
+	specPath := filepath.Join(taskDir.Path, "00-spec.yaml")
+	if _, err := os.Stat(specPath); os.IsNotExist(err) {
+		fmt.Printf("[!] Cannot retry %s: missing 00-spec.yaml.\n", taskID)
+		return false
+	}
+	payload, err := LoadArtifactPayload(specPath)
+	if err != nil {
+		fmt.Printf("[!] Cannot retry %s: invalid 00-spec.yaml: %v\n", taskID, err)
+		return false
+	}
+	if err := ValidateArtifact(specPath, payload); err != nil {
+		fmt.Printf("[!] Cannot retry %s: invalid 00-spec.yaml: %v\n", taskID, err)
+		return false
+	}
+	spec, ok := payload.(map[string]any)
+	if !ok {
+		return false
+	}
+
+	parentID, ok := spec["parent_task"].(string)
+	if !ok || parentID == "" {
+		fmt.Printf("[!] Retry is only authorized for failed child tasks; %s has no parent_task.\n", taskID)
+		return false
+	}
+
+	root, _ := ProjectRoot()
+	activeTarget := filepath.Join(root, ".ai", "tasks", "active", filepath.Base(taskDir.Path))
+	if _, err := os.Stat(activeTarget); err == nil {
+		fmt.Printf("[!] Cannot retry %s: active/%s already exists.\n", taskID, filepath.Base(taskDir.Path))
+		return false
+	}
+
+	tracePath := filepath.Join(taskDir.Path, "07-trace.json")
+	if _, err := os.Stat(tracePath); os.IsNotExist(err) {
+		fmt.Printf("[!] Cannot retry %s: missing 07-trace.json to preserve attempts history.\n", taskID)
+		return false
+	}
+	tracePayload, err := LoadArtifactPayload(tracePath)
+	if err == nil {
+		err = ValidateArtifact(tracePath, tracePayload)
+	}
+	if err != nil {
+		fmt.Printf("[!] Cannot retry %s: invalid 07-trace.json: %v\n", taskID, err)
+		return false
+	}
+
+	if !ensureRetryWorktree(taskID) {
+		return false
+	}
+	if !restoreParentForChildRetry(parentID) {
+		return false
+	}
+
+	removed := clearRetryArtifacts(taskDir.Path)
+	os.MkdirAll(filepath.Dir(activeTarget), 0755)
+	os.Rename(taskDir.Path, activeTarget)
+	if len(removed) > 0 {
+		fmt.Printf("[*] Removed stale retry artifacts for %s: %s\n", taskID, strings.Join(removed, ", "))
+	}
+	fmt.Printf("[+] Failed child task %s restored to active/ for /q-implement retry.\n", taskID)
+	return true
+}
+
+func DeriveParentState(spec map[string]any) string {
+	decompObj := spec["decomposition"]
+	if decompObj == nil {
+		return "active"
+	}
+	decomp, ok := decompObj.([]any)
+	if !ok {
+		return "active"
+	}
+	var childLocs []string
+	for _, entryAny := range decomp {
+		if entry, ok := entryAny.(map[string]any); ok {
+			if childID, ok := entry["child_id"].(string); ok && childID != "" {
+				c, err := FindTaskDir(childID, nil)
+				if err == nil && c != nil {
+					childLocs = append(childLocs, c.Location)
+				}
+			}
+		}
+	}
+	for _, loc := range childLocs {
+		if loc == "failed" {
+			return "partial"
+		}
+	}
+	if len(childLocs) > 0 {
+		allDone := true
+		for _, loc := range childLocs {
+			if loc != "done" {
+				allDone = false
+				break
+			}
+		}
+		if allDone {
+			return "completed"
+		}
+	}
+	return "active"
 }

@@ -566,3 +566,49 @@ func TestSkillsMentionContextPrefixInCommunicationProtocol(t *testing.T) {
 		t.Fatalf("expected 10 q-* skills, found %d", count)
 	}
 }
+
+func TestDeriveParentState(t *testing.T) {
+	tmp := t.TempDir()
+	cwd, _ := os.Getwd()
+	os.Chdir(tmp)
+	defer os.Chdir(cwd)
+	os.Mkdir(".git", 0755)
+
+	specActive := map[string]any{
+		"decomposition": []any{
+			map[string]any{"child_id": "PARENT-001-a"},
+		},
+	}
+	os.MkdirAll(".ai/tasks/active/PARENT-001-a", 0755)
+	if s := DeriveParentState(specActive); s != "active" {
+		t.Fatalf("expected active, got %s", s)
+	}
+
+	specPartial := map[string]any{
+		"decomposition": []any{
+			map[string]any{"child_id": "PARENT-001-a"},
+			map[string]any{"child_id": "PARENT-001-b"},
+		},
+	}
+	os.MkdirAll(".ai/tasks/failed", 0755)
+	os.Rename(".ai/tasks/active/PARENT-001-a", ".ai/tasks/failed/PARENT-001-a")
+	os.MkdirAll(".ai/tasks/done/PARENT-001-b", 0755)
+	if s := DeriveParentState(specPartial); s != "partial" {
+		t.Fatalf("expected partial, got %s", s)
+	}
+
+	specCompleted := map[string]any{
+		"decomposition": []any{
+			map[string]any{"child_id": "PARENT-001-a"},
+			map[string]any{"child_id": "PARENT-001-b"},
+		},
+	}
+	os.Rename(".ai/tasks/failed/PARENT-001-a", ".ai/tasks/done/PARENT-001-a")
+	if s := DeriveParentState(specCompleted); s != "completed" {
+		t.Fatalf("expected completed, got %s", s)
+	}
+
+	if s := DeriveParentState(map[string]any{}); s != "active" {
+		t.Fatalf("expected active, got %s", s)
+	}
+}

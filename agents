@@ -2,4 +2,4 @@
 # Quorum Agent CLI Wrapper (Go version)
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-exec "$DIR/quorum_go" "$@"
+exec "$DIR/quorum" "$@"

@@ -61,7 +61,7 @@ def generate_corpus(golden_dir: Path):
         shutil.rmtree(golden_dir)
     golden_dir.mkdir(parents=True)
     
-    go_cli = ["./quorum_go"]
+    go_cli = ["./quorum"]
     
     # 1. Normal task list
     capture = capture_command(go_cli + ["task", "list"])
