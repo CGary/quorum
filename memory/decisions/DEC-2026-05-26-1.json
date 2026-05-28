@@ -1,0 +1,13 @@
+{
+  "id": "DEC-2026-05-26-1",
+  "source_task": "F-03-f",
+  "type": "decision",
+  "title": "Preserve Python wrapper shims for backwards compatibility during Go binary cutover",
+  "context": "Porting the CLI codebase from Python to Go risked breaking external q-* skills that expect specific entry points.",
+  "content": "To perform a big-bang cutover to the compiled Go CLI without breaking existing q-* skills, keep the main executable entrypoints (`agents` shell script wrapper) as Python-based shims that forward calls to the Go binary. This preserves backwards compatibility for the orchestrator toolchain while completing the underlying architecture migration.",
+  "related": ["F-03-f"],
+  "anti_patterns": [
+    "Completely removing Python wrappers before updating all external consumer skill references."
+  ],
+  "created_at": "2026-05-26"
+}

@@ -1,0 +1,13 @@
+{
+  "id": "DEC-2026-05-26-2",
+  "source_task": "F-04",
+  "type": "decision",
+  "title": "Migrate all legacy Python integration tests to Go native testing framework",
+  "context": "Decommissioning the Python CLI entrypoints broke legacy Python integration tests due to missing module imports.",
+  "content": "Instead of adapting the legacy Python test suite to call the compiled Go binary as a subprocess, completely delete the obsolete Python test files and implement their test cases directly inside Go's native testing library (`go test`). This removes Python execution dependencies, increases test performance, and keeps the test suite unified within the target language.",
+  "related": ["F-04"],
+  "anti_patterns": [
+    "Maintaining a hybrid Python/Go test runner environment which drags along Python interpreter and virtualenv overhead."
+  ],
+  "created_at": "2026-05-26"
+}
