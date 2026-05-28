@@ -25,7 +25,7 @@ Read-only for planning artifacts. Analyze only:
 - `.agents/schemas/*.schema.json`
 - `.agents/policies/*.yaml`
 - Para tareas padre con `decomposition`, también leer únicamente los `00-spec.yaml` de las hijas declaradas bajo `.ai/tasks/{inbox,active,done,failed}/`.
-- `.agents/cli/core/decomposition_analysis.py` como helper puro read-only para calcular cobertura padre-hijas.
+- `quorum analyze decomposition-coverage` como helper puro read-only para calcular cobertura padre-hijas.
 
 Do not modify `00-spec.yaml`, `01-blueprint.yaml`, or `02-contract.yaml`. The only permitted write is a schema-validated non-numbered `feedback.json` file in the task directory when findings exist.
 
@@ -80,21 +80,10 @@ Flag:
 
 ### 6. Parent Decomposition Coverage
 
-If `00-spec.yaml` has a `decomposition` array, run a read-only parent-child coverage pass using `.agents/cli/core/decomposition_analysis.py`:
+If `00-spec.yaml` has a `decomposition` array, run a read-only parent-child coverage pass using `quorum analyze decomposition-coverage`:
 
-```python
-import sys
-from pathlib import Path
-
-sys.path.insert(0, ".agents")
-
-from cli.core.decomposition_analysis import analyze_parent_child_coverage
-
-result = analyze_parent_child_coverage(
-    Path(".ai/tasks/<state>/<PARENT>/00-spec.yaml"),
-    Path(".ai/tasks"),
-    Path(".agents/schemas/spec.schema.json"),
-)
+```bash
+quorum analyze decomposition-coverage <PARENT>
 ```
 
 Report:

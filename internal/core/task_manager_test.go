@@ -612,3 +612,90 @@ func TestDeriveParentState(t *testing.T) {
 		t.Fatalf("expected active, got %s", s)
 	}
 }
+
+func TestPrepareFailedChildRetry(t *testing.T) {
+	root := initGitRepo(t)
+	chdir(t, root)
+	useSchemas(t)
+	ensureTaskDirs(t, root)
+	
+	os.MkdirAll(".ai/tasks/active/PARENT-001", 0755)
+	os.MkdirAll(".ai/tasks/failed/PARENT-001-a", 0755)
+	
+	childSpec := map[string]any{
+		"task_id": "PARENT-001-a",
+		"parent_task": "PARENT-001",
+		"summary": "this is a very long string that satisfies the minimum length requirement",
+		"goal": "this is a very long string that satisfies the minimum length requirement",
+		"invariants": []any{"this is a very long string that satisfies the minimum length requirement"},
+		"acceptance": []any{"this is a very long string that satisfies the minimum length requirement"},
+		"risk": "low",
+	}
+	childTrace := map[string]any{
+		"task_id": "PARENT-001-a",
+		"summary": "this is a very long string that satisfies the minimum length requirement",
+		"started_at": "2024-01-01T00:00:00Z",
+		"execution_mode": "patch_only",
+		"total_cost_usd": 0.0,
+		"violations": []any{},
+		"context_overflows": []any{},
+		"attempts": []any{},
+	}
+	
+	if _, err := SaveArtifact(".ai/tasks/failed/PARENT-001-a/00-spec.yaml", childSpec); err != nil {
+		t.Fatalf("Failed to save spec: %v", err)
+	}
+	if _, err := SaveArtifact(".ai/tasks/failed/PARENT-001-a/07-trace.json", childTrace); err != nil {
+		t.Fatalf("Failed to save trace: %v", err)
+	}
+	
+	childVal := map[string]any{
+		"task_id": "PARENT-001-a",
+		"summary": "this is a very long string that satisfies the minimum length requirement",
+		"executed_at": "2024-01-01T00:00:00Z",
+		"overall_result": "passed",
+		"commands": []any{
+			map[string]any{
+				"command": "go test",
+				"exit_code": 0,
+				"duration_s": 0.0,
+				"output_excerpt": "ok",
+			},
+		},
+	}
+	childRev := map[string]any{
+		"task_id": "PARENT-001-a",
+		"summary": "this is a very long string that satisfies the minimum length requirement",
+		"verdict": "approve",
+		"contract_compliance": true,
+		"forbidden_files_touched": []any{},
+		"unrequested_refactor": false,
+		"missing_tests": []any{},
+		"functional_risk": "low",
+		"notes": []any{},
+	}
+	if _, err := SaveArtifact(".ai/tasks/failed/PARENT-001-a/05-validation.json", childVal); err != nil {
+		t.Fatalf("Failed to save val: %v", err)
+	}
+	if _, err := SaveArtifact(".ai/tasks/failed/PARENT-001-a/06-review.json", childRev); err != nil {
+		t.Fatalf("Failed to save rev: %v", err)
+	}
+	
+	success := PrepareFailedChildRetry("PARENT-001-a")
+	if !success {
+		t.Fatalf("PrepareFailedChildRetry failed")
+	}
+	
+	if _, err := os.Stat(".ai/tasks/active/PARENT-001-a"); err != nil {
+		t.Fatalf("Child task not moved to active: %v", err)
+	}
+	if _, err := os.Stat(".ai/tasks/active/PARENT-001-a/05-validation.json"); err == nil {
+		t.Fatalf("Stale validation artifact not removed")
+	}
+	if _, err := os.Stat(".ai/tasks/active/PARENT-001-a/06-review.json"); err == nil {
+		t.Fatalf("Stale review artifact not removed")
+	}
+	if _, err := os.Stat(".ai/tasks/active/PARENT-001-a/07-trace.json"); err != nil {
+		t.Fatalf("Trace artifact missing")
+	}
+}

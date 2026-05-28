@@ -97,7 +97,7 @@ This classification is advisory. Future automation may use it to choose between 
 If possible, validate with:
 
 ```bash
-python -m jsonschema -i .ai/tasks/active/<TASK>/05-validation.json .agents/schemas/validation.schema.json
+quorum validate .ai/tasks/active/<TASK>/05-validation.json
 ```
 
 ## Output

@@ -27,17 +27,8 @@ You are the **Logical Architect**. Your goal is to capture the human's intent an
 
 Before normal generation, check whether the task directory contains `feedback.json`. If present, load and partition it with the centralized helper:
 
-```python
-import json
-import sys
-from pathlib import Path
-
-sys.path.insert(0, ".agents")
-from cli.core.task_manager import partition_feedback_findings
-
-feedback_path = Path(".ai/tasks/<state>/<TASK_ID>/feedback.json")
-payload = json.loads(feedback_path.read_text())
-partitioned = partition_feedback_findings(payload)
+```bash
+cat .ai/tasks/<state>/<TASK_ID>/feedback.json | quorum analyze feedback-partition
 ```
 
 - If `partitioned["semantic"]` is non-empty, surface the semantic feedback findings verbatim to the human, do NOT auto-apply semantic findings, and do NOT consume `feedback.json`. Stop for a human decision; do not auto-chain another `/q-*` skill.

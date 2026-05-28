@@ -38,8 +38,8 @@ Quorum es un framework **AI-first** para ejecutar funcionalidades complejas medi
   - `q-brief`, `q-blueprint`, `q-analyze`, `q-implement`, `q-verify`, `q-review`, `q-accept`, `q-memory`, `q-status`.
 - Worktrees por tarea en `worktrees/<TASK_ID>/`.
 - Políticas de riesgo/routing en `.agents/policies/`.
-- `risk_scorer.py` para sugerir riesgo desde `01-blueprint.yaml`.
-- `failure_lookup.py` para consultar tareas fallidas relacionadas durante blueprint.
+- `quorum analyze risk-score` para sugerir riesgo desde `01-blueprint.yaml`.
+- `quorum analyze failure-lookup` para consultar tareas fallidas relacionadas durante blueprint.
 - `05-validation.json.error_category` opcional:
   - `logic | dependency | environment | flaky | unknown`.
 - Gobernanza documentada para evitar propuestas duplicadas:
@@ -102,12 +102,13 @@ Este tutorial te guía por un ciclo completo de Quorum para implementar una func
 
 ### 1. Instalación Global
 
-Cloná el repositorio y utilizá `uv tool install` para tener el CLI de forma global:
+Cloná el repositorio y compilá el binario Go:
 
 ```bash
 git clone https://github.com/usuario/quorum.git
 cd quorum
-uv tool install --editable .
+go build -o quorum .
+# Mové el binario a tu PATH
 ```
 
 ### 2. Inicializar el Proyecto
@@ -261,7 +262,7 @@ Lee el spec del padre, aplica los signals de `.agents/policies/decomposition.yam
 /q-blueprint FEAT-001
 ```
 
-Mapea archivos, símbolos y dependencias afectadas; consulta tareas fallidas relacionadas vía `failure_lookup.py`; corre `risk_scorer.py` y registra los eventos en `07-trace.json` sin pisar el riesgo declarado por el humano; genera `01-blueprint.yaml` y `02-contract.yaml`.
+Mapea archivos, símbolos y dependencias afectadas; consulta tareas fallidas relacionadas vía `quorum analyze failure-lookup`; corre `quorum analyze risk-score` y registra los eventos en `07-trace.json` sin pisar el riesgo declarado por el humano; genera `01-blueprint.yaml` y `02-contract.yaml`.
 
 > Auto-transición: al terminar con éxito, ejecuta `quorum task start FEAT-001` y crea el worktree + rama.
 
@@ -426,7 +427,7 @@ Human gate:  BDD / acceptance suite  objetivo: <10min
 Para validar el propio framework:
 
 ```bash
-uv run pytest -v
+go test ./...
 ```
 
 ---
@@ -435,13 +436,10 @@ uv run pytest -v
 
 ```bash
 project/
-├── agents                 # wrapper CLI; configura PYTHONPATH=.agents
+├── quorum                 # binario compilado
+├── cmd/                   # subcomandos CLI (Go)
+├── internal/core/         # lógica core (Go)
 ├── .agents/
-│   ├── cli/               # CLI y helpers core
-│   │   └── core/
-│   │       ├── task_manager.py
-│   │       ├── risk_scorer.py
-│   │       └── failure_lookup.py
 │   ├── schemas/           # JSON Schemas para YAML/JSON artifacts
 │   ├── policies/          # risk.yaml y routing.yaml
 │   ├── retrievers/        # import graph / AST neighbors

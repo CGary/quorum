@@ -127,7 +127,7 @@ When superseding:
 6. Validate when possible:
 
 ```bash
-python -m jsonschema -i memory/<type>/<file>.json .agents/schemas/memory.schema.json
+quorum validate memory/<type>/<file>.json
 ```
 
 ## Rules

@@ -39,12 +39,7 @@ was explicitly requested by the human/orchestrator as a retry, first prepare the
 retry from the repo root:
 
 ```bash
-python - <<'PY'
-import sys
-sys.path.insert(0, ".agents")
-from cli.core.task_manager import prepare_failed_child_retry
-raise SystemExit(0 if prepare_failed_child_retry("<TASK_ID>") else 1)
-PY
+quorum task retry-prepare <TASK_ID>
 ```
 
 This retry preflight is authorized only for failed child tasks. It preserves

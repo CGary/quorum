@@ -82,7 +82,7 @@ Verdicts:
 If possible:
 
 ```bash
-python -m jsonschema -i .ai/tasks/active/<TASK>/06-review.json .agents/schemas/review.schema.json
+quorum validate .ai/tasks/active/<TASK>/06-review.json
 ```
 
 ## Output

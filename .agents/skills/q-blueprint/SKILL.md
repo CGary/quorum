@@ -27,17 +27,8 @@ You are the **Surgical Cartographer**. Your goal is to read `00-spec.yaml`, map 
 
 Before normal generation, check whether the task directory contains `feedback.json`. If present, load and partition it with the centralized helper:
 
-```python
-import json
-import sys
-from pathlib import Path
-
-sys.path.insert(0, ".agents")
-from cli.core.task_manager import partition_feedback_findings
-
-feedback_path = Path(".ai/tasks/<state>/<TASK_ID>/feedback.json")
-payload = json.loads(feedback_path.read_text())
-partitioned = partition_feedback_findings(payload)
+```bash
+cat .ai/tasks/<state>/<TASK_ID>/feedback.json | quorum analyze feedback-partition
 ```
 
 - If `partitioned["semantic"]` is non-empty, surface the semantic feedback findings verbatim to the human, do NOT auto-apply semantic findings, and do NOT consume `feedback.json`. Stop for a human decision; do not auto-chain another `/q-*` skill.
@@ -49,15 +40,8 @@ partitioned = partition_feedback_findings(payload)
 3. Identify dependencies: who calls this, what this calls, and which tests cover it.
 4. Query related failed tasks. Read `.ai/tasks/failed/` for tasks whose blueprint touches the same files. Use the helper:
 
-   ```python
-   import sys
-   from pathlib import Path
-
-   sys.path.insert(0, ".agents")
-
-   from cli.core.failure_lookup import find_related_failed_tasks
-
-   related = find_related_failed_tasks(new_blueprint_dict, Path(".ai/tasks"))
+   ```bash
+   cat .ai/tasks/active/<TASK_ID>/01-blueprint.yaml | quorum analyze failure-lookup
    ```
 
    For each match, surface the failure context in the new blueprint's `risks` array. Example:
@@ -71,15 +55,8 @@ partitioned = partition_feedback_findings(payload)
 
 5. Before finalizing `01-blueprint.yaml`, enrich the draft blueprint with retriever context so orphaned retrievers remain wired into this phase:
 
-   ```python
-   import sys
-   from pathlib import Path
-
-   sys.path.insert(0, ".agents")
-
-   from cli.core.blueprint_context import enrich_blueprint_with_retrievers
-
-   blueprint_dict = enrich_blueprint_with_retrievers(blueprint_dict, Path("."))
+   ```bash
+   cat .ai/tasks/active/<TASK_ID>/01-blueprint.yaml | quorum analyze blueprint-context
    ```
 
    The helper consumes `retrievers.ast_neighbors` and `retrievers.import_graph`; its output MUST be considered before writing `affected_files` and `dependencies` to YAML. This is still a human-operated blueprint step, not an automatic dispatcher or phase runner.
@@ -141,23 +118,8 @@ strategy:
 
 After generating `01-blueprint.yaml`, invoke the risk scorer to suggest a level:
 
-```python
-import sys
-import yaml
-
-sys.path.insert(0, ".agents")
-
-from cli.core.risk_scorer import assign_risk_level, build_risk_trace_events
-
-with open(".agents/policies/risk.yaml") as f:
-    policy = yaml.safe_load(f)
-with open(f".ai/tasks/active/{task_id}/01-blueprint.yaml") as f:
-    blueprint = yaml.safe_load(f)
-with open(f".ai/tasks/active/{task_id}/00-spec.yaml") as f:
-    spec = yaml.safe_load(f)
-
-result = assign_risk_level(blueprint, policy)
-events = build_risk_trace_events(spec.get("risk"), result)
+```bash
+quorum analyze risk-score <TASK_ID>
 ```
 
 Then:

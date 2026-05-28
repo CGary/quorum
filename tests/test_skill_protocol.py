@@ -54,8 +54,7 @@ def test_q_analyze_documents_parent_child_coverage():
     content = skill_file.read_text()
 
     assert "Parent Decomposition Coverage" in content
-    assert "decomposition_analysis" in content
-    assert "analyze_parent_child_coverage" in content
+    assert "decomposition-coverage" in content
     assert "parent_task" in content
     assert "depends_on" in content
     assert "strictly read-only" in content
@@ -130,7 +129,7 @@ def test_semantic_feedback_findings_not_auto_applied_instruction():
         content = (SKILLS_DIR / skill_name / "SKILL.md").read_text()
 
         assert "feedback.json" in content
-        assert "partition_feedback_findings" in content
+        assert "feedback-partition" in content
         assert re.search(
             r"semantic[^\n]*(surface|surface the semantic feedback findings|human)",
             content,
