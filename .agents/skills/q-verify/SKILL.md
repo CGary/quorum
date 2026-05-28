@@ -28,8 +28,9 @@ Confirm:
 - Task exists under `.ai/tasks/active/<TASK>/`.
 - `02-contract.yaml` exists and has `verify.commands`.
 - Worktree exists at `worktrees/<TASK_ID>/`.
+- Worktree is clean (all implementation changes are committed; i.e., running `git -C worktrees/<TASK_ID> status --porcelain` does not return any untracked or modified tracked files, excluding ignored files).
 
-If not, stop with `blocked`.
+If not, stop with `blocked` and instruct the agent to run `git commit` in the worktree first.
 
 ### 2. Execute Fast Verify Commands
 

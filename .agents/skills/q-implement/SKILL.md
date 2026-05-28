@@ -109,8 +109,16 @@ entries:
       - Added behavior required by acceptance criteria.
     verify_pending: true
 ```
-
 Keep YAML shallow. `summary` must be second key.
+
+### 6. Git Commit
+
+[Obligatorio] Antes de declarar DONE, debes consolidar tu trabajo registrando formalmente tus cambios en la rama de Git correspondiente a la tarea. Ejecuta los siguientes comandos desde el directorio del worktree (`worktrees/<TASK_ID>/`):
+
+```bash
+git add -A
+git commit -m "feat(core): <resumen técnico conciso en inglés de los cambios>"
+```
 
 ## Output
 
