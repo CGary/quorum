@@ -65,7 +65,7 @@ Para cada hijo escribí:
 - `summary`: ≤200 chars, denso y factual, qué subsection cubre.
 - `depends_on`: lista de IDs hermanos que deben implementarse antes (vacío si es independiente).
 
-Antes de mostrar la propuesta, renderizá el mapa ASCII con `cli.core.decomposition_render.render_ascii_dag(decomposition)` usando exactamente la lista propuesta. Incluí ese mapa bajo el encabezado `Mapa ASCII de ejecución:` para que el usuario vea orden izquierda-a-derecha por niveles, paralelismo y arcos `depends_on` antes de confirmar.
+Antes de mostrar la propuesta, renderizá el mapa ASCII con `quorum analyze decomposition-render` usando exactamente la lista propuesta. Incluí ese mapa bajo el encabezado `Mapa ASCII de ejecución:` para que el usuario vea orden izquierda-a-derecha por niveles, paralelismo y arcos `depends_on` antes de confirmar.
 
 Mostrá la propuesta al usuario en este formato (en español) y pedí confirmación EXPLÍCITA. Cerrá el turno con el indicador de espera. NO escribas a disco todavía:
 

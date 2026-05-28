@@ -10,23 +10,23 @@ The canonical authority is `quorum.md` (the manifesto v1.1). When the manifesto 
 
 ```bash
 # Run the full test suite
-uv run pytest -v
+go test ./...
 
 # Run a single test file or test
-uv run pytest tests/test_task_manager_artifacts.py -v
-uv run pytest tests/test_validation_schema.py::test_valid_with_each_error_category -v
+go test ./internal/core -run TestPartitionFeedbackFindings
 
-# Install Quorum globally as an editable tool (required to use `quorum` CLI elsewhere)
-uv tool install --editable .
+# Build Quorum globally
+go build -o quorum .
+# (Then move the binary to your PATH)
 
 # Initialize Quorum scaffolding inside another project (creates .ai/tasks/, memory/, .gitignore entries)
 quorum init
 
-# Local CLI invocation without global install (sets PYTHONPATH=.agents and runs cli.main)
-./agents <command>           # e.g. ./agents task list
+# Local CLI invocation
+./quorum <command>           # e.g. ./quorum task list
 ```
 
-The `agents` wrapper script and `main.py` both exist for the same reason: they prepend `.agents/` to `PYTHONPATH` because the actual package lives there (`pyproject.toml` declares `package-dir = {"" = ".agents"}`). Direct `python -m cli.main` from the repo root will fail without that path injection.
+The Quorum binary is built using Go. It replaces the legacy Python entry points.
 
 ### Task CLI surface
 
@@ -65,7 +65,7 @@ There is **no `03`, `08`, `09`, or `10`**. The manifesto rejects new lifecycle s
 
 ### Where state actually changes
 
-`.agents/cli/core/task_manager.py` owns nearly all state mutations (~700 lines). The CLI commands (`commands/task.py`, `commands/project.py`) are thin shims. When in doubt, read `task_manager.py` first.
+`internal/core/task_manager.go` owns nearly all state mutations (~700 lines). The CLI commands (`cmd/task*.go`, `cmd/project.go`) are thin shims. When in doubt, read `task_manager.go` first.
 
 Important invariants enforced there:
 
@@ -90,7 +90,7 @@ If you find a skill that auto-chains into another skill or runs `back`, that is 
 
 ### Decomposition: parents and children
 
-A large feature can be split via `/q-decompose`, which writes a `decomposition: [...]` block into the parent's `00-spec.yaml`. `quorum task split <PARENT>` then materialises children with IDs `<PARENT>-a`, `<PARENT>-b`, ... (single lowercase letter — pattern enforced by `CHILD_ID_RE`/`PARENT_ID_RE` in `task_manager.py`).
+A large feature can be split via `/q-decompose`, which writes a `decomposition: [...]` block into the parent's `00-spec.yaml`. `quorum task split <PARENT>` then materialises children with IDs `<PARENT>-a`, `<PARENT>-b`, ... (single lowercase letter — pattern enforced by `CHILD_ID_RE`/`PARENT_ID_RE` in `task_manager.go`).
 
 - The parent stays in `active/` as a coordinator and is never implemented directly.
 - Each child runs its own complete lifecycle, in its own worktree (`ai/<PARENT>-<x>` branch), and merges to `main` independently.
@@ -107,9 +107,9 @@ The base branch is detected dynamically by `get_base_branch()`: tries `origin/HE
 
 - `.agents/policies/risk.yaml` defines `sensitive_paths` (binary glob signals) and named risk signals (advisory).
 - `.agents/policies/routing.yaml` maps `risk → executor_level`. Executor levels (0/1/2) live in `.agents/config.yaml` with primary/fallback/secondary models. **Never hardcode model names in scoring or routing logic** — that's what the level abstraction is for.
-- `.agents/cli/core/risk_scorer.py` is a pure function: glob-matches `sensitive_paths` (any hit → high), then thresholds on file count (>5) and symbol count (>2) for medium. It NEVER overwrites human-declared risk in `00-spec.yaml`. Divergence emits a `risk_level_divergence` event into `07-trace.json` instead of silently correcting.
-- `.agents/cli/core/failure_lookup.py` queries `.ai/tasks/failed/` for tasks whose `affected_files` overlap ≥50% with the new blueprint, surfacing past validation excerpts and review notes as risks for the new blueprint.
-- `.agents/cli/core/blueprint_context.py` wires the retrievers (`ast_neighbors.py`, `import_graph.py` under `.agents/retrievers/`) to enrich a draft blueprint with neighboring files and import graph.
+- `internal/core/risk.go` is a pure function: glob-matches `sensitive_paths` (any hit → high), then thresholds on file count (>5) and symbol count (>2) for medium. It NEVER overwrites human-declared risk in `00-spec.yaml`. Divergence emits a `risk_level_divergence` event into `07-trace.json` instead of silently correcting.
+- `internal/core/failure_lookup.go` queries `.ai/tasks/failed/` for tasks whose `affected_files` overlap ≥50% with the new blueprint, surfacing past validation excerpts and review notes as risks for the new blueprint.
+- `internal/core/blueprint_context.go` wires the retrievers (`ast_neighbors.py`, `import_graph.py` under `.agents/retrievers/`) to enrich a draft blueprint with neighboring files and import graph.
 
 ### Memory is curated, never automatic
 
@@ -143,6 +143,4 @@ When editing or writing `.agents/skills/q-*/SKILL.md`, every skill must:
 
 ## Python and tooling
 
-- Python `>=3.13` (pinned in `.python-version`).
-- Dependencies: `jsonschema`, `pyyaml`. Dev: `pytest>=9.0.3`. Managed by `uv`.
-- The package layout is unusual: `pyproject.toml` declares `package-dir = {"" = ".agents"}`, so imports like `from cli.core import task_manager` and `import retrievers.ast_neighbors` work from `.agents/` as the source root. Tests are at the repo root (`tests/`) and rely on cwd being the repo root for relative paths like `Path(".agents/schemas/validation.schema.json")`.
+- Quorum is built in Go. A pytest golden-master suite is retained in `tests/` to verify the compiled binary's end-to-end behavior.
