@@ -64,7 +64,7 @@ Use this state machine:
 - Missing `00-spec.yaml` → run `quorum task specify <ID>` then `/q-brief <ID>`.
 - In `inbox/` with `00-spec.yaml` only → use `/q-brief <ID>`; if it succeeds it auto-runs `quorum task blueprint <ID>`.
 - In `active/` with `decomposition` → report child locations; next is the first child whose `depends_on` siblings are `done/` (usually `/q-brief <child>` if still in `inbox/`), or `quorum task clean <PARENT_ID>` if all children are `done/`.
-- In `active/` with `00-spec.yaml` but no `01-blueprint.yaml`/`02-contract.yaml` → use `/q-decompose <ID>` if the scope may be large, otherwise `/q-blueprint <ID>`.
+- In `active/` with `00-spec.yaml` but no `01-blueprint.yaml`/`02-contract.yaml` → if it is a parent or standalone task (no `parent_task`), use `/q-decompose <ID>` if the scope may be large, otherwise `/q-blueprint <ID>`. If it is a child task (has `parent_task`), ALWAYS use `/q-blueprint <ID>` and omit `/q-decompose`.
 - Has `01-blueprint.yaml` and `02-contract.yaml` but no worktree → normally `/q-blueprint` should have auto-run `quorum task start`; recommend re-dispatching `/q-blueprint <ID>` or manually running `quorum task start <ID>` only as repair.
 - Active with contract and worktree but no implementation log → use `/q-implement`.
 - Has implementation but no validation → use `/q-verify`.

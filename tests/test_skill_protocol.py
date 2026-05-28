@@ -37,16 +37,17 @@ def test_single_phase_boundary_preserved():
         assert "single-phase" in content.lower()
         assert "NO actives ningún otro skill" in content or "NO auto-activa otro /q-* skill" in content or "Auto-encadenar viola la Regla #9" in content
 
-def test_q_brief_handoff_omits_decompose_for_children():
-    """Verify q-brief has a specific handoff case for child tasks that omits q-decompose."""
-    skill_file = SKILLS_DIR / "q-brief" / "SKILL.md"
-    content = skill_file.read_text()
-    
-    # Check for presence of parent_task logic in handoff or next steps
-    assert "parent_task" in content, "q-brief must mention parent_task in its logic or handoff"
-    
-    # Look for a section or instruction that omits q-decompose when it's a child
-    assert "omite /q-decompose" in content or "sin sugerir /q-decompose" in content or "omita /q-decompose" in content
+def test_q_brief_and_q_status_omit_decompose_for_children():
+    """Verify q-brief and q-status have specific handoff cases for child tasks that omit q-decompose."""
+    for skill_name in ["q-brief", "q-status"]:
+        skill_file = SKILLS_DIR / skill_name / "SKILL.md"
+        content = skill_file.read_text()
+        
+        # Check for presence of parent_task logic in handoff or next steps
+        assert "parent_task" in content, f"{skill_name} must mention parent_task in its logic or handoff"
+        
+        # Look for a section or instruction that omits q-decompose when it's a child
+        assert "omite /q-decompose" in content or "sin sugerir /q-decompose" in content or "omita /q-decompose" in content or "omit `/q-decompose`" in content, f"{skill_name} must omit q-decompose for children"
 
 def test_q_analyze_documents_parent_child_coverage():
     """Verify q-analyze documents the read-only parent/child coverage pass."""
