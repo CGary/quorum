@@ -2,7 +2,7 @@ This file provides guidance when working with code in this repository.
 
 ## Project nature
 
-Quorum is a Python framework that orchestrates AI agents through a **Spec-Driven Contracts (SDC)** lifecycle. It is **NOT** a chatbot or general assistant — it converts human intent into validated artifacts (`00`→`07`) and verified Git diffs. The framework is dogfooded: changes to Quorum's own code go through `pytest`, but feature work in *consumer* projects goes through the full `/q-*` skill lifecycle.
+Quorum is a Go framework that orchestrates AI agents through a **Spec-Driven Contracts (SDC)** lifecycle. It is **NOT** a chatbot or general assistant — it converts human intent into validated artifacts (`00`→`07`) and verified Git diffs. The framework is dogfooded: changes to Quorum's own code go through `go test ./...`, but feature work in *consumer* projects goes through the full `/q-*` skill lifecycle.
 
 The canonical authority is `quorum.md` (the manifesto v1.1). When the manifesto and the code disagree, the manifesto wins and the code is wrong.
 

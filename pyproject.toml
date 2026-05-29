@@ -1,3 +1,4 @@
+# Retained for golden-master testing of the Quorum Go binary behavior.
 [project]
 name = "quorum"
 version = "0.1.0"
