@@ -1,0 +1,10 @@
+{
+  "id": "DEC-2026-05-29-1",
+  "source_task": "FEAT-013",
+  "type": "decision",
+  "title": "Explicit explanation comment for deprecated/retained Python configs",
+  "context": "Retaining pyproject.toml in a Go migrated repository.",
+  "content": "When migrating a codebase to Go but retaining pyproject.toml for golden-master pytest suites, write a clear explanatory comment at the top of pyproject.toml instead of deleting it. This preserves the testing harness without confusing future agents or developers regarding the primary codebase language.",
+  "related": ["FEAT-013"],
+  "created_at": "2026-05-29"
+}

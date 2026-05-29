@@ -1,0 +1,13 @@
+{
+  "id": "PAT-2026-05-28-2",
+  "source_task": "FEAT-012",
+  "type": "pattern",
+  "title": "Asserting conditional skill logic via protocol-level regex checks",
+  "context": "We needed to ensure that skill protocols remain consistent with the orchestrator rules without relying solely on manual documentation reviews.",
+  "content": "When documenting conditional logic in SKILL.md files (e.g. omitting suggestions based on task attributes), enforce these boundaries by extending tests/test_skill_protocol.py to programmatically parse and assert the presence of specific keywords or constraints across all relevant SKILL.md files.",
+  "related": ["FEAT-012"],
+  "anti_patterns": [
+    "Avoid relying purely on manual code review to verify that skill documentation contains required protocol changes; enforce them programmatically using static regex tests."
+  ],
+  "created_at": "2026-05-28"
+}

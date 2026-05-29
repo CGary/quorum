@@ -1,0 +1,13 @@
+{
+  "id": "DEC-2026-05-28-3",
+  "source_task": "FEAT-010",
+  "type": "decision",
+  "title": "Explicit command execution context indicator in skill handoff protocols",
+  "context": "During FEAT-010, we recognized that manual command handoffs in skill blocks were ambiguous regarding their execution context (project root vs. task worktree).",
+  "content": "We decided to establish a strict syntax protocol requiring all fenced command lines in skill handoff blocks to be explicitly prefixed with [ROOT] or [WORKTREE:<TASK_ID>]. We also introduced a pytest regression scanner in the test suite to statically parse all SKILL.md handoff blocks, guaranteeing that no command is presented to agents or humans without a clear prefix indicator.",
+  "related": ["FEAT-010"],
+  "anti_patterns": [
+    "Avoid omitting the execution context prefix in any fenced command lines within the closing handoff blocks, which leads to ambiguity for humans and downstream orchestrators."
+  ],
+  "created_at": "2026-05-28"
+}
