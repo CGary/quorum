@@ -56,7 +56,7 @@ Humans think in stories; agents think in constraints. Quorum eliminates the huma
 | `05-validation.json` | JSON | System stdout capture | System + reviewer | Write-only |
 | `06-review.json` | JSON | Reviewer agent | System + human | Write-only |
 | `07-trace.json` | JSON | System append-only | System + dashboards | Continuous append |
-| `memory/*.json` | JSON | System + agents | System + semantic tools | Append per task |
+| SQLite (Memory) | DB | `q-memory` (via `quorum memory save`) | System + semantic tools | Append per task |
 
 YAML is used for planning artifacts because humans and designers inspect them directly and because they are repeatedly injected into agent context. JSON is used for system-captured artifacts because capture, dashboards, and observability tools need rigid parsing.
 
@@ -79,7 +79,7 @@ summary: Add internal payment-method enum (CASH|QR|CARD) to POS Express sale flo
 
 ### Artifact lifecycle boundary
 
-The canonical task lifecycle is `00` through `07` plus curated `memory/*.json`. New numbered lifecycle artifacts are rejected by default unless they satisfy all of these conditions:
+The canonical task lifecycle is `00` through `07` plus curated SQLite memory entries. New numbered lifecycle artifacts are rejected by default unless they satisfy all of these conditions:
 
 1. The information cannot live in an existing artifact without duplication.
 2. A runtime or skill consumes the artifact deterministically.
@@ -90,8 +90,8 @@ Current reserved meanings:
 
 | Slot | Status | Guidance |
 | :--- | :--- | :--- |
-| `08-post-mortem.json` | Rejected | Failure data already lives in `05-validation.json`, `06-review.json`, `07-trace.json`, and `memory/lessons/`. |
-| `09/10-impact-report.json` | Rejected | Successful learning should go directly through `q-memory` into curated `memory/*`; no intermediate report is needed. |
+| `08-post-mortem.json` | Rejected | Failure data already lives in `05-validation.json`, `06-review.json`, `07-trace.json`, and SQLite `lessons`. |
+| `09/10-impact-report.json` | Rejected | Successful learning should go directly through `q-memory` into the curated SQLite DB; no intermediate report is needed. |
 | Additional integration/routing artifacts | Rejected by default | Use `07-trace.json` events or existing contract fields unless a future ADR proves a separate artifact is necessary. |
 
 This prevents artifact sprawl: observability goes to trace, validation evidence goes to validation/review, durable learning goes to memory.
@@ -170,7 +170,7 @@ This prevents artifact sprawl: observability goes to trace, validation evidence 
 
 - **Actor**: `q-memory` (Learning Curator).
 - **Goal**: Preserve durable decisions, patterns, or lessons after merge or meaningful failure.
-- **Output**: Curated entries under `memory/{decisions,patterns,lessons}/`.
+- **Output**: Curated entries saved to centralized SQLite via `quorum memory save`.
 - **Logic**: Human-invoked only; no automatic ingestion.
 - **Forward auto-transition**: none.
 
@@ -289,21 +289,21 @@ Agents never wait for BDD. Humans never approve without BDD.
 
 ## 🧠 Memory Governance
 
-The `memory/` directory is a **curated knowledge library, NOT an activity log**. The activity log lives in `07-trace.json`. This separation is what prevents Model Collapse and noise contamination — do not collapse it.
+The SQLite memory database is a **curated knowledge library, NOT an activity log**. The activity log lives in `07-trace.json`. This separation is what prevents Model Collapse and noise contamination — do not collapse it.
 
 ### Capture is human-invoked, never automatic
 
-Memory ingestion happens only when `q-memory` is explicitly invoked, typically after task acceptance. Quorum does NOT auto-ingest session summaries, retry logs, or per-step traces. Any future proposal that suggests "automatic memory ingestion" or piping session logs into `memory/` is redundant — **human invocation IS the curation gate**. There is no other gate to add.
+Memory ingestion happens only when `q-memory` is explicitly invoked, typically after task acceptance. Quorum does NOT auto-ingest session summaries, retry logs, or per-step traces. Any future proposal that suggests "automatic memory ingestion" or piping session logs into SQLite is redundant — **human invocation IS the curation gate**. There is no other gate to add.
 
 ### Three memory types, no priority states
 
 Memory entries are typed by nature, not by quality grade:
 
-| Type | Directory | Purpose |
+| Type | SQLite Storage | Purpose |
 | :--- | :--- | :--- |
-| `pattern` | `memory/patterns/` | Reusable implementation or testing pattern. |
-| `decision` | `memory/decisions/` | Architectural or policy decision affecting future work. |
-| `lesson` | `memory/lessons/` | Bug cause, failure mode, review finding, process improvement. |
+| `pattern` | `type='pattern'` | Reusable implementation or testing pattern. |
+| `decision` | `type='decision'` | Architectural or policy decision affecting future work. |
+| `lesson` | `type='lesson'` | Bug cause, failure mode, review finding, process improvement. |
 
 This typology already encodes priority implicitly: patterns are high-signal canonical forms; lessons are operational learnings. **Do not add orthogonal status fields** like `gold_standard`, `operational_log`, `discarded`, or `confidence_score` — they duplicate what the type system already expresses, or create unverifiable LLM-generated precision.
 
@@ -327,7 +327,7 @@ The optional `anti_patterns` field on every memory entry captures approaches tha
 
 ### External memory systems are out of scope
 
-Quorum is local-first and machine-first on disk. Integrations with external semantic stores (HSME, vector DBs, RRF rerankers, time-decay scoring) are out of scope for the framework itself. Such systems may consume `memory/*.json` as a read-only source, but Quorum does not depend on them and does not write to them. Proposals to embed external retrieval logic into `q-memory` violate Rule #1 (Git is the code truth) and Rule #5 (Machine-First, on-disk artifacts).
+Quorum is local-first. Integrations with external semantic stores (HSME, vector DBs, RRF rerankers, time-decay scoring) are out of scope for the framework itself. Such systems may consume exported SQLite data as a read-only source, but Quorum does not depend on them. Proposals to embed external retrieval logic into `q-memory` violate Rule #1 (Git is the code truth).
 
 ---
 
@@ -386,7 +386,7 @@ When a task does not satisfy its contract, Quorum already has a structured chain
 ### Existing mechanisms for negative knowledge
 
 - **Per-task forbiddance**: `02-contract.yaml.forbid.behaviors` is the binding list of patterns the executor must not introduce. Lessons from past failures of similar tasks belong here.
-- **Cross-task lessons**: `memory/lessons/` (with `q-memory`) captures durable failure modes. The `anti_patterns` field on every memory entry records approaches rejected with technical justification (see Memory Governance).
+- **Cross-task lessons**: SQLite `lessons` (with `q-memory`) capture durable failure modes. The `anti_patterns` field on every memory entry records approaches rejected with technical justification (see Memory Governance).
 - **Retry policy**: `02-contract.yaml.retry_policy.max_attempts` (range 0-5) caps retries. The dispatcher (when active) is the only authority to retry; the agent never decides. **Authorized Child Retry**: Failed child tasks may be retried by `/q-implement` if authorized by ADR 0001. This preserves the append-only nature of `07-trace.json` and does not automate human-only actions (merge/rollback).
 
 ### Failure classification (lightweight)
@@ -405,7 +405,7 @@ A failure analysis cannot "forgive" a failed test. **Validation is finality** (R
 
 - **A new `08-post-mortem.json` artifact.** Its fields duplicate `05-validation.json.commands[]` (command, exit_code, output_excerpt), `06-review.json.fix_tasks` and `notes` (suggested fixes), and `07-trace.json.attempts[].phase` (failure step). Use the existing slots; do not introduce a parallel artifact.
 - **A separate "Diagnostic-L0" agent.** `q-review` already analyzes the diff against `05-validation.json` and produces `fix_tasks`. `q-memory` already distills failure modes into `lessons` with `anti_patterns`. A third agent is duplication.
-- **"Negative constraints" as a new mechanism.** `02-contract.yaml.forbid.behaviors` is exactly this. For knowledge transferable across tasks, `memory/lessons/anti_patterns` is the home.
+- **"Negative constraints" as a new mechanism.** `02-contract.yaml.forbid.behaviors` is exactly this. For knowledge transferable across tasks, the SQLite `anti_patterns` table is the home.
 - **"Promotion to memory" as a new flow.** That IS what `q-memory` does. Invoke it on tasks in `failed/` if the failure carries a durable lesson.
 - **Auto-overriding `verify.commands` results.** Rule #4 is non-negotiable.
 
@@ -519,6 +519,5 @@ project/
 │   ├── done/
 │   └── failed/
 ├── docs/adr/            # Architectural decisions (Markdown allowed)
-├── memory/              # Selective semantic learning
 └── worktrees/           # Isolated agent sandboxes (gitignored)
 ```

@@ -1,6 +1,6 @@
 ---
 name: q-memory
-description: Capture durable technical lessons, decisions, and patterns from a completed Quorum task into memory/*. Use after task acceptance, review, or significant bug fixes to preserve reusable project knowledge.
+description: Capture durable technical lessons, decisions, and patterns from a completed Quorum task into centralized SQLite memory. Use after task acceptance, review, or significant bug fixes to preserve reusable project knowledge.
 user-invocable: true
 ---
 
@@ -68,13 +68,11 @@ Example:
 
 ## Output Locations
 
-Write JSON files under:
+Construct a JSON payload matching `.agents/schemas/memory.schema.json` and persist it via the CLI command:
 
-- `memory/decisions/`
-- `memory/patterns/`
-- `memory/lessons/`
-
-Each file must match `.agents/schemas/memory.schema.json`.
+```bash
+quorum memory save
+```
 
 ID format:
 
@@ -113,22 +111,17 @@ Do NOT use `supersedes` when:
 - The two memories address different aspects of the same task.
 
 When superseding:
-1. Read the target memory file to confirm it should be replaced.
-2. In the new memory, set `supersedes` to the target's `id`.
-3. Do NOT delete the superseded file. Git history + the `supersedes` link preserve the causal trace.
+1. Query the target memory to confirm it should be replaced.
+2. In the new memory payload, set `supersedes` to the target's `id`.
+3. The old memory remains in the database; the `supersedes` link preserves the causal trace.
 
 ## Workflow
 
 1. Read task artifacts.
 2. Identify at most 3 high-signal memories.
-3. Pick correct memory type and directory.
-4. Generate next numeric ID for today's date in that directory.
-5. Write JSON.
-6. Validate when possible:
-
-```bash
-quorum validate memory/<type>/<file>.json
-```
+3. Pick correct memory type.
+4. Generate next numeric ID for today's date.
+5. Pipe JSON payload to `quorum memory save`.
 
 ## Rules
 
@@ -136,13 +129,13 @@ quorum validate memory/<type>/<file>.json
 - Prefer one useful memory over many weak ones.
 - Do not edit source code.
 - Do not overwrite existing memory IDs.
-- **Language**: The generated `memory/{decisions,patterns,lessons}/*.json` field values MUST be written in concise English, even if the user chat was in Spanish.
+- **Language**: The generated memory field values MUST be written in concise English, even if the user chat was in Spanish.
 
 ## 🛑 Handoff (single-phase boundary)
 
 This skill ejecuta SOLO la fase **Memory Capture**. Es terminal — no hay transición de estado para auto-ejecutar.
 
-NO actives ningún otro skill. NO edites código fuente, artefactos de tarea, schemas, policies ni `07-trace.json`. NO pusheás a sistemas externos (HSME, vector DBs); consumidores externos leen `memory/*.json` por su cuenta. NO auto-triggerees ingesta por tiempo/volumen — la captura es exclusivamente human-invoked.
+NO actives ningún otro skill. NO edites código fuente, artefactos de tarea, schemas, policies ni `07-trace.json`. NO pusheás a sistemas externos (HSME, vector DBs); consumidores externos leen la memoria por su cuenta vía herramientas de exportación. NO auto-triggerees ingesta por tiempo/volumen — la captura es exclusivamente human-invoked.
 
 Cerrá el mensaje final exactamente con este bloque (en español):
 
@@ -150,9 +143,7 @@ Cerrá el mensaje final exactamente con este bloque (en español):
 === Fin de fase: Captura de memoria ===
 
 Artefactos producidos:
-- <ruta>/memory/decisions/DEC-YYYY-MM-DD-N.json (si aplica)
-- <ruta>/memory/patterns/PAT-YYYY-MM-DD-N.json (si aplica)
-- <ruta>/memory/lessons/LES-YYYY-MM-DD-N.json (si aplica)
+- Entradas persistidas en SQLite vía `quorum memory save` (si aplica).
 
 No hay transición de estado: la tarea ya fue archivada antes por quorum task clean.
 

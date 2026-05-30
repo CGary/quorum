@@ -19,7 +19,7 @@ go test ./internal/core -run TestPartitionFeedbackFindings
 go build -o quorum .
 # (Then move the binary to your PATH)
 
-# Initialize Quorum scaffolding inside another project (creates .ai/tasks/, memory/, .gitignore entries)
+# Initialize Quorum scaffolding inside another project (creates .ai/tasks/, SQLite setup, .gitignore entries)
 quorum init
 
 # Validate one artifact file against its schema without saving it
@@ -31,7 +31,7 @@ quorum validate path/to/00-spec.yaml
 
 The Quorum binary is built using Go. It replaces the legacy Python entry points.
 
-`quorum init` creates the task and memory directories, scaffolds `.agents/{skills,schemas,policies}` and `.agents/config.yaml` from Quorum resources when available, creates/updates `.claude/skills` as a symlink to the local `.agents/skills`, and adds `.gitignore` rules for worktrees and runtime task directories.
+`quorum init` creates the task directories, initializes SQLite memory setup via `.quorumrc`, scaffolds `.agents/{skills,schemas,policies}` and `.agents/config.yaml` from Quorum resources when available, creates/updates `.claude/skills` as a symlink to the local `.agents/skills`, and adds `.gitignore` rules for worktrees and runtime task directories.
 
 ### Task CLI surface
 
@@ -81,9 +81,9 @@ A task lives in one directory under `.ai/tasks/{inbox,active,done,failed}/<ID>-<
 | `05-validation.json` | JSON | `validation.schema.json` | `/q-verify` |
 | `06-review.json` | JSON | `review.schema.json` | `/q-review` |
 | `07-trace.json` | JSON | `trace.schema.json` | system, append-only |
-| `memory/{decisions,patterns,lessons}/*.json` | JSON | `memory.schema.json` | `/q-memory` (human-invoked) |
+| SQLite (Memory) | DB | `memory.schema.json` | `/q-memory` via `quorum memory save` |
 
-There is **no `03`, `08`, `09`, or `10`**. The manifesto rejects new lifecycle slots: failure data lives in `05/06/07/memory/lessons`, and impact reports go through `q-memory`. Do not propose new numbered artifacts without an ADR.
+There is **no `03`, `08`, `09`, or `10`**. The manifesto rejects new lifecycle slots: failure data lives in `05/06/07` and SQLite `lessons`, and impact reports go through `q-memory`. Do not propose new numbered artifacts without an ADR.
 
 ### Where state actually changes
 
@@ -102,7 +102,7 @@ Important invariants enforced there (Go identifiers, grep-able as written):
 - Prefer `quorum task artifact-save <ID> <relpath>` when persisting lifecycle artifacts, because it validates before writing and preserves special invariants such as append-only trace attempts.
 - Use `quorum validate <artifact-path>` for local preflight validation when you need to inspect schema errors without mutating task state.
 - Do not manually edit `07-trace.json` attempts, move task directories between `.ai/tasks/*`, or remove worktrees to force state transitions. Use the task CLI, or leave rollback/retry decisions to the human/orchestrator paths documented here.
-- Runtime task directories under `.ai/tasks/{inbox,active,done,failed}` are gitignored except `.gitkeep`; durable knowledge belongs in curated `memory/*.json`, not in ad-hoc task-state edits.
+- Runtime task directories under `.ai/tasks/{inbox,active,done,failed}` are gitignored except `.gitkeep`; durable knowledge belongs in curated centralized SQLite memory, not in ad-hoc task-state edits.
 
 ### Skills are single-phase units (Rule #9)
 
@@ -156,9 +156,9 @@ The rest of `internal/core` is small, pure, single-purpose logic exposed through
 
 ### Memory is curated, never automatic
 
-`memory/` is a knowledge library, NOT an activity log (the activity log is `07-trace.json`). Entries are typed (`pattern` / `decision` / `lesson`), not graded. The schema field `supersedes` records causal corrections — superseded files are kept, never deleted. `q-memory` is the only ingestion path; there is no auto-capture, and proposals to add one are rejected by the manifesto.
+The centralized SQLite memory is a knowledge library, NOT an activity log (the activity log is `07-trace.json`). Entries are typed (`pattern` / `decision` / `lesson`), not graded. The schema field `supersedes` records causal corrections — superseded entries are kept, never deleted. `q-memory` is the only ingestion path via `quorum memory save`; there is no auto-capture, and proposals to add one are rejected by the manifesto.
 
-External semantic stores (HSME, vector DBs) may *consume* `memory/*.json` read-only, but Quorum itself is local-first and does not depend on or write to them.
+External semantic stores (HSME, vector DBs) may *consume* exported SQLite data read-only, but Quorum itself is local-first and does not depend on or write to them.
 
 ## The Constitution (immutable rules)
 
@@ -180,7 +180,7 @@ When editing or writing `.agents/skills/q-*/SKILL.md`, every skill must:
 
 - **Output in Spanish** to the user, regardless of input or doc language.
 - **End only waiting turns** with the exact line `ESPERANDO RESPUESTA DEL USUARIO...` (uppercase, three dots, nothing after — no trailing fence). A waiting turn is one that asks an explicit user question, reports a blocked dispatch, or leaves a pending human decision; successful informational completions must omit it.
-- **Persisted artifact field values MUST be written in concise English** (`00-spec.yaml`, `01-blueprint.yaml`, `02-contract.yaml`, `04-implementation-log.yaml`, `05-validation.json`, `06-review.json`, `07-trace.json`, and `memory/{decisions,patterns,lessons}/*.json`), even when user-facing chat stays Spanish.
+- **Persisted artifact field values MUST be written in concise English** (`00-spec.yaml`, `01-blueprint.yaml`, `02-contract.yaml`, `04-implementation-log.yaml`, `05-validation.json`, `06-review.json`, `07-trace.json`, and SQLite memory entries), even when user-facing chat stays Spanish.
 - **Mark next-step actions** as `[Obligatorio]` or `[Opcional]` and reference `quorum task back <ID>` as the human rollback path.
 - **Never auto-activate** another `/q-*` skill. The only authorized auto-action is the forward CLI transition for the three skills listed above.
 

@@ -15,7 +15,7 @@ Quorum es un framework **AI-first** para ejecutar funcionalidades complejas medi
 - **Contexto determinista:** el agente no recibe “todo el proyecto”; recibe archivos y restricciones derivados del blueprint.
 - **Ejecución aislada:** cada tarea corre en su propio Git worktree y rama `ai/<TASK_ID>`.
 - **Merge humano:** Quorum puede preparar y commitear trabajo en rama, pero nunca mergea a `main`.
-- **Memoria curada:** `memory/*.json` guarda conocimiento durable solo cuando `q-memory` se invoca explícitamente.
+- **Memoria curada:** SQLite guarda conocimiento durable solo cuando `q-memory` se invoca explícitamente.
 
 ### Lo que Quorum NO es
 
@@ -23,7 +23,7 @@ Quorum es un framework **AI-first** para ejecutar funcionalidades complejas medi
 - No es una herramienta para cambios triviales de 5 líneas.
 - No es un generador de documentación narrativa.
 - No es un sistema de merge automático.
-- No depende de HSME/vector DBs: sistemas externos pueden consumir `memory/*.json`, pero Quorum es local-first.
+- No depende de HSME/vector DBs: sistemas externos pueden consumir data exportada, pero Quorum es local-first.
 
 ---
 
@@ -86,11 +86,11 @@ Quorum usa `00` a `07` más memoria curada. No se agregan slots nuevos sin ADR, 
 | `05-validation.json` | JSON | `q-verify` | Comandos ejecutados, exit codes, output y resultado global. |
 | `06-review.json` | JSON | `q-review` | Revisión del diff contra contrato y validación. |
 | `07-trace.json` | JSON | Sistema/skills | Intentos, coste, fases, violaciones y resultado. |
-| `memory/*.json` | JSON | `q-memory` | Decisiones, patrones y lecciones durables. |
+| SQLite DB | - | `q-memory` | Decisiones, patrones y lecciones durables guardadas vía `quorum memory save`. |
 
 ### Boundary de artefactos
 
-- No crear `08-post-mortem.json`: los datos del fallo viven en `05`, `06`, `07` y `memory/lessons`.
+- No crear `08-post-mortem.json`: los datos del fallo viven en `05`, `06`, `07` y SQLite.
 - No crear `09/10-impact-report.json`: el aprendizaje exitoso va directo a `q-memory`.
 - Routing, merge-gate y eventos operativos deben registrarse en `07-trace.json` salvo ADR que justifique otra cosa.
 
@@ -120,7 +120,7 @@ cd /ruta/a/tu/proyecto
 quorum init
 ```
 
-*(Esto crea las carpetas `.ai/tasks/` y `memory/`)*
+*(Crea las carpetas `.ai/tasks/`, resuelve/inicializa `.quorumrc` y migra/elimina la memoria legacy a SQLite)*
 
 ### 3. Crear la Tarea Padre (Umbrella)
 
@@ -332,7 +332,7 @@ Regla #6: el sistema commitea, nunca mergea. El merge es manual.
 /q-memory FEAT-001
 ```
 
-Genera entradas en `memory/{decisions,patterns,lessons}/`. La memoria es exclusivamente human-invoked; no hay captura automática.
+Persiste entradas en la base SQLite central vía `quorum memory save`. La memoria es exclusivamente human-invoked; no hay captura automática.
 
 ### Rollback humano: `quorum task back`
 
@@ -451,10 +451,6 @@ project/
 │   ├── done/
 │   └── failed/
 ├── docs/adr/              # decisiones arquitectónicas
-├── memory/
-│   ├── decisions/
-│   ├── patterns/
-│   └── lessons/
 └── worktrees/             # worktrees gitignored por tarea
 ```
 
