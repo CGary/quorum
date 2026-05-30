@@ -129,7 +129,7 @@ When superseding:
 - Prefer one useful memory over many weak ones.
 - Do not edit source code.
 - Do not overwrite existing memory IDs.
-- **Language**: The generated memory field values MUST be written in concise English, even if the user chat was in Spanish.
+- **Language**: The generated memory/ field values MUST be written in concise English, even if the user chat was in Spanish.
 
 ## 🛑 Handoff (single-phase boundary)
 
