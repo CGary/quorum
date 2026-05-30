@@ -143,4 +143,4 @@ When editing or writing `.agents/skills/q-*/SKILL.md`, every skill must:
 
 ## Python and tooling
 
-- Quorum is built in Go. A pytest golden-master suite is retained in `tests/` to verify the compiled binary's end-to-end behavior.
+- Quorum is built in Go and has no Python runtime dependency. The golden-master black-box harness that exercises the compiled binary's CLI contract lives in `internal/core/golden_master_test.go`, and the skill-protocol invariants live in `internal/core/skill_protocol_test.go` — both run under `go test ./...`. The two `.agents/retrievers/*.py` scripts are retained as reference; the live blueprint-context retriever logic is reimplemented natively in `internal/core/blueprint_context.go`.
