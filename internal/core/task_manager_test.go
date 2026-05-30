@@ -394,9 +394,12 @@ func TestCleanTaskDirtyWorktreeModes(t *testing.T) {
 	}
 }
 
-
 func TestBackTaskDirtyWorktreeModes(t *testing.T) {
-	cases := []struct { name, dirtyKind string; force, stash, wantWorktree, wantPatch bool; wantOut []string }{
+	cases := []struct {
+		name, dirtyKind                       string
+		force, stash, wantWorktree, wantPatch bool
+		wantOut                               []string
+	}{
 		{name: "modified without flags aborts", dirtyKind: "modified", wantWorktree: true, wantOut: []string{"uncommitted changes", "seed.txt", "--force", "--stash"}},
 		{name: "untracked force removes", dirtyKind: "untracked", force: true},
 		{name: "mixed stash saves patch and removes", dirtyKind: "mixed", stash: true, wantPatch: true, wantOut: []string{"Saved worktree patch"}},
@@ -406,20 +409,28 @@ func TestBackTaskDirtyWorktreeModes(t *testing.T) {
 			taskID := "FEAT-2" + string(rune('0'+i))
 			root, _, worktree := mkActiveTaskWithWorktree(t, taskID)
 			if tc.dirtyKind == "modified" || tc.dirtyKind == "mixed" {
-				if err := os.WriteFile(filepath.Join(worktree, "seed.txt"), []byte("changed\n"), 0o644); err != nil { t.Fatal(err) }
+				if err := os.WriteFile(filepath.Join(worktree, "seed.txt"), []byte("changed\n"), 0o644); err != nil {
+					t.Fatal(err)
+				}
 			}
 			if tc.dirtyKind == "untracked" || tc.dirtyKind == "mixed" {
-				if err := os.WriteFile(filepath.Join(worktree, "new.txt"), []byte("new\n"), 0o644); err != nil { t.Fatal(err) }
+				if err := os.WriteFile(filepath.Join(worktree, "new.txt"), []byte("new\n"), 0o644); err != nil {
+					t.Fatal(err)
+				}
 			}
 			out := captureStdout(t, func() { BackTask(taskID, tc.force, tc.stash) })
 			for _, want := range tc.wantOut {
-				if !strings.Contains(out, want) { t.Fatalf("output %q missing %q", out, want) }
+				if !strings.Contains(out, want) {
+					t.Fatalf("output %q missing %q", out, want)
+				}
 			}
 			if _, err := os.Stat(worktree); (err == nil) != tc.wantWorktree {
 				t.Fatalf("worktree exists = %v, want %v", err == nil, tc.wantWorktree)
 			}
 			patches, _ := filepath.Glob(filepath.Join(root, "worktrees", ".stash", taskID+"-*.patch"))
-			if tc.wantPatch && len(patches) != 1 { t.Fatalf("stash patch count = %d, want 1", len(patches)) }
+			if tc.wantPatch && len(patches) != 1 {
+				t.Fatalf("stash patch count = %d, want 1", len(patches))
+			}
 		})
 	}
 }
@@ -488,6 +499,95 @@ func TestTaskCLIArtifactSaveFeedbackConsumeAndRunRemoval(t *testing.T) {
 	}
 }
 
+func assertFileContent(t *testing.T, path, want string) {
+	t.Helper()
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != want {
+		t.Fatalf("%s content = %q, want %q", path, got, want)
+	}
+}
+
+func assertNonEmptyFile(t *testing.T, path string) {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("missing %s: %v", path, err)
+	}
+	if info.IsDir() || info.Size() == 0 {
+		t.Fatalf("%s must be a non-empty file, size=%d dir=%v", path, info.Size(), info.IsDir())
+	}
+}
+
+func TestCopyScaffoldSelfCopyIsNoop(t *testing.T) {
+	root := t.TempDir()
+	file := filepath.Join(root, "skills", "q-brief", "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(file, []byte("skill body\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := CopyFile(file, file); err != nil {
+		t.Fatal(err)
+	}
+	assertFileContent(t, file, "skill body\n")
+
+	if err := CopyDir(filepath.Join(root, "skills"), filepath.Join(root, "skills")); err != nil {
+		t.Fatal(err)
+	}
+	assertFileContent(t, file, "skill body\n")
+}
+
+func TestInitializeProjectFromMovedBinaryCopiesNonEmptyResources(t *testing.T) {
+	bin := buildQuorumCLI(t)
+	root := initGitRepo(t)
+
+	out := run(t, root, bin, "init")
+	if !strings.Contains(out, "Quorum initialized successfully") {
+		t.Fatalf("init output = %q", out)
+	}
+
+	for _, path := range []string{
+		".ai/tasks/_template/00-spec.yaml",
+		".ai/tasks/_template/01-blueprint.yaml",
+		".ai/tasks/_template/02-contract.yaml",
+		".agents/config.yaml",
+		".agents/schemas/spec.schema.json",
+		".agents/schemas/blueprint.schema.json",
+		".agents/policies/risk.yaml",
+		".agents/policies/routing.yaml",
+		".agents/prompts/architect/default.md",
+	} {
+		assertNonEmptyFile(t, filepath.Join(root, filepath.FromSlash(path)))
+	}
+
+	sourceSkills := filepath.Join(sourceRoot(t), ".agents", "skills")
+	entries, err := os.ReadDir(sourceSkills)
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := 0
+	for _, entry := range entries {
+		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), "q-") {
+			continue
+		}
+		count++
+		assertNonEmptyFile(t, filepath.Join(root, ".agents", "skills", entry.Name(), "SKILL.md"))
+	}
+	if count != 10 {
+		t.Fatalf("expected 10 source q-* skills, found %d", count)
+	}
+
+	link := filepath.Join(root, ".claude", "skills")
+	if target, err := filepath.EvalSymlinks(link); err != nil || target != filepath.Join(root, ".agents", "skills") {
+		t.Fatalf("skills symlink target = %s, %v", target, err)
+	}
+}
+
 func TestInitializeProjectScaffoldingAndClaudeSkillsGuards(t *testing.T) {
 	root := initGitRepo(t)
 	chdir(t, root)
@@ -520,6 +620,15 @@ func TestInitializeProjectScaffoldingAndClaudeSkillsGuards(t *testing.T) {
 	}
 
 	InitializeProject()
+	for _, file := range []string{
+		filepath.Join(resourceAgents, "skills", "q-brief", "SKILL.md"),
+		filepath.Join(resourceAgents, "schemas", "spec.schema.json"),
+		filepath.Join(resourceAgents, "policies", "risk.yaml"),
+		filepath.Join(resourceAgents, "prompts", "brief.md"),
+		filepath.Join(resourceAgents, "config.yaml"),
+	} {
+		assertNonEmptyFile(t, file)
+	}
 	for _, path := range []string{
 		".ai/tasks/inbox",
 		".ai/tasks/active",
@@ -546,6 +655,27 @@ func TestInitializeProjectScaffoldingAndClaudeSkillsGuards(t *testing.T) {
 	link := filepath.Join(root, ".claude", "skills")
 	if target, err := filepath.EvalSymlinks(link); err != nil || target != filepath.Join(resourceAgents, "skills") {
 		t.Fatalf("skills symlink target = %s, %v", target, err)
+	}
+
+	legacyRoot := t.TempDir()
+	legacyResource := filepath.Join(legacyRoot, "quorum", ".agents")
+	if err := os.MkdirAll(filepath.Join(legacyResource, "skills"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, ".claude"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(root, ".claude", "skills")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(legacyResource, "skills"), filepath.Join(root, ".claude", "skills")); err != nil {
+		t.Fatal(err)
+	}
+	if err := ensureClaudeSkillsSymlink(root, resourceAgents); err != nil {
+		t.Fatalf("legacy symlink should be repaired: %v", err)
+	}
+	if target, err := filepath.EvalSymlinks(filepath.Join(root, ".claude", "skills")); err != nil || target != filepath.Join(resourceAgents, "skills") {
+		t.Fatalf("repaired skills symlink target = %s, %v", target, err)
 	}
 
 	guardRoot := t.TempDir()
@@ -648,61 +778,61 @@ func TestPrepareFailedChildRetry(t *testing.T) {
 	chdir(t, root)
 	useSchemas(t)
 	ensureTaskDirs(t, root)
-	
+
 	os.MkdirAll(".ai/tasks/active/PARENT-001", 0755)
 	os.MkdirAll(".ai/tasks/failed/PARENT-001-a", 0755)
-	
+
 	childSpec := map[string]any{
-		"task_id": "PARENT-001-a",
+		"task_id":     "PARENT-001-a",
 		"parent_task": "PARENT-001",
-		"summary": "this is a very long string that satisfies the minimum length requirement",
-		"goal": "this is a very long string that satisfies the minimum length requirement",
-		"invariants": []any{"this is a very long string that satisfies the minimum length requirement"},
-		"acceptance": []any{"this is a very long string that satisfies the minimum length requirement"},
-		"risk": "low",
+		"summary":     "this is a very long string that satisfies the minimum length requirement",
+		"goal":        "this is a very long string that satisfies the minimum length requirement",
+		"invariants":  []any{"this is a very long string that satisfies the minimum length requirement"},
+		"acceptance":  []any{"this is a very long string that satisfies the minimum length requirement"},
+		"risk":        "low",
 	}
 	childTrace := map[string]any{
-		"task_id": "PARENT-001-a",
-		"summary": "this is a very long string that satisfies the minimum length requirement",
-		"started_at": "2024-01-01T00:00:00Z",
-		"execution_mode": "patch_only",
-		"total_cost_usd": 0.0,
-		"violations": []any{},
+		"task_id":           "PARENT-001-a",
+		"summary":           "this is a very long string that satisfies the minimum length requirement",
+		"started_at":        "2024-01-01T00:00:00Z",
+		"execution_mode":    "patch_only",
+		"total_cost_usd":    0.0,
+		"violations":        []any{},
 		"context_overflows": []any{},
-		"attempts": []any{},
+		"attempts":          []any{},
 	}
-	
+
 	if _, err := SaveArtifact(".ai/tasks/failed/PARENT-001-a/00-spec.yaml", childSpec); err != nil {
 		t.Fatalf("Failed to save spec: %v", err)
 	}
 	if _, err := SaveArtifact(".ai/tasks/failed/PARENT-001-a/07-trace.json", childTrace); err != nil {
 		t.Fatalf("Failed to save trace: %v", err)
 	}
-	
+
 	childVal := map[string]any{
-		"task_id": "PARENT-001-a",
-		"summary": "this is a very long string that satisfies the minimum length requirement",
-		"executed_at": "2024-01-01T00:00:00Z",
+		"task_id":        "PARENT-001-a",
+		"summary":        "this is a very long string that satisfies the minimum length requirement",
+		"executed_at":    "2024-01-01T00:00:00Z",
 		"overall_result": "passed",
 		"commands": []any{
 			map[string]any{
-				"command": "go test",
-				"exit_code": 0,
-				"duration_s": 0.0,
+				"command":        "go test",
+				"exit_code":      0,
+				"duration_s":     0.0,
 				"output_excerpt": "ok",
 			},
 		},
 	}
 	childRev := map[string]any{
-		"task_id": "PARENT-001-a",
-		"summary": "this is a very long string that satisfies the minimum length requirement",
-		"verdict": "approve",
-		"contract_compliance": true,
+		"task_id":                 "PARENT-001-a",
+		"summary":                 "this is a very long string that satisfies the minimum length requirement",
+		"verdict":                 "approve",
+		"contract_compliance":     true,
 		"forbidden_files_touched": []any{},
-		"unrequested_refactor": false,
-		"missing_tests": []any{},
-		"functional_risk": "low",
-		"notes": []any{},
+		"unrequested_refactor":    false,
+		"missing_tests":           []any{},
+		"functional_risk":         "low",
+		"notes":                   []any{},
 	}
 	if _, err := SaveArtifact(".ai/tasks/failed/PARENT-001-a/05-validation.json", childVal); err != nil {
 		t.Fatalf("Failed to save val: %v", err)
@@ -710,12 +840,12 @@ func TestPrepareFailedChildRetry(t *testing.T) {
 	if _, err := SaveArtifact(".ai/tasks/failed/PARENT-001-a/06-review.json", childRev); err != nil {
 		t.Fatalf("Failed to save rev: %v", err)
 	}
-	
+
 	success := PrepareFailedChildRetry("PARENT-001-a")
 	if !success {
 		t.Fatalf("PrepareFailedChildRetry failed")
 	}
-	
+
 	if _, err := os.Stat(".ai/tasks/active/PARENT-001-a"); err != nil {
 		t.Fatalf("Child task not moved to active: %v", err)
 	}
