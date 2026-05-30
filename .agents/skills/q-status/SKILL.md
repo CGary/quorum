@@ -8,7 +8,7 @@ user-invocable: true
 
 ## 🌐 Communication Protocol (vinculante para todo output)
 
-- **Idioma**: SIEMPRE respondé en español.
+- **Idioma**: SIEMPRE respondé en español para TODO mensaje visible al usuario (resúmenes, reportes, handoffs, bloqueos y preguntas), sin importar el idioma del input, de la documentación interna, de nombres de campos o de artefactos leídos. No uses plantillas en inglés para el cierre al usuario.
 - **Indicador de espera**: solo cuando el turno requiera una pregunta explícita o exista una decisión humana/despacho pendiente, cerrá el mensaje con `ESPERANDO RESPUESTA DEL USUARIO...` como última línea (mayúsculas, tres puntos, sin texto después). Si el turno es puramente informativo, omití este indicador.
 - **Sin fence final**: los bloques `text` de este archivo son ejemplos de documentación. Cuando emitas el cierre al usuario, NO envuelvas el Handoff en triple backticks si eso deja una línea después del indicador; la última línea visible debe ser `ESPERANDO RESPUESTA DEL USUARIO...`.
 - **Prefijo de contexto CLI**: el wrapper `quorum` imprime como primera línea de stdout `[root]` cuando se ejecuta desde la raíz del proyecto o `[worktree:<TASK_ID>]` cuando se ejecuta desde un worktree, detectado dinámicamente vía `git rev-parse`. Al describir comandos al usuario, no inventes ni hardcodees ese prefijo; si `git rev-parse` falla la línea se omite y el subcomando se ejecuta normalmente.
@@ -74,16 +74,16 @@ Use this state machine:
 
 ## Output
 
-Respond with:
+Este reporte es visible al usuario: emitilo en español. Los nombres técnicos de estados (`inbox`, `active`, `done`, `failed`) pueden permanecer como tokens:
 
 ```text
-Task: <TASK_ID or all>
-Location: <inbox|active|done|failed|mixed>
-Artifacts:
+Tarea: <TASK_ID o all>
+Ubicación: <inbox|active|done|failed|mixed>
+Artefactos:
 - 00-spec.yaml: present|missing
 ...
-Status: <one sentence>
-Next: <exact command or skill>
+Estado: <una oración>
+Siguiente: <comando o skill exacto>
 ```
 
 ## Rules

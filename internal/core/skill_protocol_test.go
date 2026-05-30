@@ -201,6 +201,44 @@ func TestSkillProtocolArtifactProducingSkillsRequireEnglish(t *testing.T) {
 	}
 }
 
+func TestSkillProtocolUserVisibleOutputTemplatesAreSpanish(t *testing.T) {
+	for _, name := range protocolSkillNames(t) {
+		content := readProtocolSkill(t, name)
+		parts := strings.Split(content, "## Output")
+		if len(parts) < 2 {
+			continue
+		}
+		section := parts[1]
+		for _, marker := range []string{"## Rules", "## 🛑 Handoff"} {
+			if before, _, ok := strings.Cut(section, marker); ok {
+				section = before
+			}
+		}
+		for _, forbidden := range []string{
+			"Respond with",
+			"Use this format:",
+			"Produce a concise report:",
+			"Report:",
+			"Task:",
+			"Findings:",
+			"Recommended fixes:",
+			"Required human action:",
+			"Blocking issues:",
+			"Validation:",
+			"Failed commands:",
+			"Status:",
+			"Next:",
+		} {
+			if strings.Contains(section, forbidden) {
+				t.Errorf("%s: user-visible Output section contains English template text %q", name, forbidden)
+			}
+		}
+		if strings.Contains(section, "visible al usuario") && !strings.Contains(section, "español") {
+			t.Errorf("%s: user-visible Output section must explicitly require Spanish", name)
+		}
+	}
+}
+
 func TestSkillProtocolSemanticFeedbackNotAutoApplied(t *testing.T) {
 	reSurface := regexp.MustCompile(`(?i)semantic[^\n]*(surface|surface the semantic feedback findings|human)`)
 	reNoAutoApply := regexp.MustCompile(`(?i)semantic[^\n]*do NOT auto-apply semantic findings`)

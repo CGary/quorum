@@ -1,4 +1,4 @@
-This file provides guidance when working with code in this repository.
+This file provides guidance when working with code in this repository. It is intentionally written in English for broad agent interoperability; user-facing `/q-*` skill output remains Spanish as specified below.
 
 ## Project nature
 
@@ -22,11 +22,16 @@ go build -o quorum .
 # Initialize Quorum scaffolding inside another project (creates .ai/tasks/, memory/, .gitignore entries)
 quorum init
 
+# Validate one artifact file against its schema without saving it
+quorum validate path/to/00-spec.yaml
+
 # Local CLI invocation
 ./quorum <command>           # e.g. ./quorum task list
 ```
 
 The Quorum binary is built using Go. It replaces the legacy Python entry points.
+
+`quorum init` creates the task and memory directories, scaffolds `.agents/{skills,schemas,policies}` and `.agents/config.yaml` from Quorum resources when available, creates/updates `.claude/skills` as a symlink to the local `.agents/skills`, and adds `.gitignore` rules for worktrees and runtime task directories.
 
 ### Task CLI surface
 
@@ -59,6 +64,8 @@ quorum analyze decomposition-coverage # stdin: parent_spec_path -> parent<->chil
 quorum analyze decomposition-render   # stdin: decomposition -> deterministic ASCII DAG (internal/core/decomposition_render.go)
 ```
 
+If examples inside older skill documents disagree with this section, the Go CLI contract wins: inspect `cmd/analyze_*.go` or run `quorum analyze <command> --help`, then send the documented JSON request through stdin.
+
 ## High-level architecture
 
 ### Lifecycle artifacts (`00`→`07`)
@@ -80,14 +87,22 @@ There is **no `03`, `08`, `09`, or `10`**. The manifesto rejects new lifecycle s
 
 ### Where state actually changes
 
-`internal/core/task_manager.go` owns nearly all state mutations (~700 lines). The CLI commands (`cmd/task*.go`, `cmd/project.go`) are thin shims. When in doubt, read `task_manager.go` first.
+`internal/core/task_manager.go` owns nearly all state mutations and is the first place to inspect when task state changes unexpectedly. The CLI commands (`cmd/task*.go`, `cmd/init.go`) are thin shims. When in doubt, read `task_manager.go` first.
 
 Important invariants enforced there (Go identifiers, grep-able as written):
 
 - **`SaveArtifact()` validates before writing.** Any `task artifact-save` (or skill that persists via this path) is schema-checked before the file is written. The validation engine itself lives in `internal/core/schema.go` (`ValidateArtifact`, keyed by `artifactSchemaMap`); `SaveArtifact` in `task_manager.go` only orchestrates the write. Failure raises `ArtifactValidationError` with a `field=$.path; reason=...` format (Python-compatible messages built by `pythonReason`/`jsonPointer` in `schema.go`).
 - **`07-trace.json` is append-only.** `EnsureTraceAppendOnly()` rejects any save that shortens or rewrites existing `attempts[]`. New attempts are appended by persisting the grown payload through `SaveArtifact` — there is no separate append helper.
 - **`FindTaskDir()` resolves IDs in three priority tiers**: (1) `task_id` field inside `00-spec.yaml`, (2) exact directory name, (3) `<ID>-` prefix match. The third tier explicitly skips child-suffix-shaped names (e.g. `FEAT-001` will NOT match `FEAT-001-a-foo`) so parent and child IDs do not collide. Multiple matches abort with `AMBIGUITY ERROR`.
-- **`ProjectRoot()` is dynamic.** It calls `git rev-parse --show-toplevel` so the same code works from a worktree subdirectory or a cwd that's not the repo root. `SchemasDir`, the policies dir, and the templates dir are anchored to the *tool installation* (relative to the source file), not the project, because consumers run Quorum against their own repos.
+- **`ProjectRoot()` is dynamic.** It calls `git rev-parse --show-toplevel` and then falls back to walking upward for `.git`, so the same code works from a worktree subdirectory or a cwd that's not the repo root.
+- **Schema lookup and init resources are separate concerns.** `SchemasDir()` first honors `QUORUM_SCHEMAS_DIR`, then searches the project root/current working directory and their ancestors for `.agents/schemas`. `quorum init` resources are resolved by `getResourceSrc()` from a usable `.agents` bundle near the project root, binary, source tree, or fallback project root.
+
+### Artifact and task-state editing rules
+
+- Prefer `quorum task artifact-save <ID> <relpath>` when persisting lifecycle artifacts, because it validates before writing and preserves special invariants such as append-only trace attempts.
+- Use `quorum validate <artifact-path>` for local preflight validation when you need to inspect schema errors without mutating task state.
+- Do not manually edit `07-trace.json` attempts, move task directories between `.ai/tasks/*`, or remove worktrees to force state transitions. Use the task CLI, or leave rollback/retry decisions to the human/orchestrator paths documented here.
+- Runtime task directories under `.ai/tasks/{inbox,active,done,failed}` are gitignored except `.gitkeep`; durable knowledge belongs in curated `memory/*.json`, not in ad-hoc task-state edits.
 
 ### Skills are single-phase units (Rule #9)
 

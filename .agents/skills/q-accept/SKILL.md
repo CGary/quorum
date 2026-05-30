@@ -8,7 +8,7 @@ user-invocable: true
 
 ## 🌐 Communication Protocol (vinculante para todo output)
 
-- **Idioma**: SIEMPRE respondé en español.
+- **Idioma**: SIEMPRE respondé en español para TODO mensaje visible al usuario (resúmenes, reportes, handoffs, bloqueos y preguntas), sin importar el idioma del input, de la documentación interna, de nombres de campos o de artefactos leídos. No uses plantillas en inglés para el cierre al usuario.
 - **Indicador de espera**: solo cuando el turno requiera una pregunta explícita o exista una decisión humana/despacho pendiente, cerrá el mensaje con `ESPERANDO RESPUESTA DEL USUARIO...` como última línea (mayúsculas, tres puntos, sin texto después). Si el turno es puramente informativo, omití este indicador.
 - **Sin fence final**: los bloques `text` de este archivo son ejemplos de documentación. Cuando emitas el cierre al usuario, NO envuelvas el Handoff en triple backticks si eso deja una línea después del indicador; la última línea visible debe ser `ESPERANDO RESPUESTA DEL USUARIO...`.
 - **Prefijo de contexto CLI**: el wrapper `quorum` imprime como primera línea de stdout `[root]` cuando se ejecuta desde la raíz del proyecto o `[worktree:<TASK_ID>]` cuando se ejecuta desde un worktree, detectado dinámicamente vía `git rev-parse`. Al describir comandos al usuario, no inventes ni hardcodees ese prefijo; si `git rev-parse` falla la línea se omite y el subcomando se ejecuta normalmente.
@@ -41,17 +41,17 @@ A task is ready only if:
 
 ## Output
 
-Use this format:
+Este mini-reporte es visible al usuario: emitilo en español y no copies etiquetas en inglés. Usá este formato:
 
 ```text
-Acceptance: ready|not_ready
-Task: <TASK_ID>
-Required human action:
-- Run BDD gate: <command or none>
-- Inspect diff in worktrees/<TASK_ID>
-- Merge manually if satisfied
-Blockers:
-- <none or list>
+Aceptación: ready|not_ready
+Tarea: <TASK_ID>
+Acción humana requerida:
+- Correr compuerta BDD: <comando o none>
+- Inspeccionar diff en worktrees/<TASK_ID>
+- Mergear manualmente si está conforme
+Bloqueantes:
+- <none o lista>
 ```
 
 ## Rules
