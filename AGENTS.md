@@ -39,9 +39,24 @@ quorum task split <PARENT_ID>       # materialises children from spec.decomposit
 quorum task start <ID>              # creates worktree + ai/<ID> branch (auto-run by /q-blueprint)
 quorum task clean <ID>              # archives to done/ and removes worktree
 quorum task back <ID>               # human-only rollback of the last forward transition
+quorum task retry-prepare <CHILD_ID>  # failed/ -> active/ for a failed CHILD (requires parent_task); keeps 07-trace append-only. Human/orchestrator-initiated only (ADR 0001)
+quorum task feedback-consume <ID>   # removes feedback.json once its findings have been consumed
 quorum task artifact-save <ID> <relpath>  # reads stdin, validates against schema, persists
 quorum task list
 quorum task status <ID>
+```
+
+### Analyze CLI surface
+
+Read-only analytical helpers under `quorum analyze`. They never mutate task state and each reads a **JSON request from stdin** (not positional args/flags) — they exist to be called programmatically by skills and the orchestrator. Implementations live in `cmd/analyze_*.go` (thin shims over `internal/core/*`):
+
+```bash
+quorum analyze risk-score             # stdin: blueprint + policy -> risk signal (internal/core/risk.go)
+quorum analyze failure-lookup         # stdin: blueprint -> related failed tasks (internal/core/failure_lookup.go)
+quorum analyze blueprint-context      # stdin: draft blueprint -> retriever neighbors + import graph (internal/core/blueprint_context.go)
+quorum analyze feedback-partition     # stdin: findings JSON -> {mechanical, semantic} split (internal/core/feedback.go)
+quorum analyze decomposition-coverage # stdin: parent_spec_path -> parent<->child coverage report (internal/core/decomposition_analysis.go)
+quorum analyze decomposition-render   # stdin: decomposition -> deterministic ASCII DAG (internal/core/decomposition_render.go)
 ```
 
 ## High-level architecture
@@ -67,12 +82,12 @@ There is **no `03`, `08`, `09`, or `10`**. The manifesto rejects new lifecycle s
 
 `internal/core/task_manager.go` owns nearly all state mutations (~700 lines). The CLI commands (`cmd/task*.go`, `cmd/project.go`) are thin shims. When in doubt, read `task_manager.go` first.
 
-Important invariants enforced there:
+Important invariants enforced there (Go identifiers, grep-able as written):
 
-- **`save_artifact()` validates before writing.** Any `task artifact-save` (or skill that persists via this path) is schema-checked against `ARTIFACT_SCHEMA_MAP`. Failure raises `ArtifactValidationError` with a `field=$.path; reason=...` format.
-- **`07-trace.json` is append-only.** `_ensure_trace_append_only()` rejects any save that shortens or rewrites existing `attempts[]`. New attempts are appended via `append_trace_attempt()`.
-- **`find_task_dir()` resolves IDs in three priority tiers**: (1) `task_id` field inside `00-spec.yaml`, (2) exact directory name, (3) `<ID>-` prefix match. The third tier explicitly skips child-suffix-shaped names (e.g. `FEAT-001` will NOT match `FEAT-001-a-foo`) so parent and child IDs do not collide. Multiple matches abort with `AMBIGUITY ERROR`.
-- **`PROJECT_ROOT` is dynamic.** It calls `git rev-parse --show-toplevel` so the same code works from a worktree subdirectory or a cwd that's not the repo root. `SCHEMAS_DIR`, `POLICIES_DIR`, and `TEMPLATES_DIR` are anchored to the *tool installation* (relative to the file), not the project, because consumers run Quorum against their own repos.
+- **`SaveArtifact()` validates before writing.** Any `task artifact-save` (or skill that persists via this path) is schema-checked before the file is written. The validation engine itself lives in `internal/core/schema.go` (`ValidateArtifact`, keyed by `artifactSchemaMap`); `SaveArtifact` in `task_manager.go` only orchestrates the write. Failure raises `ArtifactValidationError` with a `field=$.path; reason=...` format (Python-compatible messages built by `pythonReason`/`jsonPointer` in `schema.go`).
+- **`07-trace.json` is append-only.** `EnsureTraceAppendOnly()` rejects any save that shortens or rewrites existing `attempts[]`. New attempts are appended by persisting the grown payload through `SaveArtifact` — there is no separate append helper.
+- **`FindTaskDir()` resolves IDs in three priority tiers**: (1) `task_id` field inside `00-spec.yaml`, (2) exact directory name, (3) `<ID>-` prefix match. The third tier explicitly skips child-suffix-shaped names (e.g. `FEAT-001` will NOT match `FEAT-001-a-foo`) so parent and child IDs do not collide. Multiple matches abort with `AMBIGUITY ERROR`.
+- **`ProjectRoot()` is dynamic.** It calls `git rev-parse --show-toplevel` so the same code works from a worktree subdirectory or a cwd that's not the repo root. `SchemasDir`, the policies dir, and the templates dir are anchored to the *tool installation* (relative to the source file), not the project, because consumers run Quorum against their own repos.
 
 ### Skills are single-phase units (Rule #9)
 
@@ -101,7 +116,7 @@ A large feature can be split via `/q-decompose`, which writes a `decomposition: 
 
 Every task gets `worktrees/<ID>/` on branch `ai/<ID>`. `worktrees/` is gitignored. `quorum task back` deletes the worktree (and the branch if it has no unique commits) — be cautious if you have unpushed work on a feature branch.
 
-The base branch is detected dynamically by `get_base_branch()`: tries `origin/HEAD`, falls back through `main`/`master`/`develop`/`trunk`, finally falls back to current branch.
+The base branch is detected dynamically by `GetBaseBranch()` (`task_manager.go`): tries `origin/HEAD`, falls back through `main`/`master`/`develop`/`trunk`, finally falls back to current branch.
 
 ### Risk and routing (signal-based, never magic numbers)
 
@@ -110,6 +125,19 @@ The base branch is detected dynamically by `get_base_branch()`: tries `origin/HE
 - `internal/core/risk.go` is a pure function: glob-matches `sensitive_paths` (any hit → high), then thresholds on file count (>5) and symbol count (>2) for medium. It NEVER overwrites human-declared risk in `00-spec.yaml`. Divergence emits a `risk_level_divergence` event into `07-trace.json` instead of silently correcting.
 - `internal/core/failure_lookup.go` queries `.ai/tasks/failed/` for tasks whose `affected_files` overlap ≥50% with the new blueprint, surfacing past validation excerpts and review notes as risks for the new blueprint.
 - `internal/core/blueprint_context.go` wires the retrievers (`ast_neighbors.py`, `import_graph.py` under `.agents/retrievers/`) to enrich a draft blueprint with neighboring files and import graph.
+
+### Supporting core modules
+
+The rest of `internal/core` is small, pure, single-purpose logic exposed through the `analyze` CLI and consumed by skills:
+
+- `internal/core/schema.go` is the JSON Schema validation engine behind `SaveArtifact`. It compiles schemas from `.agents/schemas/`, chooses the most specific validation leaf, and renders `ArtifactValidationError` messages in a Python-compatible `field=...; reason=...` shape (`pythonReason`, `jsonPointer`, `valueAt`). This is where "validation before write" actually happens.
+- `internal/core/feedback.go` (`PartitionFeedbackFindings`) splits review/validation feedback into **mechanical** (machine-applicable) vs **semantic** (meaning-changing) findings. Only an explicit `category: "mechanical"` is machine-applicable; unknown or malformed categories default to **semantic** so the human stays the authority over meaning. Backs `quorum analyze feedback-partition` and `quorum task feedback-consume`.
+- `internal/core/blocked_signal.go` (`ParseBlockedSignal`) parses the standardized `BLOCKED` contract signal a skill emits when it cannot proceed, so a blocked dispatch is structured data, not free text.
+- `internal/core/decomposition_analysis.go` (`AnalyzeParentChildCoverage`) reports whether the materialised children cover every item declared in the parent's `decomposition`; `decomposition_render.go` (`RenderAsciiDag`) draws a deterministic ASCII DAG and is presentation-only — it never validates, mutates, or persists.
+
+### Failed-child retry (human/orchestrator-initiated)
+
+`quorum task retry-prepare <CHILD_ID>` (`PrepareFailedChildRetry` in `task_manager.go`) moves a **failed child** back from `failed/` to `active/` so its lifecycle can be re-run. It is deliberately narrow: it refuses non-child tasks (no `parent_task`), refuses to clobber an existing `active/` copy, and requires `07-trace.json` to exist so the append-only attempt history is preserved. Per **`docs/adr/0001-q-implement-child-retry.md`**, retry is always initiated by a human or the orchestrator — never decided autonomously by a skill — and never implies auto-merge or auto-`back`. Automatic contract renegotiation remains deliberately deferred (**`docs/adr/0002-defer-contract-renegotiation-protocol.md`**).
 
 ### Memory is curated, never automatic
 
