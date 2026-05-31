@@ -117,3 +117,29 @@ func TestConcurrentWrites(t *testing.T) {
 
 	wg.Wait()
 }
+
+func TestEnsureMemoryProjectInsertUpdateAndCollision(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "quorum_project_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	db, err := OpenMemoryDB(filepath.Join(tempDir, "memory.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	config := &QuorumConfig{ProjectID: "demo", ProjectName: "Demo"}
+	if err := EnsureMemoryProject(db, config, filepath.Join(tempDir, "repo1"), "git@example.com:demo.git"); err != nil {
+		t.Fatalf("insert project failed: %v", err)
+	}
+	config.ProjectName = "Demo Renamed"
+	if err := EnsureMemoryProject(db, config, filepath.Join(tempDir, "repo2"), "git@example.com:demo.git"); err != nil {
+		t.Fatalf("same remote update should be compatible: %v", err)
+	}
+	if err := EnsureMemoryProject(db, config, filepath.Join(tempDir, "other"), "git@example.com:other.git"); err == nil {
+		t.Fatal("expected incompatible remote collision")
+	}
+}

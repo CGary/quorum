@@ -546,7 +546,14 @@ func TestInitializeProjectFromMovedBinaryCopiesNonEmptyResources(t *testing.T) {
 	bin := buildQuorumCLI(t)
 	root := initGitRepo(t)
 
-	out := run(t, root, bin, "init")
+	cmd := exec.Command(bin, "init", "--project-id", "moved-binary", "--project-name", "Moved Binary")
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(), "QUORUM_MEMORY_DB="+filepath.Join(t.TempDir(), "memory.db"))
+	outBytes, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("%s init failed: %v\n%s", bin, err, outBytes)
+	}
+	out := string(outBytes)
 	if !strings.Contains(out, "Quorum initialized successfully") {
 		t.Fatalf("init output = %q", out)
 	}
@@ -619,7 +626,10 @@ func TestInitializeProjectScaffoldingAndClaudeSkillsGuards(t *testing.T) {
 		}
 	}
 
-	InitializeProject()
+	t.Setenv("QUORUM_MEMORY_DB", filepath.Join(t.TempDir(), "memory.db"))
+	if err := InitializeProjectWithOptions(InitOptions{ProjectID: "scaffold-test", ProjectName: "Scaffold Test", NonInteractive: true}); err != nil {
+		t.Fatalf("InitializeProjectWithOptions failed: %v", err)
+	}
 	for _, file := range []string{
 		filepath.Join(resourceAgents, "skills", "q-brief", "SKILL.md"),
 		filepath.Join(resourceAgents, "schemas", "spec.schema.json"),
@@ -632,8 +642,6 @@ func TestInitializeProjectScaffoldingAndClaudeSkillsGuards(t *testing.T) {
 	for _, path := range []string{
 		".ai/tasks/inbox",
 		".ai/tasks/active",
-		"memory/patterns",
-		"memory/lessons",
 		"worktrees",
 		".ai/tasks/_template/00-spec.yaml",
 		".ai/tasks/_template/01-blueprint.yaml",
@@ -651,6 +659,9 @@ func TestInitializeProjectScaffoldingAndClaudeSkillsGuards(t *testing.T) {
 	}
 	if !strings.Contains(string(gitignore), "worktrees/") || !strings.Contains(string(gitignore), ".ai/tasks/active/*") {
 		t.Fatalf("gitignore missing quorum entries: %s", gitignore)
+	}
+	if _, err := os.Stat(filepath.Join(root, "memory")); !os.IsNotExist(err) {
+		t.Fatalf("legacy memory scaffold should not be created, stat err=%v", err)
 	}
 	link := filepath.Join(root, ".claude", "skills")
 	if target, err := filepath.EvalSymlinks(link); err != nil || target != filepath.Join(resourceAgents, "skills") {
@@ -857,5 +868,39 @@ func TestPrepareFailedChildRetry(t *testing.T) {
 	}
 	if _, err := os.Stat(".ai/tasks/active/PARENT-001-a/07-trace.json"); err != nil {
 		t.Fatalf("Trace artifact missing")
+	}
+}
+
+func TestInitializeProjectWithOptionsCreatesConfigAndDoesNotCreateMemoryScaffold(t *testing.T) {
+	useSchemas(t)
+	root := initGitRepo(t)
+	chdir(t, root)
+	t.Setenv("QUORUM_MEMORY_DB", filepath.Join(t.TempDir(), "memory.db"))
+
+	if err := InitializeProjectWithOptions(InitOptions{ProjectID: "sql-03", ProjectName: "SQL 03", NonInteractive: true}); err != nil {
+		t.Fatalf("InitializeProjectWithOptions failed: %v", err)
+	}
+	if _, err := ReadQuorumConfigFrom(root); err != nil {
+		t.Fatalf("expected .quorumrc to be created: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "memory")); !os.IsNotExist(err) {
+		t.Fatalf("legacy memory scaffold should not be recreated, stat err=%v", err)
+	}
+	if err := InitializeProjectWithOptions(InitOptions{NonInteractive: true}); err != nil {
+		t.Fatalf("second init should be idempotent: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "memory")); !os.IsNotExist(err) {
+		t.Fatalf("second init should not recreate memory scaffold, stat err=%v", err)
+	}
+}
+
+func TestInitializeProjectWithOptionsRequiresIdentityInNonInteractiveMode(t *testing.T) {
+	root := initGitRepo(t)
+	chdir(t, root)
+	t.Setenv("QUORUM_MEMORY_DB", filepath.Join(t.TempDir(), "memory.db"))
+
+	err := InitializeProjectWithOptions(InitOptions{NonInteractive: true})
+	if err == nil || !strings.Contains(err.Error(), "provide --project-id and --project-name") {
+		t.Fatalf("expected non-interactive identity error, got %v", err)
 	}
 }
