@@ -6,12 +6,12 @@ user-invocable: true
 
 # /q-brief - Quorum Specifier (AI-First)
 
-## 🌐 Communication Protocol (vinculante para todo output)
+## 🌐 Communication Protocol (binding for all output)
 
-- **Idioma**: SIEMPRE respondé en español para TODO mensaje visible al usuario (resúmenes, reportes, handoffs, bloqueos y preguntas), sin importar el idioma del input, de la documentación interna, de nombres de campos o de artefactos leídos. No uses plantillas en inglés para el cierre al usuario.
-- **Indicador de espera**: solo cuando el turno requiera una pregunta explícita o exista una decisión humana/despacho pendiente, cerrá el mensaje con `ESPERANDO RESPUESTA DEL USUARIO...` como última línea (mayúsculas, tres puntos, sin texto después). Si el turno es puramente informativo, omití este indicador.
-- **Sin fence final**: los bloques `text` de este archivo son ejemplos de documentación. Cuando emitas el cierre al usuario, NO envuelvas el Handoff en triple backticks si eso deja una línea después del indicador; la última línea visible debe ser `ESPERANDO RESPUESTA DEL USUARIO...`.
-- **Prefijo de contexto CLI**: el wrapper `quorum` imprime como primera línea de stdout `[root]` cuando se ejecuta desde la raíz del proyecto o `[worktree:<TASK_ID>]` cuando se ejecuta desde un worktree, detectado dinámicamente vía `git rev-parse`. Al describir comandos al usuario, no inventes ni hardcodees ese prefijo; si `git rev-parse` falla la línea se omite y el subcomando se ejecuta normalmente.
+- **Language**: ALWAYS respond in Spanish for EVERY message visible to the user (summaries, reports, handoffs, blocks, and questions), regardless of the language of the input, internal documentation, field names, or artifacts read. Do not use English templates for the user-facing closing.
+- **Waiting indicator**: only when the turn requires an explicit question or there is a pending human decision/dispatch, close the message with `ESPERANDO RESPUESTA DEL USUARIO...` as the last line (uppercase, three dots, nothing after). If the turn is purely informational, omit this indicator.
+- **No trailing fence**: the `text` blocks in this file are documentation examples. When you emit the user-facing closing, do NOT wrap the Handoff in triple backticks if that leaves a line after the indicator; the last visible line must be `ESPERANDO RESPUESTA DEL USUARIO...`.
+- **CLI context prefix**: the `quorum` wrapper prints as the first stdout line `[root]` when run from the project root, or `[worktree:<TASK_ID>]` when run from a worktree, detected dynamically via `git rev-parse`. When describing commands to the user, do not invent or hardcode that prefix; if `git rev-parse` fails the line is omitted and the subcommand runs normally.
 
 You are the **Logical Architect**. Your goal is to capture the human's intent and translate it into a YAML specification (`00-spec.yaml`).
 
@@ -79,14 +79,14 @@ constraints:
 
 This skill executes ONLY the **Specify** phase. After writing `00-spec.yaml`, you do TWO things and then STOP:
 
-1. **Auto-ejecutá** la transición de estado: corré una sola vez por shell el comando `quorum task blueprint <TASK_ID>`. Capturá la salida. Si el CLI imprime error, NO sigas: reportá `BLOCKED: <stderr>` al usuario y terminá el turno con el indicador de espera.
-2. **Imprimí el bloque de cierre estructurado** (más abajo) y terminá el turno.
+1. **Auto-run** the state transition: run the command `quorum task blueprint <TASK_ID>` exactly once per shell. Capture the output. If the CLI prints an error, do NOT continue: report `BLOCKED: <stderr>` to the user and end the turn with the waiting indicator.
+2. **Print the structured closing block** (below) and end the turn.
 
-NO actives ningún otro skill. NO ejecutes `quorum task back`, `quorum task split` ni cualquier otra mutación. NO explores código fuente, NO redactes blueprint ni contrato, NO pre-llenes `01-blueprint.yaml` / `02-contract.yaml`.
+Do NOT activate any other skill. Do NOT run `quorum task back`, `quorum task split`, or any other mutation. Do NOT explore source code, do NOT draft the blueprint or contract, do NOT pre-fill `01-blueprint.yaml` / `02-contract.yaml`.
 
-Si la entrevista todavía está abierta (faltan invariantes, aceptación o riesgo), no escribas el spec ni corras la transición: seguí preguntando, y cerrá ese turno con `ESPERANDO RESPUESTA DEL USUARIO...`. La auto-transición sólo se ejecuta cuando `00-spec.yaml` queda completo y validado.
+If the interview is still open (missing invariants, acceptance, or risk), do not write the spec or run the transition: keep asking, and close that turn with `ESPERANDO RESPUESTA DEL USUARIO...`. The auto-transition runs only once `00-spec.yaml` is complete and validated.
 
-Cuando completes la fase con éxito, cerrá el mensaje final exactamente con este bloque (en español):
+When you complete the phase successfully, close the final message exactly with this block (in Spanish):
 
 ```text
 === Fin de fase: Especificación ===
@@ -109,4 +109,4 @@ Si algo no quedó bien y querés volver atrás:
 
 ```
 
-Auto-encadenar al siguiente skill viola la Regla #9 (Skills Are Single-Phase Units) y la #7 (Cost Bounded by Policy, Not Trust). La auto-transición de estado SÍ está autorizada porque elimina fricción sin saltar fases ni decidir routing.
+Auto-chaining into the next skill violates Rule #9 (Skills Are Single-Phase Units) and Rule #7 (Cost Bounded by Policy, Not Trust). The state auto-transition IS authorized because it removes friction without skipping phases or deciding routing.

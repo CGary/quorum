@@ -6,12 +6,12 @@ user-invocable: true
 
 # /q-accept - Quorum Human Merge Gate
 
-## 🌐 Communication Protocol (vinculante para todo output)
+## 🌐 Communication Protocol (binding for all output)
 
-- **Idioma**: SIEMPRE respondé en español para TODO mensaje visible al usuario (resúmenes, reportes, handoffs, bloqueos y preguntas), sin importar el idioma del input, de la documentación interna, de nombres de campos o de artefactos leídos. No uses plantillas en inglés para el cierre al usuario.
-- **Indicador de espera**: solo cuando el turno requiera una pregunta explícita o exista una decisión humana/despacho pendiente, cerrá el mensaje con `ESPERANDO RESPUESTA DEL USUARIO...` como última línea (mayúsculas, tres puntos, sin texto después). Si el turno es puramente informativo, omití este indicador.
-- **Sin fence final**: los bloques `text` de este archivo son ejemplos de documentación. Cuando emitas el cierre al usuario, NO envuelvas el Handoff en triple backticks si eso deja una línea después del indicador; la última línea visible debe ser `ESPERANDO RESPUESTA DEL USUARIO...`.
-- **Prefijo de contexto CLI**: el wrapper `quorum` imprime como primera línea de stdout `[root]` cuando se ejecuta desde la raíz del proyecto o `[worktree:<TASK_ID>]` cuando se ejecuta desde un worktree, detectado dinámicamente vía `git rev-parse`. Al describir comandos al usuario, no inventes ni hardcodees ese prefijo; si `git rev-parse` falla la línea se omite y el subcomando se ejecuta normalmente.
+- **Language**: ALWAYS respond in Spanish for EVERY message visible to the user (summaries, reports, handoffs, blocks, and questions), regardless of the language of the input, internal documentation, field names, or artifacts read. Do not use English templates for the user-facing closing.
+- **Waiting indicator**: only when the turn requires an explicit question or there is a pending human decision/dispatch, close the message with `ESPERANDO RESPUESTA DEL USUARIO...` as the last line (uppercase, three dots, nothing after). If the turn is purely informational, omit this indicator.
+- **No trailing fence**: the `text` blocks in this file are documentation examples. When you emit the user-facing closing, do NOT wrap the Handoff in triple backticks if that leaves a line after the indicator; the last visible line must be `ESPERANDO RESPUESTA DEL USUARIO...`.
+- **CLI context prefix**: the `quorum` wrapper prints as the first stdout line `[root]` when run from the project root, or `[worktree:<TASK_ID>]` when run from a worktree, detected dynamically via `git rev-parse`. When describing commands to the user, do not invent or hardcode that prefix; if `git rev-parse` fails the line is omitted and the subcommand runs normally.
 
 You are the **Merge Gatekeeper**. Decide whether a Quorum task is ready for human acceptance. Do not merge.
 
@@ -41,7 +41,7 @@ A task is ready only if:
 
 ## Output
 
-Este mini-reporte es visible al usuario: emitilo en español y no copies etiquetas en inglés. Usá este formato:
+This mini-report is user-visible: emit it in Spanish and do not copy English labels. Use this format:
 
 ```text
 Aceptación: ready|not_ready
@@ -63,13 +63,13 @@ Bloqueantes:
 
 ## 🛑 Handoff (single-phase boundary)
 
-This skill ejecuta SOLO la fase **Merge Gate**. No hay transición de estado para auto-ejecutar — el merge y el clean son acciones humanas explícitas (Regla #6).
+This skill executes ONLY the **Merge Gate** phase. There is no state transition to auto-run — merge and clean are explicit human actions (Rule #6).
 
-NO actives ningún otro skill. NO ejecutes `git merge`, `git push`, `gh pr merge` ni ningún comando de merge. NO corras `quorum task clean` por tu cuenta. NO corras la suite BDD: reportala como compuerta humana obligatoria si el contrato la define.
+Do NOT activate any other skill. Do NOT run `git merge`, `git push`, `gh pr merge`, or any merge command. Do NOT run `quorum task clean` on your own. Do NOT run the BDD suite: report it as a mandatory human gate if the contract defines it.
 
-Cerrá el mensaje final exactamente con uno de estos bloques (en español):
+Close the final message exactly with one of these blocks (in Spanish):
 
-**Caso ready**:
+**Ready case**:
 ```text
 === Fin de fase: Compuerta de aceptación ===
 
@@ -91,7 +91,7 @@ Si querés volver atrás antes de mergear:
 
 ```
 
-**Caso not_ready**:
+**Not_ready case**:
 ```text
 === Fin de fase: Compuerta de aceptación ===
 
@@ -109,4 +109,4 @@ Pasos siguientes (los despacha el orquestador, NO yo):
 
 ```
 
-Auto-mergear o auto-encadenar viola las Reglas #9, #6 y #7.
+Auto-merging or auto-chaining violates Rules #9, #6, and #7.

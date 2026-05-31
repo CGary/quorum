@@ -727,7 +727,7 @@ func TestSkillsMentionContextPrefixInCommunicationProtocol(t *testing.T) {
 			t.Fatal(err)
 		}
 		beforeHandoff := strings.SplitN(string(content), "## 🛑 Handoff", 2)[0]
-		for _, want := range []string{"Communication Protocol", "Prefijo de contexto", "[root]", "[worktree:"} {
+		for _, want := range []string{"Communication Protocol", "CLI context prefix", "[root]", "[worktree:"} {
 			if !strings.Contains(beforeHandoff, want) {
 				t.Fatalf("%s missing %q in communication protocol", entry.Name(), want)
 			}

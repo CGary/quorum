@@ -6,12 +6,12 @@ user-invocable: true
 
 # /q-status - Quorum Mission Control
 
-## 🌐 Communication Protocol (vinculante para todo output)
+## 🌐 Communication Protocol (binding for all output)
 
-- **Idioma**: SIEMPRE respondé en español para TODO mensaje visible al usuario (resúmenes, reportes, handoffs, bloqueos y preguntas), sin importar el idioma del input, de la documentación interna, de nombres de campos o de artefactos leídos. No uses plantillas en inglés para el cierre al usuario.
-- **Indicador de espera**: solo cuando el turno requiera una pregunta explícita o exista una decisión humana/despacho pendiente, cerrá el mensaje con `ESPERANDO RESPUESTA DEL USUARIO...` como última línea (mayúsculas, tres puntos, sin texto después). Si el turno es puramente informativo, omití este indicador.
-- **Sin fence final**: los bloques `text` de este archivo son ejemplos de documentación. Cuando emitas el cierre al usuario, NO envuelvas el Handoff en triple backticks si eso deja una línea después del indicador; la última línea visible debe ser `ESPERANDO RESPUESTA DEL USUARIO...`.
-- **Prefijo de contexto CLI**: el wrapper `quorum` imprime como primera línea de stdout `[root]` cuando se ejecuta desde la raíz del proyecto o `[worktree:<TASK_ID>]` cuando se ejecuta desde un worktree, detectado dinámicamente vía `git rev-parse`. Al describir comandos al usuario, no inventes ni hardcodees ese prefijo; si `git rev-parse` falla la línea se omite y el subcomando se ejecuta normalmente.
+- **Language**: ALWAYS respond in Spanish for EVERY message visible to the user (summaries, reports, handoffs, blocks, and questions), regardless of the language of the input, internal documentation, field names, or artifacts read. Do not use English templates for the user-facing closing.
+- **Waiting indicator**: only when the turn requires an explicit question or there is a pending human decision/dispatch, close the message with `ESPERANDO RESPUESTA DEL USUARIO...` as the last line (uppercase, three dots, nothing after). If the turn is purely informational, omit this indicator.
+- **No trailing fence**: the `text` blocks in this file are documentation examples. When you emit the user-facing closing, do NOT wrap the Handoff in triple backticks if that leaves a line after the indicator; the last visible line must be `ESPERANDO RESPUESTA DEL USUARIO...`.
+- **CLI context prefix**: the `quorum` wrapper prints as the first stdout line `[root]` when run from the project root, or `[worktree:<TASK_ID>]` when run from a worktree, detected dynamically via `git rev-parse`. When describing commands to the user, do not invent or hardcode that prefix; if `git rev-parse` fails the line is omitted and the subcommand runs normally.
 
 You are the **Mission Control Operator**. Your job is to report the current Quorum state without modifying task artifacts.
 
@@ -74,7 +74,7 @@ Use this state machine:
 
 ## Output
 
-Este reporte es visible al usuario: emitilo en español. Los nombres técnicos de estados (`inbox`, `active`, `done`, `failed`) pueden permanecer como tokens:
+This report is user-visible: emit it in Spanish. The technical state names (`inbox`, `active`, `done`, `failed`) may remain as tokens:
 
 ```text
 Tarea: <TASK_ID o all>
@@ -94,11 +94,11 @@ Siguiente: <comando o skill exacto>
 
 ## 🛑 Handoff (single-phase boundary)
 
-This skill ejecuta SOLO la fase **Read-only State Report**. Es estrictamente read-only y no tiene transición de estado para auto-ejecutar.
+This skill executes ONLY the **Read-only State Report** phase. It is strictly read-only and has no state transition to auto-run.
 
-NO actives ningún otro skill. Podés ejecutar solo comandos read-only (`quorum task list` y `quorum task status <TASK_ID>`). NO ejecutes comandos que muten estado (`specify`, `blueprint`, `start`, `clean`, `back`, `split`) — reportar es el trabajo completo. NO modifiques ningún artefacto, incluyendo `07-trace.json`.
+Do NOT activate any other skill. You may run only read-only commands (`quorum task list` and `quorum task status <TASK_ID>`). Do NOT run state-mutating commands (`specify`, `blueprint`, `start`, `clean`, `back`, `split`) — reporting is the whole job. Do NOT modify any artifact, including `07-trace.json`.
 
-Cerrá el mensaje final exactamente con este bloque (en español):
+Close the final message exactly with this block (in Spanish):
 
 ```text
 === Fin de fase: Estado ===
@@ -114,4 +114,4 @@ Si querés volver atrás en alguna tarea:
 
 ```
 
-Auto-encadenar a la acción recomendada viola la Regla #9.
+Auto-chaining into the recommended action violates Rule #9.

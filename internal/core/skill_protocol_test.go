@@ -60,17 +60,17 @@ func containsAny(s string, markers []string) bool {
 var protocolFencedTextBlock = regexp.MustCompile("(?s)```text\\n(.*?)\\n```")
 
 func TestSkillProtocolWaitIndicatorIsConditional(t *testing.T) {
-	pattern := regexp.MustCompile(`(?i)- \*\*Indicador de espera\*\*.*(cuando|si).*ESPERANDO RESPUESTA DEL USUARIO\.\.\.`)
+	pattern := regexp.MustCompile(`(?i)- \*\*Waiting indicator\*\*.*(only when|when|if).*ESPERANDO RESPUESTA DEL USUARIO\.\.\.`)
 	for _, name := range protocolSkillNames(t) {
 		content := readProtocolSkill(t, name)
 		if !strings.Contains(content, "Communication Protocol") {
 			t.Errorf("%s: missing Communication Protocol", name)
 		}
 		if !pattern.MatchString(content) {
-			t.Errorf("%s: wait indicator is not conditional; it must mention 'cuando' or 'si'", name)
+			t.Errorf("%s: wait indicator is not conditional; it must mention 'only when', 'when', or 'if'", name)
 		}
-		if strings.Contains(strings.ToLower(content), "cerrá cada turno") {
-			t.Errorf("%s: found absolute 'cerrá cada turno'; it must be conditional", name)
+		if strings.Contains(strings.ToLower(content), "close every turn") {
+			t.Errorf("%s: found absolute 'close every turn'; it must be conditional", name)
 		}
 	}
 }
@@ -78,16 +78,15 @@ func TestSkillProtocolWaitIndicatorIsConditional(t *testing.T) {
 func TestSkillProtocolSinglePhaseBoundaryPreserved(t *testing.T) {
 	for _, name := range protocolSkillNames(t) {
 		content := readProtocolSkill(t, name)
-		if !strings.Contains(content, "SIEMPRE respondé en español") &&
-			!strings.Contains(content, "output al usuario es siempre en español") {
+		if !strings.Contains(content, "ALWAYS respond in Spanish") &&
+			!strings.Contains(content, "user-facing output is always in Spanish") {
 			t.Errorf("%s: missing Spanish-output instruction", name)
 		}
 		if !strings.Contains(strings.ToLower(content), "single-phase") {
 			t.Errorf("%s: missing single-phase declaration", name)
 		}
-		if !strings.Contains(content, "NO actives ningún otro skill") &&
-			!strings.Contains(content, "NO auto-activa otro /q-* skill") &&
-			!strings.Contains(content, "Auto-encadenar viola la Regla #9") {
+		if !strings.Contains(content, "Do NOT activate any other skill") &&
+			!strings.Contains(content, "Auto-chaining violates Rule #9") {
 			t.Errorf("%s: missing no-auto-activation instruction", name)
 		}
 	}
@@ -254,26 +253,35 @@ func TestSkillProtocolUserVisibleOutputTemplatesAreSpanish(t *testing.T) {
 				section = before
 			}
 		}
-		for _, forbidden := range []string{
-			"Respond with",
-			"Use this format:",
-			"Produce a concise report:",
-			"Report:",
-			"Task:",
-			"Findings:",
-			"Recommended fixes:",
-			"Required human action:",
-			"Blocking issues:",
-			"Validation:",
-			"Failed commands:",
-			"Status:",
-			"Next:",
-		} {
-			if strings.Contains(section, forbidden) {
-				t.Errorf("%s: user-visible Output section contains English template text %q", name, forbidden)
+		// Instruction prose around the template is now English; only the emitted
+		// user-facing template (the fenced ```text``` block) must stay Spanish.
+		// Scan the fenced blocks for English label tokens that would mean the
+		// template itself leaked into English.
+		for _, m := range protocolFencedTextBlock.FindAllStringSubmatch(section, -1) {
+			block := m[1]
+			for _, forbidden := range []string{
+				"Report:",
+				"Task:",
+				"Findings:",
+				"Recommended fixes:",
+				"Required human action:",
+				"Blocking issues:",
+				"Validation:",
+				"Failed commands:",
+				"Status:",
+				"Next:",
+				"Verdict:",
+				"Location:",
+				"Artifacts:",
+			} {
+				if strings.Contains(block, forbidden) {
+					t.Errorf("%s: user-visible Output template contains English label %q", name, forbidden)
+				}
 			}
 		}
-		if strings.Contains(section, "visible al usuario") && !strings.Contains(section, "español") {
+		// The instruction prose must still explicitly require Spanish for the
+		// user-visible report.
+		if strings.Contains(section, "user-visible") && !strings.Contains(section, "Spanish") {
 			t.Errorf("%s: user-visible Output section must explicitly require Spanish", name)
 		}
 	}

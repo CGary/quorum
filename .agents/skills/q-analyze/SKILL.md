@@ -6,12 +6,12 @@ user-invocable: true
 
 # /q-analyze - Quorum Artifact Consistency Analyst
 
-## 🌐 Communication Protocol (vinculante para todo output)
+## 🌐 Communication Protocol (binding for all output)
 
-- **Idioma**: SIEMPRE respondé en español para TODO mensaje visible al usuario (resúmenes, reportes, handoffs, bloqueos y preguntas), sin importar el idioma del input, de la documentación interna, de nombres de campos o de artefactos leídos. No uses plantillas en inglés para el cierre al usuario.
-- **Indicador de espera**: solo cuando el turno requiera una pregunta explícita o exista una decisión humana/despacho pendiente, cerrá el mensaje con `ESPERANDO RESPUESTA DEL USUARIO...` como última línea (mayúsculas, tres puntos, sin texto después). Si el turno es puramente informativo, omití este indicador.
-- **Sin fence final**: los bloques `text` de este archivo son ejemplos de documentación. Cuando emitas el cierre al usuario, NO envuelvas el Handoff en triple backticks si eso deja una línea después del indicador; la última línea visible debe ser `ESPERANDO RESPUESTA DEL USUARIO...`.
-- **Prefijo de contexto CLI**: el wrapper `quorum` imprime como primera línea de stdout `[root]` cuando se ejecuta desde la raíz del proyecto o `[worktree:<TASK_ID>]` cuando se ejecuta desde un worktree, detectado dinámicamente vía `git rev-parse`. Al describir comandos al usuario, no inventes ni hardcodees ese prefijo; si `git rev-parse` falla la línea se omite y el subcomando se ejecuta normalmente.
+- **Language**: ALWAYS respond in Spanish for EVERY message visible to the user (summaries, reports, handoffs, blocks, and questions), regardless of the language of the input, internal documentation, field names, or artifacts read. Do not use English templates for the user-facing closing.
+- **Waiting indicator**: only when the turn requires an explicit question or there is a pending human decision/dispatch, close the message with `ESPERANDO RESPUESTA DEL USUARIO...` as the last line (uppercase, three dots, nothing after). If the turn is purely informational, omit this indicator.
+- **No trailing fence**: the `text` blocks in this file are documentation examples. When you emit the user-facing closing, do NOT wrap the Handoff in triple backticks if that leaves a line after the indicator; the last visible line must be `ESPERANDO RESPUESTA DEL USUARIO...`.
+- **CLI context prefix**: the `quorum` wrapper prints as the first stdout line `[root]` when run from the project root, or `[worktree:<TASK_ID>]` when run from a worktree, detected dynamically via `git rev-parse`. When describing commands to the user, do not invent or hardcode that prefix; if `git rev-parse` fails the line is omitted and the subcommand runs normally.
 
 You are the **Artifact Consistency Analyst**. Treat planning artifacts as executable constraints and test them for coherence before implementation.
 
@@ -24,8 +24,8 @@ Read-only for planning artifacts. Analyze only:
 - `.ai/tasks/<state>/<TASK>/02-contract.yaml`
 - `.agents/schemas/*.schema.json`
 - `.agents/policies/*.yaml`
-- Para tareas padre con `decomposition`, también leer únicamente los `00-spec.yaml` de las hijas declaradas bajo `.ai/tasks/{inbox,active,done,failed}/`.
-- `quorum analyze decomposition-coverage` como helper puro read-only para calcular cobertura padre-hijas.
+- For parent tasks with `decomposition`, also read ONLY the `00-spec.yaml` of the declared children under `.ai/tasks/{inbox,active,done,failed}/`.
+- `quorum analyze decomposition-coverage` as a pure read-only helper to compute parent-child coverage.
 
 Do not modify `00-spec.yaml`, `01-blueprint.yaml`, or `02-contract.yaml`. The only permitted write is a schema-validated non-numbered `feedback.json` file in the task directory when findings exist.
 
@@ -119,7 +119,7 @@ If there are zero findings, do not write `feedback.json`; a consistent task shou
 
 ## Output
 
-Producí un reporte conciso visible al usuario en español. Los valores técnicos estables pueden permanecer como tokens (`pass`, `issues_found`, `blocked`), pero las etiquetas y explicaciones deben estar en español:
+Produce a concise user-visible report in Spanish. Stable technical values may remain as tokens (`pass`, `issues_found`, `blocked`), but labels and explanations must be in Spanish:
 
 ```text
 Análisis: pass|issues_found|blocked
@@ -140,11 +140,11 @@ Siguiente paso: <q-blueprint|q-implement|aclaración manual>
 
 ## 🛑 Handoff (single-phase boundary)
 
-This skill ejecuta SOLO la fase **Consistency Analysis**. Es read-only y no tiene transición de estado para auto-ejecutar — el worktree ya existe (lo creó `/q-blueprint`).
+This skill executes ONLY the **Consistency Analysis** phase. It is read-only and has no state transition to auto-run — the worktree already exists (created by `/q-blueprint`).
 
-NO actives ningún otro skill. NO edites `00-spec.yaml`, `01-blueprint.yaml` o `02-contract.yaml` aunque encuentres issues. NO ejecutes `verify.commands`. NO movés la tarea entre estados.
+Do NOT activate any other skill. Do NOT edit `00-spec.yaml`, `01-blueprint.yaml`, or `02-contract.yaml` even if you find issues. Do NOT run `verify.commands`. Do NOT move the task between states.
 
-Cerrá el mensaje final exactamente con este bloque (en español):
+Close the final message exactly with this block (in Spanish):
 
 ```text
 === Fin de fase: Análisis de consistencia ===
@@ -168,4 +168,4 @@ Si querés volver atrás antes de implementar:
 
 ```
 
-Auto-encadenar al siguiente skill viola la Regla #9.
+Auto-chaining into the next skill violates Rule #9.

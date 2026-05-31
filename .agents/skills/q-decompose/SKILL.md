@@ -6,13 +6,12 @@ user-invocable: true
 
 # /q-decompose - Quorum Decomposer
 
-## 🌐 Communication Protocol (vinculante para todo output)
+## 🌐 Communication Protocol (binding for all output)
 
-- **Idioma**: SIEMPRE respondé en español para TODO mensaje visible al usuario (resúmenes, reportes, handoffs, bloqueos y preguntas), sin importar el idioma del input, de la documentación interna, de nombres de campos o de artefactos leídos. No uses plantillas en inglés para el cierre al usuario.
-- **Indicador de espera**: solo cuando el turno requiera una pregunta explícita o exista una decisión humana/despacho pendiente, cerrá el mensaje con `ESPERANDO RESPUESTA DEL USUARIO...` como última línea (mayúsculas, tres puntos, sin texto después). Si el turno es puramente informativo, omití este indicador.
-
-- **Sin fence final**: los bloques `text` de este archivo son ejemplos de documentación. Cuando emitas el cierre al usuario, NO envuelvas el Handoff en triple backticks si eso deja una línea después del indicador; la última línea visible debe ser `ESPERANDO RESPUESTA DEL USUARIO...`.
-- **Prefijo de contexto CLI**: el wrapper `quorum` imprime como primera línea de stdout `[root]` cuando se ejecuta desde la raíz del proyecto o `[worktree:<TASK_ID>]` cuando se ejecuta desde un worktree, detectado dinámicamente vía `git rev-parse`. Al describir comandos al usuario, no inventes ni hardcodees ese prefijo; si `git rev-parse` falla la línea se omite y el subcomando se ejecuta normalmente.
+- **Language**: ALWAYS respond in Spanish for EVERY message visible to the user (summaries, reports, handoffs, blocks, and questions), regardless of the language of the input, internal documentation, field names, or artifacts read. Do not use English templates for the user-facing closing.
+- **Waiting indicator**: only when the turn requires an explicit question or there is a pending human decision/dispatch, close the message with `ESPERANDO RESPUESTA DEL USUARIO...` as the last line (uppercase, three dots, nothing after). If the turn is purely informational, omit this indicator.
+- **No trailing fence**: the `text` blocks in this file are documentation examples. When you emit the user-facing closing, do NOT wrap the Handoff in triple backticks if that leaves a line after the indicator; the last visible line must be `ESPERANDO RESPUESTA DEL USUARIO...`.
+- **CLI context prefix**: the `quorum` wrapper prints as the first stdout line `[root]` when run from the project root, or `[worktree:<TASK_ID>]` when run from a worktree, detected dynamically via `git rev-parse`. When describing commands to the user, do not invent or hardcode that prefix; if `git rev-parse` fails the line is omitted and the subcommand runs normally.
 
 You are the **Decomposer**. Your goal is to read a parent spec, decide whether the feature is large enough to warrant splitting, propose a concrete decomposition into child implementation tasks, and — only after the human confirms — persist the decomposition into the parent's `00-spec.yaml` and materialise the child tasks via the CLI.
 
@@ -47,27 +46,27 @@ Apply the signals from `decomposition.yaml`:
 - `high_risk_with_orthogonal_invariants`: `risk == high` AND invariants protect more than two independent subsystems.
 - `cross_runtime_boundary`: acceptance spans multiple processes/runtimes (CLI + server + worker, or daemon + web extension).
 
-Cuenta cuántos signals dispararon. Si cero, recomendá NO decomponer y terminá con el Handoff "no split" (ver más abajo). Si uno o más, seguí a la fase 2.
+Count how many signals fired. If zero, recommend NOT decomposing and end with the "no split" Handoff (see below). If one or more, proceed to phase 2.
 
 ### Phase 2: Propose Decomposition
 
-Diseñá una propuesta concreta de hijos que cumpla:
+Design a concrete child proposal that satisfies:
 
-- 2 ≤ N ≤ 10 hijos.
-- Cada hijo cubre una subsección coherente del scope: una user story, un subsistema, una capa, un runtime — no una mezcla.
-- Cada hijo es independientemente implementable por un LLM modesto en una sesión.
-- Las dependencias entre hijos son explícitas y mínimas (preferí independencia total cuando se pueda).
-- Naming: hijos van como `<PARENT_ID>-a`, `-b`, `-c`, ... (lowercase letras consecutivas). Ejemplo: `FEAT-001-a`, `FEAT-001-b`, `FEAT-001-c`.
+- 2 ≤ N ≤ 10 children.
+- Each child covers a coherent subsection of the scope: a user story, a subsystem, a layer, a runtime — not a mixture.
+- Each child is independently implementable by a modest LLM in one session.
+- Dependencies between children are explicit and minimal (prefer full independence when possible).
+- Naming: children are `<PARENT_ID>-a`, `-b`, `-c`, ... (lowercase consecutive letters). Example: `FEAT-001-a`, `FEAT-001-b`, `FEAT-001-c`.
 
-Para cada hijo escribí:
+For each child write:
 
 - `child_id`: e.g. `FEAT-001-a`.
-- `summary`: ≤200 chars, denso y factual, qué subsection cubre.
-- `depends_on`: lista de IDs hermanos que deben implementarse antes (vacío si es independiente).
+- `summary`: ≤200 chars, dense and factual, which subsection it covers.
+- `depends_on`: list of sibling IDs that must be implemented first (empty if independent).
 
-Antes de mostrar la propuesta, renderizá el mapa ASCII con `quorum analyze decomposition-render` usando exactamente la lista propuesta. Incluí ese mapa bajo el encabezado `Mapa ASCII de ejecución:` para que el usuario vea orden izquierda-a-derecha por niveles, paralelismo y arcos `depends_on` antes de confirmar.
+Before showing the proposal, render the ASCII map with `quorum analyze decomposition-render` using exactly the proposed list. Include that map under the heading `Mapa ASCII de ejecución:` so the user sees left-to-right level order, parallelism, and `depends_on` arcs before confirming.
 
-Mostrá la propuesta al usuario en este formato (en español) y pedí confirmación EXPLÍCITA. Cerrá el turno con el indicador de espera. NO escribas a disco todavía:
+Show the proposal to the user in this format (in Spanish) and request EXPLICIT confirmation. Close the turn with the waiting indicator. Do NOT write to disk yet:
 
 ```text
 Decomposition propuesta para <PARENT_ID> (<N> hijos):
@@ -93,36 +92,36 @@ Mapa ASCII de ejecución:
 ESPERANDO RESPUESTA DEL USUARIO...
 ```
 
-Iterá si el usuario pide ajustes. NO avances sin confirmación explícita.
+Iterate if the user requests adjustments. Do NOT proceed without explicit confirmation.
 
-### Phase 3: Persist + Materialise (post-confirmación)
+### Phase 3: Persist + Materialise (post-confirmation)
 
-Cuando el usuario confirme:
+When the user confirms:
 
-1. Editá `.ai/tasks/active/<PARENT_ID>-<slug>/00-spec.yaml` agregando el campo `decomposition` con la lista confirmada. NO toques otros campos del spec (goal, invariants, acceptance, risk siguen igual). Validá contra `spec.schema.json` antes de guardar; si falla, reportá el error y abortá.
+1. Edit `.ai/tasks/active/<PARENT_ID>-<slug>/00-spec.yaml` adding the `decomposition` field with the confirmed list. Do NOT touch other spec fields (goal, invariants, acceptance, risk stay the same). Validate against `spec.schema.json` before saving; if it fails, report the error and abort.
 
-2. Auto-ejecutá la transición CLI: `quorum task split <PARENT_ID>` una sola vez por shell. Esto crea cada hijo en `inbox/` con su `00-spec.yaml` derivado (parent_task, depends_on, invariantes y aceptación heredadas) e imprime el mismo mapa ASCII después de materializar o saltar hijos. Capturá la salida.
+2. Auto-run the CLI transition: `quorum task split <PARENT_ID>` exactly once per shell. This creates each child in `inbox/` with its derived `00-spec.yaml` (inherited parent_task, depends_on, invariants, and acceptance) and prints the same ASCII map after materializing or skipping children. Capture the output.
 
-3. Si el CLI falla, reportá `BLOCKED: <stderr>` y NO sigas. NO intentes crear los hijos manualmente.
+3. If the CLI fails, report `BLOCKED: <stderr>` and do NOT continue. Do NOT try to create the children manually.
 
-NO actives `/q-brief`, `/q-blueprint` ni ningún otro skill por los hijos — eso lo hace el orquestador, hijo por hijo.
+Do NOT activate `/q-brief`, `/q-blueprint`, or any other skill for the children — the orchestrator does that, child by child.
 
 ## 🚫 Rules
 
-- NO inventes invariantes ni criterios de aceptación nuevos en los hijos. Subset estricto del padre.
-- NO bajés `risk` por debajo del nivel del padre sin justificación explícita en el output al usuario.
-- NO decomponés tareas que ya tienen `parent_task` (sin decomposition recursiva).
-- NO toques `01-blueprint.yaml`, `02-contract.yaml` ni nada fuera de `00-spec.yaml` del padre.
-- NO movés estado de hijos manualmente. `quorum task split` los pone en `inbox/`; ahí se quedan hasta que el orquestador despache `/q-brief <child>`.
+- Do NOT invent new invariants or acceptance criteria in the children. Strict subset of the parent.
+- Do NOT lower `risk` below the parent's level without explicit justification in the user-facing output.
+- Do NOT decompose tasks that already have `parent_task` (no recursive decomposition).
+- Do NOT touch `01-blueprint.yaml`, `02-contract.yaml`, or anything outside the parent's `00-spec.yaml`.
+- Do NOT move child state manually. `quorum task split` puts them in `inbox/`; they stay there until the orchestrator dispatches `/q-brief <child>`.
 - **Language**: The generated `00-spec.yaml` decomposition field values and derived child spec field values MUST be written in concise English, even if the user chat was in Spanish.
 
 ## 🛑 Handoff (single-phase boundary + forward auto-transition)
 
-Esta skill ejecuta SOLO la fase **Decomposition**. Tiene dos resultados posibles:
+This skill executes ONLY the **Decomposition** phase. It has two possible outcomes:
 
-### Caso A: NO se decompone (signals == 0 o usuario respondió "no decomponer")
+### Case A: NO decomposition (signals == 0 or the user answered "no decomponer")
 
-No hay transición de estado. El padre queda en `active/` listo para `/q-blueprint`. Cerrá el mensaje con:
+There is no state transition. The parent stays in `active/` ready for `/q-blueprint`. Close the message with:
 
 ```text
 === Fin de fase: Decomposition ===
@@ -140,9 +139,9 @@ Si querés volver atrás:
 
 ```
 
-### Caso B: SÍ se decompone (usuario confirmó la propuesta)
+### Case B: decomposition proceeds (the user confirmed the proposal)
 
-Después de persistir el campo `decomposition` en el spec del padre y auto-ejecutar `quorum task split <PARENT_ID>`, cerrá con:
+After persisting the `decomposition` field in the parent spec and auto-running `quorum task split <PARENT_ID>`, close with:
 
 ```text
 === Fin de fase: Decomposition ===
@@ -171,4 +170,4 @@ Si algo no quedó bien y querés volver atrás:
 
 ```
 
-NO actives ningún otro skill. La auto-transición a `quorum task split` está autorizada porque elimina fricción sin saltar fases ni decidir routing. Auto-encadenar al `/q-brief` de cada hijo violaría la Regla #9.
+Do NOT activate any other skill. The auto-transition to `quorum task split` is authorized because it removes friction without skipping phases or deciding routing. Auto-chaining into each child's `/q-brief` would violate Rule #9.

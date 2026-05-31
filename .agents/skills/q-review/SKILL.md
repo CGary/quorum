@@ -6,12 +6,12 @@ user-invocable: true
 
 # /q-review - Quorum Contract Reviewer
 
-## 🌐 Communication Protocol (vinculante para todo output)
+## 🌐 Communication Protocol (binding for all output)
 
-- **Idioma**: SIEMPRE respondé en español para TODO mensaje visible al usuario (resúmenes, reportes, handoffs, bloqueos y preguntas), sin importar el idioma del input, de la documentación interna, de nombres de campos o de artefactos leídos. No uses plantillas en inglés para el cierre al usuario.
-- **Indicador de espera**: solo cuando el turno requiera una pregunta explícita o exista una decisión humana/despacho pendiente, cerrá el mensaje con `ESPERANDO RESPUESTA DEL USUARIO...` como última línea (mayúsculas, tres puntos, sin texto después). Si el turno es puramente informativo, omití este indicador.
-- **Sin fence final**: los bloques `text` de este archivo son ejemplos de documentación. Cuando emitas el cierre al usuario, NO envuelvas el Handoff en triple backticks si eso deja una línea después del indicador; la última línea visible debe ser `ESPERANDO RESPUESTA DEL USUARIO...`.
-- **Prefijo de contexto CLI**: el wrapper `quorum` imprime como primera línea de stdout `[root]` cuando se ejecuta desde la raíz del proyecto o `[worktree:<TASK_ID>]` cuando se ejecuta desde un worktree, detectado dinámicamente vía `git rev-parse`. Al describir comandos al usuario, no inventes ni hardcodees ese prefijo; si `git rev-parse` falla la línea se omite y el subcomando se ejecuta normalmente.
+- **Language**: ALWAYS respond in Spanish for EVERY message visible to the user (summaries, reports, handoffs, blocks, and questions), regardless of the language of the input, internal documentation, field names, or artifacts read. Do not use English templates for the user-facing closing.
+- **Waiting indicator**: only when the turn requires an explicit question or there is a pending human decision/dispatch, close the message with `ESPERANDO RESPUESTA DEL USUARIO...` as the last line (uppercase, three dots, nothing after). If the turn is purely informational, omit this indicator.
+- **No trailing fence**: the `text` blocks in this file are documentation examples. When you emit the user-facing closing, do NOT wrap the Handoff in triple backticks if that leaves a line after the indicator; the last visible line must be `ESPERANDO RESPUESTA DEL USUARIO...`.
+- **CLI context prefix**: the `quorum` wrapper prints as the first stdout line `[root]` when run from the project root, or `[worktree:<TASK_ID>]` when run from a worktree, detected dynamically via `git rev-parse`. When describing commands to the user, do not invent or hardcode that prefix; if `git rev-parse` fails the line is omitted and the subcommand runs normally.
 
 You are the **Contract Reviewer**. Review the diff against the contract, not against personal taste.
 
@@ -87,7 +87,7 @@ quorum validate .ai/tasks/active/<TASK>/06-review.json
 
 ## Output
 
-Este mini-reporte es visible al usuario: emitilo en español. Los valores de veredicto pueden conservar los tokens del artefacto (`approve`, `revise`, `reject`):
+This mini-report is user-visible: emit it in Spanish. Verdict values may keep the artifact tokens (`approve`, `revise`, `reject`):
 
 ```text
 Revisión: approve|revise|reject
@@ -105,11 +105,11 @@ Bloqueantes: <none o lista>
 
 ## 🛑 Handoff (single-phase boundary)
 
-This skill ejecuta SOLO la fase **Contract Review**. No hay transición de estado para auto-ejecutar.
+This skill executes ONLY the **Contract Review** phase. There is no state transition to auto-run.
 
-NO actives ningún otro skill. NO edites código fuente para aplicar tus propios `fix_tasks`. NO ejecutes `verify.commands` ni la suite BDD. NO mergees, NO hagas push, NO movés la tarea a `done/`.
+Do NOT activate any other skill. Do NOT edit source code to apply your own `fix_tasks`. Do NOT run `verify.commands` or the BDD suite. Do NOT merge, do NOT push, do NOT move the task to `done/`.
 
-Cerrá el mensaje final exactamente con este bloque (en español):
+Close the final message exactly with this block (in Spanish):
 
 ```text
 === Fin de fase: Revisión de contrato ===
@@ -133,4 +133,4 @@ Si querés volver atrás:
 
 ```
 
-Auto-encadenar viola la Regla #9.
+Auto-chaining violates Rule #9.
