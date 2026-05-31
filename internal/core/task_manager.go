@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -1332,7 +1333,15 @@ func ensureProjectConfig(projectRoot string, opts InitOptions) (*QuorumConfig, e
 			return nil, fmt.Errorf(".quorumrc is missing; provide --project-id and --project-name for non-interactive init")
 		}
 		suggested := SuggestProjectIdentity(projectRoot)
-		return nil, fmt.Errorf(".quorumrc is missing; suggested --project-id %q --project-name %q", suggested.ProjectID, suggested.ProjectName)
+		config, err = promptProjectConfig(os.Stdin, os.Stdout, suggested)
+		if err != nil {
+			return nil, err
+		}
+		if err := WriteQuorumConfigTo(config, projectRoot); err != nil {
+			return nil, err
+		}
+		fmt.Printf("  [+] Created .quorumrc for project %s.\n", config.ProjectID)
+		return config, nil
 	}
 	config = &QuorumConfig{ProjectID: opts.ProjectID, ProjectName: opts.ProjectName}
 	if err := WriteQuorumConfigTo(config, projectRoot); err != nil {
@@ -1340,6 +1349,71 @@ func ensureProjectConfig(projectRoot string, opts InitOptions) (*QuorumConfig, e
 	}
 	fmt.Printf("  [+] Created .quorumrc for project %s.\n", config.ProjectID)
 	return config, nil
+}
+
+// promptProjectConfig drives an interactive capture of project_id and
+// project_name from the injected reader/writer. It is pure and injectable so
+// tests never touch real stdin: ensureProjectConfig passes os.Stdin/os.Stdout
+// at the call site. Empty input accepts the suggested default; a non-empty
+// project_id is normalized via SlugifyProjectID and re-prompted only when
+// normalization yields empty. The final value is confirmed and validated
+// through ValidateQuorumConfig before it is returned. Closing the reader (EOF)
+// at any prompt aborts with an error pointing at the flags.
+func promptProjectConfig(in io.Reader, out io.Writer, suggested *QuorumConfig) (*QuorumConfig, error) {
+	if suggested == nil {
+		suggested = &QuorumConfig{}
+	}
+	scanner := bufio.NewScanner(in)
+	eofErr := fmt.Errorf("input closed before completing prompt; use --project-id and --project-name to set the project identity non-interactively")
+
+	var projectID string
+	for {
+		fmt.Fprintf(out, "project_id [%s]: ", suggested.ProjectID)
+		if !scanner.Scan() {
+			return nil, eofErr
+		}
+		raw := strings.TrimSpace(scanner.Text())
+		if raw == "" {
+			projectID = suggested.ProjectID
+			break
+		}
+		projectID = SlugifyProjectID(raw)
+		if projectID == "" {
+			fmt.Fprintf(out, "  invalid project_id %q: normalizes to empty; please enter alphanumeric characters\n", raw)
+			continue
+		}
+		break
+	}
+
+	defaultName := suggested.ProjectName
+	if projectID != suggested.ProjectID {
+		defaultName = humanizeProjectName(projectID)
+	}
+	fmt.Fprintf(out, "project_name [%s]: ", defaultName)
+	if !scanner.Scan() {
+		return nil, eofErr
+	}
+	projectName := strings.TrimSpace(scanner.Text())
+	if projectName == "" {
+		projectName = defaultName
+	}
+
+	final := &QuorumConfig{ProjectID: projectID, ProjectName: projectName}
+	fmt.Fprintf(out, "\nproject_id:   %s\nproject_name: %s\nWrite .quorumrc? [Y/n]: ", final.ProjectID, final.ProjectName)
+	if !scanner.Scan() {
+		return nil, eofErr
+	}
+	switch strings.ToLower(strings.TrimSpace(scanner.Text())) {
+	case "", "y", "yes":
+		// confirmed
+	default:
+		return nil, fmt.Errorf("aborted: .quorumrc not written")
+	}
+
+	if err := ValidateQuorumConfig(final); err != nil {
+		return nil, err
+	}
+	return final, nil
 }
 
 func ensureRetryWorktree(taskID string) bool {
