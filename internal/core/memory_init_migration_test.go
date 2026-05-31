@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func writeMemoryFixture(t *testing.T, root, dir, name, id, content string) string {
@@ -75,6 +76,62 @@ func TestRunInitMemoryMigrationInvalidMemoryPreservesFiles(t *testing.T) {
 		if _, statErr := os.Stat(path); statErr != nil {
 			t.Fatalf("expected %s to remain after failed migration: %v", path, statErr)
 		}
+	}
+}
+
+func TestRunInitMemoryMigrationNormalizesLegacyMemoryShape(t *testing.T) {
+	useSchemas(t)
+	root := t.TempDir()
+	db := openMigrationTestDB(t)
+	config := &QuorumConfig{ProjectID: "sql-03", ProjectName: "SQL 03"}
+	if err := EnsureMemoryProject(db, config, root, ""); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(root, "memory", "patterns", "pat-go-cli-parity.json")
+	writeFile(t, path, `{
+		"id": "pat-go-cli-parity",
+		"type": "pattern",
+		"title": "Strict CLI Invariant Parity",
+		"context": "When porting CLI state-mutating commands from Python to Go.",
+		"resolution": "State mutations in Go must enforce identical invariants and preserve Python-compatible error output formats.",
+		"task_ref": "F-03-d"
+	}`)
+	mtime := time.Date(2026, 5, 26, 12, 0, 0, 0, time.UTC)
+	if err := os.Chtimes(path, mtime, mtime); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := RunInitMemoryMigration(db, root, config)
+	if err != nil {
+		t.Fatalf("RunInitMemoryMigration failed: %v", err)
+	}
+	if result.FilesSeen != 1 || result.FilesInserted != 1 || result.FilesDeleted != 1 {
+		t.Fatalf("unexpected result: %+v", result)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("expected normalized legacy file to be removed, stat err=%v", err)
+	}
+
+	expectedID := legacyMemoryID(path, "pattern", "pat-go-cli-parity", "2026-05-26")
+	var gotID, sourceTask, content, createdAt, rawJSON string
+	if err := db.QueryRow(`SELECT id, source_task, content, created_at, raw_json
+		FROM memory_entries WHERE project_id = ?`, "sql-03").Scan(&gotID, &sourceTask, &content, &createdAt, &rawJSON); err != nil {
+		t.Fatal(err)
+	}
+	if gotID != expectedID {
+		t.Fatalf("expected generated id %q, got %q", expectedID, gotID)
+	}
+	if sourceTask != "F-03-d" {
+		t.Fatalf("expected task_ref to become source_task, got %q", sourceTask)
+	}
+	if !strings.Contains(content, "identical invariants") {
+		t.Fatalf("expected resolution to become content, got %q", content)
+	}
+	if createdAt != "2026-05-26" {
+		t.Fatalf("expected created_at from file mtime, got %q", createdAt)
+	}
+	if strings.Contains(rawJSON, "task_ref") || strings.Contains(rawJSON, "resolution") {
+		t.Fatalf("expected raw_json to store normalized schema payload, got %s", rawJSON)
 	}
 }
 

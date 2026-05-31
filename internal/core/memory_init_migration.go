@@ -4,8 +4,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"hash/crc32"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -31,6 +33,7 @@ type legacyMemoryFile struct {
 }
 
 var legacyMemoryDirs = []string{"decisions", "patterns", "lessons"}
+var currentMemoryIDRegex = regexp.MustCompile(`^(PAT|DEC|LES)-[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]+$`)
 
 func RunInitMemoryMigration(db *sql.DB, projectRoot string, config *QuorumConfig) (*InitMigrationResult, error) {
 	return RunInitMemoryMigrationWithOptions(db, projectRoot, config, InitMigrationOptions{})
@@ -187,6 +190,7 @@ func loadLegacyMemoryFile(path string) (legacyMemoryFile, error) {
 	if err := json.Unmarshal(b, &payload); err != nil {
 		return legacyMemoryFile{}, err
 	}
+	payload = normalizeLegacyMemoryPayload(path, payload)
 	if err := ValidateArtifact(path, payload); err != nil {
 		return legacyMemoryFile{}, err
 	}
@@ -199,6 +203,82 @@ func loadLegacyMemoryFile(path string) (legacyMemoryFile, error) {
 		return legacyMemoryFile{}, err
 	}
 	return legacyMemoryFile{Path: path, Payload: payload, Hash: hash, RawJSON: string(raw)}, nil
+}
+
+func normalizeLegacyMemoryPayload(path string, payload map[string]any) map[string]any {
+	normalized := make(map[string]any, len(payload)+3)
+	for k, v := range payload {
+		normalized[k] = v
+	}
+
+	if _, ok := normalized["source_task"]; !ok {
+		if taskRef, ok := nonEmptyString(normalized["task_ref"]); ok {
+			normalized["source_task"] = taskRef
+			delete(normalized, "task_ref")
+		}
+	}
+	if _, ok := normalized["content"]; !ok {
+		if resolution, ok := nonEmptyString(normalized["resolution"]); ok {
+			normalized["content"] = resolution
+			delete(normalized, "resolution")
+		}
+	}
+	if _, ok := normalized["created_at"]; !ok {
+		normalized["created_at"] = legacyMemoryDate(path)
+	}
+	if !memoryIDLooksCurrent(normalized["id"]) {
+		if typ, ok := nonEmptyString(normalized["type"]); ok {
+			normalized["id"] = legacyMemoryID(path, typ, normalized["id"], normalized["created_at"])
+		}
+	}
+
+	return normalized
+}
+
+func nonEmptyString(value any) (string, bool) {
+	s, ok := value.(string)
+	s = strings.TrimSpace(s)
+	return s, ok && s != ""
+}
+
+func memoryIDLooksCurrent(value any) bool {
+	id, ok := nonEmptyString(value)
+	if !ok {
+		return false
+	}
+	return currentMemoryIDRegex.MatchString(id)
+}
+
+func legacyMemoryDate(path string) string {
+	info, err := os.Stat(path)
+	if err != nil {
+		return time.Now().UTC().Format(time.DateOnly)
+	}
+	return info.ModTime().UTC().Format(time.DateOnly)
+}
+
+func legacyMemoryID(path, memoryType string, oldID any, createdAt any) string {
+	prefix := map[string]string{
+		"pattern":  "PAT",
+		"decision": "DEC",
+		"lesson":   "LES",
+	}[memoryType]
+	if prefix == "" {
+		prefix = "LES"
+	}
+	date, ok := nonEmptyString(createdAt)
+	if !ok {
+		date = legacyMemoryDate(path)
+	}
+	seed := fmt.Sprintf("%s|%s|%v", memoryType, date, oldID)
+	if id, ok := nonEmptyString(oldID); !ok || id == "" {
+		seed = seed + "|" + filepath.ToSlash(path)
+	}
+	n := crc32.ChecksumIEEE([]byte(seed)) % 100000000
+	if n == 0 {
+		n = 1
+	}
+	return fmt.Sprintf("%s-%s-%d", prefix, date, n)
 }
 
 func beginInitMigration(tx *sql.Tx, projectID string, filesSeen int) (int64, error) {

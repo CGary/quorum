@@ -1,0 +1,22 @@
+task_id: FEAT-000
+summary: One dense factual sentence, max 200 chars, describing the feature and risk.
+goal: >
+  One paragraph defining the feature outcome.
+invariants:
+  - Existing behavior that must remain true.
+acceptance:
+  - Measurable outcome that proves success.
+risk: medium
+non_goals:
+  - Explicitly excluded outcome.
+constraints:
+  - Operational constraint or dependency limit.
+
+# Optional decomposition metadata:
+# parent_task: FEAT-000      # set only on child tasks, e.g. FEAT-000-a
+# depends_on:                # set only on child tasks with sibling dependencies
+#   - FEAT-000-a
+# decomposition:             # set only on umbrella parent tasks by /q-decompose
+#   - child_id: FEAT-000-a
+#     summary: First independently implementable slice.
+#     depends_on: []
