@@ -183,7 +183,7 @@ func TestSkillProtocolArtifactProducingSkillsRequireEnglish(t *testing.T) {
 		"q-implement": {"04-implementation-log.yaml"},
 		"q-verify":    {"05-validation.json"},
 		"q-review":    {"06-review.json"},
-		"q-memory":    {"memory/"},
+		"q-memory":    {"memory.schema.json", "quorum memory save"},
 	}
 	for name, artifacts := range producers {
 		content := strings.ToLower(readProtocolSkill(t, name))
@@ -197,6 +197,46 @@ func TestSkillProtocolArtifactProducingSkillsRequireEnglish(t *testing.T) {
 			if !strings.Contains(content, strings.ToLower(art)) {
 				t.Errorf("%s: English rule must reference %s", name, art)
 			}
+		}
+	}
+}
+
+func TestSkillProtocolQMemoryUsesSQLiteSave(t *testing.T) {
+	content := readProtocolSkill(t, "q-memory")
+	lower := strings.ToLower(content)
+
+	for _, want := range []string{
+		"quorum memory save",
+		"cat <payload>.json | quorum memory save",
+		"quorum memory save --file <payload>.json",
+		".tmp/",
+		"quorum init",
+		"BLOCKED",
+		"IDs guardados",
+	} {
+		if !strings.Contains(content, want) {
+			t.Errorf("q-memory: missing SQLite-save protocol marker %q", want)
+		}
+	}
+
+	for _, forbiddenFinal := range []string{
+		"memory/decisions",
+		"memory/patterns",
+		"memory/lessons",
+	} {
+		if strings.Contains(lower, forbiddenFinal+" as output") || strings.Contains(lower, forbiddenFinal+" como salida") {
+			t.Errorf("q-memory: must not document %s as a final output location", forbiddenFinal)
+		}
+	}
+
+	for _, want := range []string{
+		"do not create, recreate, or write durable outputs under `memory/`",
+		"do not write a fallback file under `memory/`",
+		"never execute `quorum init` from this skill",
+		"not local file paths",
+	} {
+		if !strings.Contains(lower, strings.ToLower(want)) {
+			t.Errorf("q-memory: missing prohibition %q", want)
 		}
 	}
 }

@@ -66,13 +66,23 @@ Format: one sentence per anti-pattern, technical and concrete.
 Example:
 "Avoided global singleton in TaskManager because it broke worktree isolation."
 
-## Output Locations
+## Output Location
 
-Construct a JSON payload matching `.agents/schemas/memory.schema.json` and persist it via the CLI command:
+Construct a JSON payload matching `.agents/schemas/memory.schema.json` and persist it via the centralized CLI command. `quorum memory save` performs the final schema validation and durable SQLite write.
+
+Preferred stdin form:
 
 ```bash
-quorum memory save
+cat <payload>.json | quorum memory save
 ```
+
+Allowed temporary-file form:
+
+```bash
+quorum memory save --file <payload>.json
+```
+
+If a temporary payload file is needed, place it under `.tmp/` or the system temporary directory. Do not create, recreate, or write durable outputs under `memory/`, `memory/decisions/`, `memory/patterns/`, or `memory/lessons/`.
 
 ID format:
 
@@ -121,7 +131,10 @@ When superseding:
 2. Identify at most 3 high-signal memories.
 3. Pick correct memory type.
 4. Generate next numeric ID for today's date.
-5. Pipe JSON payload to `quorum memory save`.
+5. Persist the JSON payload with `cat <payload>.json | quorum memory save` or `quorum memory save --file <payload>.json`.
+6. If `quorum memory save` fails because `.quorumrc` is missing or memory setup is unavailable, report `BLOCKED` and suggest `quorum init`; do not run `quorum init` automatically.
+7. If `quorum memory save` fails validation, correct the payload only when the issue is mechanical; otherwise report `BLOCKED` for human decision.
+8. If SQLite persistence fails for any reason, do not write a fallback file under `memory/` or any other durable local directory.
 
 ## Rules
 
@@ -129,7 +142,15 @@ When superseding:
 - Prefer one useful memory over many weak ones.
 - Do not edit source code.
 - Do not overwrite existing memory IDs.
-- **Language**: The generated memory/ field values MUST be written in concise English, even if the user chat was in Spanish.
+- **Language**: The generated SQLite memory field values MUST be written in concise English, even if the user chat was in Spanish.
+
+
+## Failure Handling
+
+- Missing `.quorumrc` or unavailable memory setup: report `BLOCKED` with a concise Spanish explanation and suggest the human run `quorum init`; never execute `quorum init` from this skill.
+- `quorum memory save` validation errors: fix mechanical JSON or schema-shape mistakes when the intended meaning is unchanged; otherwise stop with `BLOCKED` for human decision.
+- SQLite, locking, permission, or database errors: stop with `BLOCKED`; never persist a fallback copy to a durable local file or legacy memory directory.
+- Successful captures report the SQLite memory IDs returned by `quorum memory save`, not local file paths.
 
 ## 🛑 Handoff (single-phase boundary)
 
@@ -143,7 +164,7 @@ Cerrá el mensaje final exactamente con este bloque (en español):
 === Fin de fase: Captura de memoria ===
 
 Artefactos producidos:
-- Entradas persistidas en SQLite vía `quorum memory save` (si aplica).
+- Entradas persistidas en SQLite vía `quorum memory save` (IDs guardados: <MEMORY_IDS>, si aplica).
 
 No hay transición de estado: la tarea ya fue archivada antes por quorum task clean.
 
