@@ -1,6 +1,7 @@
 package core
 
 import (
+	"database/sql"
 	"os"
 	"path/filepath"
 	"sync"
@@ -27,7 +28,6 @@ func TestMemoryDBPath(t *testing.T) {
 		t.Errorf("Expected %s, got %s", dbPath, resolvedPath)
 	}
 
-	// Verify directory was created
 	if _, err := os.Stat(filepath.Dir(dbPath)); os.IsNotExist(err) {
 		t.Errorf("Directory %s was not created", filepath.Dir(dbPath))
 	}
@@ -47,7 +47,6 @@ func TestOpenMemoryDBAndSchema(t *testing.T) {
 	}
 	defer db.Close()
 
-	// Verify PRAGMAs
 	var journalMode string
 	err = db.QueryRow("PRAGMA journal_mode;").Scan(&journalMode)
 	if err != nil || (journalMode != "wal" && journalMode != "WAL") {
@@ -60,13 +59,35 @@ func TestOpenMemoryDBAndSchema(t *testing.T) {
 		t.Errorf("Expected foreign_keys ON (1), got %d (err: %v)", foreignKeys, err)
 	}
 
-	// Verify tables
-	tables := []string{"memory_entries", "memory_related", "memory_anti_patterns", "memory_supersession_edges"}
+	tables := []string{"projects", "memory_entries", "memory_related", "memory_anti_patterns", "memory_supersession_edges"}
 	for _, table := range tables {
 		var name string
 		err = db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name=?;", table).Scan(&name)
 		if err != nil {
 			t.Errorf("Table %s not found: %v", table, err)
+		}
+	}
+
+	columns := map[string]bool{}
+	rows, err := db.Query("PRAGMA table_info(memory_entries);")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid int
+		var name, typ string
+		var notNull int
+		var defaultValue sql.NullString
+		var pk int
+		if err := rows.Scan(&cid, &name, &typ, &notNull, &defaultValue, &pk); err != nil {
+			t.Fatal(err)
+		}
+		columns[name] = true
+	}
+	for _, required := range []string{"project_id", "id", "source_task", "title", "context", "content_hash", "raw_json"} {
+		if !columns[required] {
+			t.Fatalf("memory_entries missing column %s", required)
 		}
 	}
 }
@@ -101,6 +122,11 @@ func TestConcurrentWrites(t *testing.T) {
 	}
 	defer db.Close()
 
+	_, err = db.Exec("INSERT INTO projects (id, name) VALUES (?, ?)", "quorum", "Quorum")
+	if err != nil {
+		t.Fatalf("project insert failed: %v", err)
+	}
+
 	var wg sync.WaitGroup
 	numWorkers := 10
 	wg.Add(numWorkers)
@@ -108,7 +134,9 @@ func TestConcurrentWrites(t *testing.T) {
 	for i := 0; i < numWorkers; i++ {
 		go func(id int) {
 			defer wg.Done()
-			_, err := db.Exec("INSERT INTO memory_entries (id, type, content, hash) VALUES (?, ?, ?, ?)", id, "test", "content", "hash")
+			_, err := db.Exec(`INSERT INTO memory_entries
+(project_id, id, type, source_task, title, context, content, created_at, content_hash, raw_json)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, "quorum", filepath.Base(string(rune('a'+id))), "lesson", "SQL-02", "Concurrent write", "Context", "Content with enough length", "2026-05-31", "hash", "{}")
 			if err != nil {
 				t.Errorf("Concurrent write failed: %v", err)
 			}

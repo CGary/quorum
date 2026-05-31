@@ -45,8 +45,8 @@ func OpenMemoryDB(dbPath string) (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
+	db.SetMaxOpenConns(1)
 
-	// PRAGMAs required by the invariants
 	pragmas := []string{
 		"PRAGMA journal_mode = WAL;",
 		"PRAGMA busy_timeout = 5000;",
@@ -74,38 +74,64 @@ func initSchema(db *sql.DB) error {
 	}
 
 	schema := `
-CREATE TABLE IF NOT EXISTS memory_entries (
+CREATE TABLE IF NOT EXISTS projects (
 	id TEXT PRIMARY KEY,
-	type TEXT NOT NULL,
+	name TEXT NOT NULL,
+	root_path TEXT,
+	git_remote TEXT,
+	created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS memory_entries (
+	project_id TEXT NOT NULL,
+	id TEXT NOT NULL,
+	type TEXT NOT NULL CHECK (type IN ('pattern', 'decision', 'lesson')),
+	source_task TEXT NOT NULL,
+	title TEXT NOT NULL,
+	context TEXT NOT NULL,
 	content TEXT NOT NULL,
-	hash TEXT NOT NULL,
-	created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	created_at TEXT NOT NULL,
+	supersedes TEXT,
+	source_path TEXT,
+	content_hash TEXT NOT NULL,
+	imported_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	raw_json TEXT NOT NULL,
+	PRIMARY KEY (project_id, id),
+	FOREIGN KEY (project_id) REFERENCES projects(id)
 );
 
 CREATE TABLE IF NOT EXISTS memory_related (
-	entry_id TEXT NOT NULL,
-	related_id TEXT NOT NULL,
-	PRIMARY KEY (entry_id, related_id),
-	FOREIGN KEY (entry_id) REFERENCES memory_entries(id) ON DELETE CASCADE,
-	FOREIGN KEY (related_id) REFERENCES memory_entries(id) ON DELETE CASCADE
+	project_id TEXT NOT NULL,
+	memory_id TEXT NOT NULL,
+	related_ref TEXT NOT NULL,
+	PRIMARY KEY (project_id, memory_id, related_ref),
+	FOREIGN KEY (project_id, memory_id) REFERENCES memory_entries(project_id, id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS memory_anti_patterns (
-	entry_id TEXT NOT NULL,
-	anti_pattern TEXT NOT NULL,
-	PRIMARY KEY (entry_id, anti_pattern),
-	FOREIGN KEY (entry_id) REFERENCES memory_entries(id) ON DELETE CASCADE
+	project_id TEXT NOT NULL,
+	memory_id TEXT NOT NULL,
+	ordinal INTEGER NOT NULL,
+	content TEXT NOT NULL,
+	PRIMARY KEY (project_id, memory_id, ordinal),
+	FOREIGN KEY (project_id, memory_id) REFERENCES memory_entries(project_id, id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS memory_supersession_edges (
-	supersedes_id TEXT NOT NULL,
-	superseded_by_id TEXT NOT NULL,
-	PRIMARY KEY (supersedes_id, superseded_by_id),
-	FOREIGN KEY (supersedes_id) REFERENCES memory_entries(id) ON DELETE CASCADE,
-	FOREIGN KEY (superseded_by_id) REFERENCES memory_entries(id) ON DELETE CASCADE
+	project_id TEXT NOT NULL,
+	from_id TEXT NOT NULL,
+	to_id TEXT NOT NULL,
+	PRIMARY KEY (project_id, from_id, to_id),
+	FOREIGN KEY (project_id, from_id) REFERENCES memory_entries(project_id, id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_memory_entries_hash ON memory_entries(hash);
+CREATE INDEX IF NOT EXISTS idx_memory_entries_type ON memory_entries(type);
+CREATE INDEX IF NOT EXISTS idx_memory_entries_project_type ON memory_entries(project_id, type);
+CREATE INDEX IF NOT EXISTS idx_memory_entries_source_task ON memory_entries(project_id, source_task);
+CREATE INDEX IF NOT EXISTS idx_memory_entries_created_at ON memory_entries(created_at);
+CREATE INDEX IF NOT EXISTS idx_memory_entries_hash ON memory_entries(content_hash);
 `
 
 	if _, err := tx.Exec(schema); err != nil {
@@ -122,14 +148,12 @@ func CanonicalMemoryHash(payload interface{}) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	
-	// Unmarshal back to an interface{} to ensure ordering/whitespace is ignored when re-marshaling canonically
+
 	var generic interface{}
 	if err := json.Unmarshal(b, &generic); err != nil {
 		return "", err
 	}
-	
-	// Marshal canonically
+
 	canonicalBytes, err := json.Marshal(generic)
 	if err != nil {
 		return "", err
