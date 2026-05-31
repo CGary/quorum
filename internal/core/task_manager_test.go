@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"os"
@@ -903,4 +904,155 @@ func TestInitializeProjectWithOptionsRequiresIdentityInNonInteractiveMode(t *tes
 	if err == nil || !strings.Contains(err.Error(), "provide --project-id and --project-name") {
 		t.Fatalf("expected non-interactive identity error, got %v", err)
 	}
+}
+
+func TestPromptProjectConfig(t *testing.T) {
+	suggested := &QuorumConfig{ProjectID: "my-project", ProjectName: "My Project"}
+
+	cases := []struct {
+		name        string
+		input       string
+		wantErr     bool
+		errContains string
+		wantID      string
+		wantName    string
+		outContains string
+	}{
+		{
+			name:     "happy path empty inputs accept suggested defaults",
+			input:    "\n\ny\n",
+			wantID:   "my-project",
+			wantName: "My Project",
+		},
+		{
+			name:     "override both fields persists entered values",
+			input:    "custom-id\nCustom Name\ny\n",
+			wantID:   "custom-id",
+			wantName: "Custom Name",
+		},
+		{
+			name:     "auto-slug normalizes project_id without re-prompt",
+			input:    "Mi Proyecto\n\ny\n",
+			wantID:   "mi-proyecto",
+			wantName: "mi-proyecto",
+		},
+		{
+			name:        "re-prompt on input that normalizes to empty",
+			input:       "!!!\nvalid-id\n\ny\n",
+			wantID:      "valid-id",
+			wantName:    "valid-id",
+			outContains: "invalid",
+		},
+		{
+			name:     "empty project_name is derived from project_id",
+			input:    "another-id\n\ny\n",
+			wantID:   "another-id",
+			wantName: "another-id",
+		},
+		{
+			name:        "negative confirmation aborts and writes nothing",
+			input:       "\n\nn\n",
+			wantErr:     true,
+			errContains: "aborted",
+		},
+		{
+			name:        "EOF at first prompt aborts with flag hint",
+			input:       "",
+			wantErr:     true,
+			errContains: "--project-id",
+		},
+		{
+			name:        "EOF at confirmation aborts with flag hint",
+			input:       "\n\n",
+			wantErr:     true,
+			errContains: "--project-id",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var out bytes.Buffer
+			got, err := promptProjectConfig(strings.NewReader(tc.input), &out, suggested)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got config %+v", got)
+				}
+				if tc.errContains != "" && !strings.Contains(err.Error(), tc.errContains) {
+					t.Fatalf("error %q does not contain %q", err.Error(), tc.errContains)
+				}
+				if got != nil {
+					t.Fatalf("expected nil config on error, got %+v", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got.ProjectID != tc.wantID {
+				t.Fatalf("project_id = %q, want %q", got.ProjectID, tc.wantID)
+			}
+			if got.ProjectName != tc.wantName {
+				t.Fatalf("project_name = %q, want %q", got.ProjectName, tc.wantName)
+			}
+			if tc.outContains != "" && !strings.Contains(out.String(), tc.outContains) {
+				t.Fatalf("output %q does not contain %q", out.String(), tc.outContains)
+			}
+		})
+	}
+}
+
+func TestEnsureProjectConfigGuards(t *testing.T) {
+	// Criterion: NonInteractive without flags returns the existing error and
+	// never reaches the interactive prompt (which would block on os.Stdin).
+	t.Run("non-interactive without flags errors before prompting", func(t *testing.T) {
+		dir := t.TempDir()
+		_, err := ensureProjectConfig(dir, InitOptions{NonInteractive: true})
+		if err == nil || !strings.Contains(err.Error(), "provide --project-id and --project-name") {
+			t.Fatalf("expected non-interactive identity error, got %v", err)
+		}
+		if _, statErr := os.Stat(filepath.Join(dir, ".quorumrc")); !os.IsNotExist(statErr) {
+			t.Fatalf(".quorumrc should not be written, stat err=%v", statErr)
+		}
+	})
+
+	// Criterion: both flags provided skip the prompt entirely.
+	t.Run("both flags skip prompt and persist", func(t *testing.T) {
+		dir := t.TempDir()
+		cfg, err := ensureProjectConfig(dir, InitOptions{ProjectID: "flag-id", ProjectName: "Flag Name"})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if cfg.ProjectID != "flag-id" || cfg.ProjectName != "Flag Name" {
+			t.Fatalf("config = %+v, want flag values", cfg)
+		}
+		persisted, err := ReadQuorumConfigFrom(dir)
+		if err != nil {
+			t.Fatalf("expected .quorumrc written: %v", err)
+		}
+		if persisted.ProjectID != "flag-id" || persisted.ProjectName != "Flag Name" {
+			t.Fatalf("persisted = %+v, want flag values", persisted)
+		}
+	})
+
+	// Criterion: an existing .quorumrc keeps the current merge behavior.
+	t.Run("existing rc keeps merge behavior", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := WriteQuorumConfigTo(&QuorumConfig{ProjectID: "existing-id", ProjectName: "Old Name"}, dir); err != nil {
+			t.Fatalf("seed .quorumrc: %v", err)
+		}
+		cfg, err := ensureProjectConfig(dir, InitOptions{ProjectName: "New Name"})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if cfg.ProjectID != "existing-id" || cfg.ProjectName != "New Name" {
+			t.Fatalf("config = %+v, want merged name with preserved id", cfg)
+		}
+		persisted, err := ReadQuorumConfigFrom(dir)
+		if err != nil {
+			t.Fatalf("read merged .quorumrc: %v", err)
+		}
+		if persisted.ProjectName != "New Name" {
+			t.Fatalf("persisted name = %q, want merged value", persisted.ProjectName)
+		}
+	})
 }
