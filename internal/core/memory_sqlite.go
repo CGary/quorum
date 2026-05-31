@@ -45,6 +45,7 @@ func OpenMemoryDB(dbPath string) (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
+	db.SetMaxOpenConns(1)
 
 	// PRAGMAs required by the invariants
 	pragmas := []string{
@@ -76,10 +77,15 @@ func initSchema(db *sql.DB) error {
 	schema := `
 CREATE TABLE IF NOT EXISTS memory_entries (
 	id TEXT PRIMARY KEY,
+	project_id TEXT,
 	type TEXT NOT NULL,
+	source_task TEXT,
+	title TEXT,
+	context TEXT,
 	content TEXT NOT NULL,
 	hash TEXT NOT NULL,
-	created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+	raw_json TEXT
 );
 
 CREATE TABLE IF NOT EXISTS memory_related (
@@ -105,7 +111,6 @@ CREATE TABLE IF NOT EXISTS memory_supersession_edges (
 	FOREIGN KEY (superseded_by_id) REFERENCES memory_entries(id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_memory_entries_hash ON memory_entries(hash);
 `
 
 	if _, err := tx.Exec(schema); err != nil {
@@ -113,7 +118,109 @@ CREATE INDEX IF NOT EXISTS idx_memory_entries_hash ON memory_entries(hash);
 		return err
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	if err := ensureMemoryEntryColumns(db); err != nil {
+		return err
+	}
+	if _, err := db.Exec(`
+CREATE INDEX IF NOT EXISTS idx_memory_entries_hash ON memory_entries(hash);
+CREATE INDEX IF NOT EXISTS idx_memory_entries_project_type ON memory_entries(project_id, type);
+`); err != nil {
+		return err
+	}
+
+	return initMemoryFTS(db)
+}
+
+func ensureMemoryEntryColumns(db *sql.DB) error {
+	rows, err := db.Query("PRAGMA table_info(memory_entries);")
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	existing := map[string]bool{}
+	for rows.Next() {
+		var cid int
+		var name, typ string
+		var notNull int
+		var defaultValue any
+		var pk int
+		if err := rows.Scan(&cid, &name, &typ, &notNull, &defaultValue, &pk); err != nil {
+			return err
+		}
+		existing[name] = true
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	columns := map[string]string{
+		"project_id":  "TEXT",
+		"source_task": "TEXT",
+		"title":       "TEXT",
+		"context":     "TEXT",
+		"raw_json":    "TEXT",
+	}
+	for name, typ := range columns {
+		if !existing[name] {
+			if _, err := db.Exec(fmt.Sprintf("ALTER TABLE memory_entries ADD COLUMN %s %s", name, typ)); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// initMemoryFTS creates an optional FTS5 read index when the SQLite build supports it.
+func initMemoryFTS(db *sql.DB) error {
+	if _, err := db.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(
+		id UNINDEXED,
+		project_id UNINDEXED,
+		type UNINDEXED,
+		title,
+		context,
+		content,
+		anti_patterns
+	);`); err != nil {
+		// FTS5 is optional. Search falls back to deterministic LIKE queries.
+		return nil
+	}
+
+	triggers := []string{
+		`CREATE TRIGGER IF NOT EXISTS memory_entries_fts_ai AFTER INSERT ON memory_entries BEGIN
+			INSERT INTO memory_fts(id, project_id, type, title, context, content, anti_patterns)
+			VALUES (new.id, new.project_id, new.type, COALESCE(new.title, ''), COALESCE(new.context, ''), new.content,
+				COALESCE((SELECT group_concat(anti_pattern, char(10)) FROM memory_anti_patterns WHERE entry_id = new.id), ''));
+		END;`,
+		`CREATE TRIGGER IF NOT EXISTS memory_entries_fts_ad AFTER DELETE ON memory_entries BEGIN
+			DELETE FROM memory_fts WHERE id = old.id;
+		END;`,
+		`CREATE TRIGGER IF NOT EXISTS memory_entries_fts_au AFTER UPDATE ON memory_entries BEGIN
+			DELETE FROM memory_fts WHERE id = old.id;
+			INSERT INTO memory_fts(id, project_id, type, title, context, content, anti_patterns)
+			VALUES (new.id, new.project_id, new.type, COALESCE(new.title, ''), COALESCE(new.context, ''), new.content,
+				COALESCE((SELECT group_concat(anti_pattern, char(10)) FROM memory_anti_patterns WHERE entry_id = new.id), ''));
+		END;`,
+		`CREATE TRIGGER IF NOT EXISTS memory_anti_patterns_fts_ai AFTER INSERT ON memory_anti_patterns BEGIN
+			UPDATE memory_fts SET anti_patterns = COALESCE((SELECT group_concat(anti_pattern, char(10)) FROM memory_anti_patterns WHERE entry_id = new.entry_id), '') WHERE id = new.entry_id;
+		END;`,
+		`CREATE TRIGGER IF NOT EXISTS memory_anti_patterns_fts_ad AFTER DELETE ON memory_anti_patterns BEGIN
+			UPDATE memory_fts SET anti_patterns = COALESCE((SELECT group_concat(anti_pattern, char(10)) FROM memory_anti_patterns WHERE entry_id = old.entry_id), '') WHERE id = old.entry_id;
+		END;`,
+	}
+	for _, trigger := range triggers {
+		if _, err := db.Exec(trigger); err != nil {
+			return nil
+		}
+	}
+	return nil
+}
+
+func memoryFTSAvailable(db *sql.DB) bool {
+	var name string
+	err := db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='memory_fts';").Scan(&name)
+	return err == nil && name == "memory_fts"
 }
 
 // CanonicalMemoryHash calculates the canonical SHA256 of JSON payloads.
@@ -122,13 +229,13 @@ func CanonicalMemoryHash(payload interface{}) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	
+
 	// Unmarshal back to an interface{} to ensure ordering/whitespace is ignored when re-marshaling canonically
 	var generic interface{}
 	if err := json.Unmarshal(b, &generic); err != nil {
 		return "", err
 	}
-	
+
 	// Marshal canonically
 	canonicalBytes, err := json.Marshal(generic)
 	if err != nil {

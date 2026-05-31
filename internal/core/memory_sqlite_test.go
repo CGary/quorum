@@ -1,6 +1,7 @@
 package core
 
 import (
+	"database/sql"
 	"os"
 	"path/filepath"
 	"sync"
@@ -116,4 +117,58 @@ func TestConcurrentWrites(t *testing.T) {
 	}
 
 	wg.Wait()
+}
+
+func TestOpenMemoryDBMigratesSearchColumns(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "quorum_db_test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	dbPath := filepath.Join(tempDir, "memory.db")
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("sql.Open failed: %v", err)
+	}
+	_, err = db.Exec(`CREATE TABLE memory_entries (
+		id TEXT PRIMARY KEY,
+		type TEXT NOT NULL,
+		content TEXT NOT NULL,
+		hash TEXT NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);`)
+	if err != nil {
+		t.Fatalf("create old schema failed: %v", err)
+	}
+	_ = db.Close()
+
+	db, err = OpenMemoryDB(dbPath)
+	if err != nil {
+		t.Fatalf("OpenMemoryDB failed: %v", err)
+	}
+	defer db.Close()
+
+	for _, column := range []string{"project_id", "source_task", "title", "context", "raw_json"} {
+		var found bool
+		rows, err := db.Query("PRAGMA table_info(memory_entries);")
+		if err != nil {
+			t.Fatalf("table_info failed: %v", err)
+		}
+		for rows.Next() {
+			var cid int
+			var name, typ string
+			var notNull int
+			var defaultValue any
+			var pk int
+			if err := rows.Scan(&cid, &name, &typ, &notNull, &defaultValue, &pk); err != nil {
+				t.Fatalf("scan table_info failed: %v", err)
+			}
+			found = found || name == column
+		}
+		_ = rows.Close()
+		if !found {
+			t.Fatalf("expected migrated column %s", column)
+		}
+	}
 }
