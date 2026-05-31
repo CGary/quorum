@@ -33,13 +33,20 @@ Quorum es un framework **AI-first** para ejecutar funcionalidades complejas medi
 
 - CLI `quorum task ...` para inicializar, listar, activar, crear worktrees, consultar estado y limpiar tareas.
 - Schemas JSON para artefactos:
-  - `spec`, `blueprint`, `contract`, `validation`, `review`, `trace`, `memory`.
+  - `spec`, `blueprint`, `contract`, `implementation-log`, `validation`, `review`, `trace`, `memory`, `feedback`.
 - Skills operativos:
-  - `q-brief`, `q-blueprint`, `q-analyze`, `q-implement`, `q-verify`, `q-review`, `q-accept`, `q-memory`, `q-status`.
+  - `q-brief`, `q-decompose`, `q-blueprint`, `q-analyze`, `q-implement`, `q-verify`, `q-review`, `q-accept`, `q-memory`, `q-status`.
 - Worktrees por tarea en `worktrees/<TASK_ID>/`.
 - Políticas de riesgo/routing en `.agents/policies/`.
-- `quorum analyze risk-score` para sugerir riesgo desde `01-blueprint.yaml`.
-- `quorum analyze failure-lookup` para consultar tareas fallidas relacionadas durante blueprint.
+- Helpers analíticos read-only `quorum analyze` (leen un request JSON por stdin):
+  - `risk-score` para sugerir riesgo desde el blueprint sin pisar el riesgo humano.
+  - `failure-lookup` para consultar tareas fallidas relacionadas durante blueprint.
+  - `blueprint-context` para enriquecer el blueprint con vecinos del retriever e import graph.
+  - `feedback-partition` para separar findings en `mechanical` vs `semantic`.
+  - `decomposition-coverage` para reportar cobertura padre↔hijos.
+  - `decomposition-render` para dibujar el DAG ASCII determinístico.
+- Memoria centralizada SQLite vía `quorum memory save | status | search` (única vía de ingesta: `q-memory`).
+- Partición de feedback (`feedback.schema.json`) y `quorum task feedback-consume` para consumir findings mecánicos.
 - `05-validation.json.error_category` opcional:
   - `logic | dependency | environment | flaky | unknown`.
 - Gobernanza documentada para evitar propuestas duplicadas:
@@ -70,6 +77,7 @@ Quorum es un framework **AI-first** para ejecutar funcionalidades complejas medi
 6. **El sistema commitea, nunca mergea.** El merge a `main` es humano.
 7. **El costo está limitado por política.** Routing/retries/escalaciones son política, no confianza.
 8. **Los tests son la única prueba.** Specs y blueprints no prueban funcionalidad.
+9. **Los skills son de fase única.** Cada `/q-*` ejecuta una sola fase y para; no encadena ni decide routing. Solo las tres auto-transiciones forward autorizadas están permitidas; `quorum task back` es exclusivamente humano.
 
 ---
 
@@ -362,6 +370,15 @@ quorum task split FEAT-001        # materializa hijos desde 00-spec.yaml.decompo
 quorum task start FEAT-001        # crea worktree + rama ai/FEAT-001 (normalmente lo auto-ejecuta /q-blueprint)
 quorum task clean FEAT-001        # archiva en done/ y borra worktree; en padres exige todos los hijos en done/
 quorum task back FEAT-001         # rollback humano de la última transición forward
+quorum task artifact-save FEAT-001 05-validation.json  # valida contra schema y persiste (lee stdin)
+quorum task retry-prepare FEAT-001-a # failed/ -> active/ de una hija fallida (humano/orquestador, ADR 0001)
+quorum task feedback-consume FEAT-001 # elimina feedback.json una vez consumidos sus findings
+```
+
+Preflight de validación sin mutar estado:
+
+```bash
+quorum validate .ai/tasks/active/FEAT-001-slug/00-spec.yaml
 ```
 
 `quorum task split` es idempotente: si un hijo ya existe, lo salta y crea sólo los faltantes. También valida que el padre esté en `active/`, que no sea ya una tarea hija, que los `child_id` pertenezcan al padre (`FEAT-001-a`), que `depends_on` apunte a hermanos existentes y que no haya ciclos.
@@ -440,11 +457,13 @@ project/
 ├── cmd/                   # subcomandos CLI (Go)
 ├── internal/core/         # lógica core (Go)
 ├── .agents/
-│   ├── schemas/           # JSON Schemas para YAML/JSON artifacts
-│   ├── policies/          # risk.yaml y routing.yaml
-│   ├── retrievers/        # import graph / AST neighbors
+│   ├── schemas/           # JSON Schemas para YAML/JSON artifacts (incluye feedback.schema.json)
+│   ├── policies/          # risk.yaml, routing.yaml, decomposition.yaml
+│   ├── prompts/           # instrucciones por rol (architect / executor / reviewer)
+│   ├── retrievers/        # import graph / AST neighbors (referencia Python)
+│   ├── templates/         # 00-spec / 01-blueprint / 02-contract
 │   ├── config.yaml        # niveles de modelos y límites
-│   └── skills/            # skills q-* y spec-kitty.*
+│   └── skills/            # skills q-* (q-brief, q-decompose, ...)
 ├── .ai/tasks/
 │   ├── inbox/
 │   ├── active/

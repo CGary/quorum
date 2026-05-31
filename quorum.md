@@ -96,6 +96,16 @@ Current reserved meanings:
 
 This prevents artifact sprawl: observability goes to trace, validation evidence goes to validation/review, durable learning goes to memory.
 
+### Numbered vs transient artifacts
+
+The boundary above governs **numbered lifecycle artifacts** only (`00`–`07`): persistent files that record the forward *state* of a task. There is a second, distinct class — **transient corrective artifacts** — which are NOT lifecycle slots and are therefore not bound by the "no new numbered artifact" rule:
+
+- They are **ephemeral**: created to carry anomalies/corrections and deleted once consumed.
+- They are **corrective, not additive**: their job is to push fixes back into existing `00`–`07` artifacts and code, not to advance the lifecycle.
+- They carry **no verdict and grant no authority**: they never bypass validation finality (Rule #4) or human merge authority (Rule #6).
+
+The sanctioned member of this class is `feedback.json`, governed by the **Feedback Loop** section below. Adding a transient corrective artifact does not require an ADR; adding a numbered lifecycle slot still does.
+
 ---
 
 ## 🚀 The AI-First Lifecycle (SDC: Spec-Driven Contracts)
@@ -129,7 +139,7 @@ This prevents artifact sprawl: observability goes to trace, validation evidence 
 
 - **Actor**: `q-analyze` (Artifact Consistency Analyst).
 - **Goal**: Verify that `00-spec.yaml`, `01-blueprint.yaml`, and `02-contract.yaml` agree before implementation.
-- **Output**: Read-only report in the agent response (no persisted artifact).
+- **Output**: Read-only consistency report in the agent response, plus a transient `feedback.json` (see the Feedback Loop section) when findings exist. It never edits `00`/`01`/`02` directly.
 - **Logic**: Detect missing tests, contract/blueprint mismatches, slow BDD commands placed in `verify.commands`, and risk/trace drift.
 - **Forward auto-transition**: none.
 
@@ -411,6 +421,57 @@ A failure analysis cannot "forgive" a failed test. **Validation is finality** (R
 
 ---
 
+## 🩹 Feedback Loop (Transient Corrective Channel)
+
+Numbered lifecycle artifacts (`00`–`07`) record the *forward state* of a task: what it wants, how it will be built, what was done, whether it passed. The feedback channel is a **different class of artifact** (see "Numbered vs transient artifacts") and must not be mistaken for a new lifecycle slot.
+
+### What feedback is
+
+During the optional **Analyze** phase, `q-analyze` inspects the planning artifacts (`00`–`02`) and detects anomalies — contradictions, scope creep, missing test coverage, contract drift, malformed fields. These findings are not feature state; they are *corrections owed back to the planning artifacts before implementation begins*. `q-analyze` stays read-only on `00`/`01`/`02`; its single permitted write is a transient `feedback.json` in the task directory, validated against `feedback.schema.json` and produced only when findings exist:
+
+```json
+{
+  "task_id": "FEAT-001-a",
+  "summary": "2 findings: contract missing a touch file; acceptance criterion without test scenario.",
+  "produced_by": "q-analyze",
+  "generated_at": "2026-05-31T00:00:00Z",
+  "findings": [
+    { "severity": "high", "category": "semantic",   "artifact": "02-contract.yaml",  "path": "$.touch",   "issue": "...", "suggested_fix": "..." },
+    { "severity": "low",  "category": "mechanical", "artifact": "01-blueprint.yaml", "path": "$.summary", "issue": "...", "suggested_fix": "..." }
+  ]
+}
+```
+
+### Why it is NOT a numbered lifecycle artifact
+
+- **Transient, not state.** `feedback.json` is deleted by `quorum task feedback-consume <ID>` once its findings have been applied. A numbered artifact is never deleted in normal flow.
+- **Corrective and backward.** Its purpose is to drive edits *back into* the planning artifacts (`00`-spec, `01`-blueprint, `02`-contract) before implementation, so anomalies do not leak forward into the merged feature. It does not advance the lifecycle; it repairs it.
+- **No verdict, no authority.** It grants nothing. Validation finality (Rule #4) and human merge authority (Rule #6) are untouched.
+
+This is why the "no new numbered artifact without an ADR" boundary does not apply: feedback is not a lifecycle slot, it is an ephemeral repair ticket.
+
+### Mechanical vs semantic partition
+
+`quorum analyze feedback-partition` (backed by `internal/core/feedback.go`) splits findings into two buckets:
+
+| Category | Meaning | Who applies it |
+| :--- | :--- | :--- |
+| `mechanical` | Formal correction that does not change intent: typos, missing quotes, malformed field names, broken file references. | May be applied automatically. |
+| `semantic` | Anything touching scope, intent, risk, missing coverage, or contract authority. | The human stays the authority. |
+
+The partition is **fail-safe toward the human**: only an explicit `category: "mechanical"` is treated as machine-applicable. Unknown, empty, or malformed categories default to `semantic`. The machine never silently reinterprets meaning.
+
+### Lifecycle
+
+1. `q-analyze` surfaces anomalies in the planning artifacts and, only if findings exist, persists `feedback.json` (via `quorum task artifact-save`).
+2. A planning skill picks it up on its next dispatch — `q-brief`'s *Feedback Intake* phase (and `q-blueprint`) reads it and calls `quorum analyze feedback-partition` to separate `mechanical` from `semantic`.
+3. Mechanical corrections are applied to the offending planning artifact; semantic ones are escalated to the human.
+4. `quorum task feedback-consume <ID>` removes `feedback.json` once its findings are resolved, leaving no stale feedback behind.
+
+No new lifecycle slot, no new gate, no new verdict — a transient backward channel that keeps anomalies out of the merged feature.
+
+---
+
 ## 🔀 Concurrency & Merge-Gate Governance
 
 Quorum already contains the **foundations** for concurrent work on multiple tasks. New proposals in this area must build on those primitives, not restate them as missing features.
@@ -499,12 +560,14 @@ project/
 │   │   ├── validation.schema.json
 │   │   ├── review.schema.json
 │   │   ├── trace.schema.json
-│   │   └── memory.schema.json
-│   ├── prompts/         # Role-specific system instructions
+│   │   ├── memory.schema.json
+│   │   └── feedback.schema.json
+│   ├── prompts/         # Role-specific system instructions (architect/executor/reviewer)
 │   ├── policies/        # Risk, routing, and decomposition logic
 │   │   ├── risk.yaml
 │   │   ├── routing.yaml
 │   │   └── decomposition.yaml
+│   ├── retrievers/      # Reference Python retrievers (ast_neighbors, import_graph)
 │   ├── config.yaml      # Model assignments, cost ceilings, retry policies
 │   ├── templates/
 │   │   ├── 00-spec.yaml # includes optional parent_task/decomposition/depends_on examples
