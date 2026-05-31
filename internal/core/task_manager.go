@@ -1137,11 +1137,22 @@ func getResourceSrc() string {
 	return fallback
 }
 
+type InitOptions struct {
+	ProjectID      string
+	ProjectName    string
+	NonInteractive bool
+}
+
 func InitializeProject() {
+	if err := InitializeProjectWithOptions(InitOptions{}); err != nil {
+		fmt.Printf("[!] %v\n", err)
+	}
+}
+
+func InitializeProjectWithOptions(opts InitOptions) error {
 	projectRoot, err := ProjectRoot()
 	if err != nil {
-		fmt.Printf("[!] Could not determine project root.\n")
-		return
+		return fmt.Errorf("could not determine project root")
 	}
 	resourceSrc := getResourceSrc()
 
@@ -1152,18 +1163,19 @@ func InitializeProject() {
 		".ai/tasks/active",
 		".ai/tasks/done",
 		".ai/tasks/failed",
-		"memory/decisions",
-		"memory/patterns",
-		"memory/lessons",
 		"worktrees",
 	}
 	for _, d := range dirs {
 		p := filepath.Join(projectRoot, filepath.FromSlash(d))
 		if _, err := os.Stat(p); os.IsNotExist(err) {
 			fmt.Printf("  [+] Creating %s/\n", d)
-			os.MkdirAll(p, 0755)
+			if err := os.MkdirAll(p, 0755); err != nil {
+				return err
+			}
 			if d != "worktrees" {
-				os.WriteFile(filepath.Join(p, ".gitkeep"), []byte(""), 0644)
+				if err := os.WriteFile(filepath.Join(p, ".gitkeep"), []byte(""), 0644); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -1209,15 +1221,40 @@ func InitializeProject() {
 	configTgt := filepath.Join(projectRoot, ".agents", "config.yaml")
 	if _, err := os.Stat(configSrc); err == nil {
 		fmt.Printf("  [*] Updating .agents/config.yaml...\n")
-		os.MkdirAll(filepath.Dir(configTgt), 0755)
+		if err := os.MkdirAll(filepath.Dir(configTgt), 0755); err != nil {
+			return err
+		}
 		if err := CopyFile(configSrc, configTgt); err != nil {
 			fmt.Printf("  [!] Warning: could not update .agents/config.yaml: %v\n", err)
 		}
 	}
 
+	config, err := ensureProjectConfig(projectRoot, opts)
+	if err != nil {
+		return err
+	}
+	dbPath, err := MemoryDBPath()
+	if err != nil {
+		return err
+	}
+	db, err := OpenMemoryDB(dbPath)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	if err := EnsureMemoryProject(db, config, projectRoot, GitRemote(projectRoot)); err != nil {
+		return err
+	}
+	migration, err := RunInitMemoryMigration(db, projectRoot, config)
+	if err != nil {
+		return err
+	}
+	if migration.FilesSeen > 0 {
+		fmt.Printf("  [*] Migrated %d legacy memory files; deleted %d verified files.\n", migration.FilesInserted, migration.FilesDeleted)
+	}
+
 	if err := ensureClaudeSkillsSymlink(projectRoot, filepath.Join(projectRoot, ".agents")); err != nil {
-		fmt.Printf("[!] %v\n", err)
-		os.Exit(1)
+		return err
 	}
 
 	gitignorePath := filepath.Join(projectRoot, ".gitignore")
@@ -1244,21 +1281,65 @@ func InitializeProject() {
 		}
 		if len(newEntries) > 0 {
 			fmt.Printf("[*] Updating .gitignore...\n")
-			f, _ := os.OpenFile(gitignorePath, os.O_APPEND|os.O_WRONLY, 0644)
-			for _, e := range newEntries {
-				f.WriteString(e + "\n")
+			f, err := os.OpenFile(gitignorePath, os.O_APPEND|os.O_WRONLY, 0644)
+			if err != nil {
+				return err
 			}
-			f.Close()
+			for _, e := range newEntries {
+				_, _ = f.WriteString(e + "\n")
+			}
+			_ = f.Close()
 		}
 	} else {
 		fmt.Printf("[*] Creating .gitignore...\n")
-		f, _ := os.Create(gitignorePath)
-		for _, e := range ignoreEntries {
-			f.WriteString(e + "\n")
+		f, err := os.Create(gitignorePath)
+		if err != nil {
+			return err
 		}
-		f.Close()
+		for _, e := range ignoreEntries {
+			_, _ = f.WriteString(e + "\n")
+		}
+		_ = f.Close()
 	}
 	fmt.Printf("[+] Quorum initialized successfully.\n")
+	return nil
+}
+
+func ensureProjectConfig(projectRoot string, opts InitOptions) (*QuorumConfig, error) {
+	config, err := ReadQuorumConfigFrom(projectRoot)
+	if err == nil {
+		if opts.ProjectID != "" || opts.ProjectName != "" {
+			if opts.ProjectID != "" && opts.ProjectID != config.ProjectID {
+				return nil, fmt.Errorf("existing .quorumrc project_id %q does not match --project-id %q", config.ProjectID, opts.ProjectID)
+			}
+			if opts.ProjectName != "" && opts.ProjectName != config.ProjectName {
+				config.ProjectName = opts.ProjectName
+				if err := WriteQuorumConfigTo(config, projectRoot); err != nil {
+					return nil, err
+				}
+			}
+		}
+		return config, nil
+	}
+	if !os.IsNotExist(err) {
+		return nil, err
+	}
+	if (opts.ProjectID == "") != (opts.ProjectName == "") {
+		return nil, fmt.Errorf("both --project-id and --project-name are required when .quorumrc is absent")
+	}
+	if opts.ProjectID == "" && opts.ProjectName == "" {
+		if opts.NonInteractive {
+			return nil, fmt.Errorf(".quorumrc is missing; provide --project-id and --project-name for non-interactive init")
+		}
+		suggested := SuggestProjectIdentity(projectRoot)
+		return nil, fmt.Errorf(".quorumrc is missing; suggested --project-id %q --project-name %q", suggested.ProjectID, suggested.ProjectName)
+	}
+	config = &QuorumConfig{ProjectID: opts.ProjectID, ProjectName: opts.ProjectName}
+	if err := WriteQuorumConfigTo(config, projectRoot); err != nil {
+		return nil, err
+	}
+	fmt.Printf("  [+] Created .quorumrc for project %s.\n", config.ProjectID)
+	return config, nil
 }
 
 func ensureRetryWorktree(taskID string) bool {
