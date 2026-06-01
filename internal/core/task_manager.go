@@ -1132,6 +1132,12 @@ func getResourceSrc() string {
 			return filepath.Clean(candidate)
 		}
 	}
+	// Hermetic fallback: the canonical bundle compiled into the binary. This is
+	// preferred over the project's OWN .agents so re-running `quorum init`
+	// resyncs from canonical instead of copying a stale tree onto itself.
+	if dir, ok := EmbeddedAgentsDir(); ok {
+		return dir
+	}
 	if fallback != "" && usableResourceSrc(fallback) {
 		return fallback
 	}

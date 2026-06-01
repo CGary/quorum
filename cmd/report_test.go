@@ -167,3 +167,139 @@ func TestReportSaveSchemaInvalidRejected(t *testing.T) {
 		t.Errorf("expected no file written on schema rejection")
 	}
 }
+
+func TestReportSaveWithFileArgument(t *testing.T) {
+	bin, dir := setupReportTestEnv(t)
+	dbPath := filepath.Join(t.TempDir(), "memory.db")
+
+	// Write payload to a temporary file
+	payloadPath := filepath.Join(dir, "temp_test_report.yaml")
+	payloadContent := validReportPayload("audit-03")
+	if err := os.WriteFile(payloadPath, []byte(payloadContent), 0644); err != nil {
+		t.Fatalf("failed to write temp report: %v", err)
+	}
+
+	// Save using --file (the convention shared with `memory save`), passing NO stdin.
+	out, err := runMemoryCmdErr(t, dir, bin, dbPath, "", "report", "save", "audit-03", "--file", payloadPath)
+	if err != nil {
+		t.Fatalf("quorum report save --file failed: %v\nOutput: %s", err, out)
+	}
+
+	reportPath := filepath.Join(dir, ".ai", "reports", "audit-03.yaml")
+	if _, err := os.Stat(reportPath); os.IsNotExist(err) {
+		t.Fatalf("expected report saved at %s, but it was not", reportPath)
+	}
+}
+
+func TestReportNewOutputScaffold(t *testing.T) {
+	bin, dir := setupReportTestEnv(t)
+	dbPath := filepath.Join(t.TempDir(), "memory.db")
+
+	// Scaffold a draft into .tmp/ (staging), not .ai/reports/.
+	out, err := runMemoryCmdErr(t, dir, bin, dbPath, "", "report", "new", "draft-99", "--output", ".tmp/draft-99.yaml")
+	if err != nil {
+		t.Fatalf("report new --output failed: %v\n%s", err, out)
+	}
+
+	scaffoldPath := filepath.Join(dir, ".tmp", "draft-99.yaml")
+	data, err := os.ReadFile(scaffoldPath)
+	if err != nil {
+		t.Fatalf("expected scaffold at %s: %v", scaffoldPath, err)
+	}
+	if !strings.Contains(string(data), `id: "draft-99"`) {
+		t.Errorf("scaffold must stamp the id; got:\n%s", data)
+	}
+	if strings.Contains(string(data), "template-id") {
+		t.Errorf("scaffold must replace the template placeholder id")
+	}
+
+	// --output must NOT touch the final reports directory.
+	if _, statErr := os.Stat(filepath.Join(dir, ".ai", "reports", "draft-99.yaml")); !os.IsNotExist(statErr) {
+		t.Errorf("--output must not write into .ai/reports/")
+	}
+
+	// The scaffold is valid and saveable as-is.
+	if out, err := runMemoryCmdErr(t, dir, bin, dbPath, "", "report", "save", "draft-99", "--file", ".tmp/draft-99.yaml"); err != nil {
+		t.Fatalf("saving the scaffold should succeed: %v\n%s", err, out)
+	}
+}
+
+func TestReportNewUsesEmbeddedTemplateFallback(t *testing.T) {
+	bin, dir := setupReportTestEnv(t)
+	dbPath := filepath.Join(t.TempDir(), "memory.db")
+
+	// Remove the on-disk template so only the binary-embedded bundle can serve
+	// it — this mirrors a consumer project where `quorum init` never placed
+	// .agents/templates/report.yaml where `report new` looks.
+	if err := os.Remove(filepath.Join(dir, ".agents", "templates", "report.yaml")); err != nil {
+		t.Fatalf("remove on-disk template: %v", err)
+	}
+
+	out, err := runMemoryCmdErr(t, dir, bin, dbPath, "", "report", "new", "emb-01", "--output", ".tmp/emb-01.yaml")
+	if err != nil {
+		t.Fatalf("report new should fall back to the embedded template, got: %v\n%s", err, out)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, ".tmp", "emb-01.yaml"))
+	if err != nil {
+		t.Fatalf("expected scaffold from embedded template: %v", err)
+	}
+	if !strings.Contains(string(data), `id: "emb-01"`) {
+		t.Errorf("embedded scaffold must stamp the id; got:\n%s", data)
+	}
+}
+
+func TestReportSaveDryRun(t *testing.T) {
+	bin, dir := setupReportTestEnv(t)
+	dbPath := filepath.Join(t.TempDir(), "memory.db")
+
+	// Valid payload + --dry-run: passes preflight, persists nothing.
+	out, err := runMemoryCmdErr(t, dir, bin, dbPath, validReportPayload("dry-01"), "report", "save", "dry-01", "--dry-run")
+	if err != nil {
+		t.Fatalf("dry-run on a valid report should pass: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "dry-run") {
+		t.Errorf("expected a dry-run confirmation, got: %s", out)
+	}
+	if _, statErr := os.Stat(filepath.Join(dir, ".ai", "reports", "dry-01.yaml")); !os.IsNotExist(statErr) {
+		t.Errorf("dry-run must not write the report file")
+	}
+
+	// Identity mismatch is caught by the dry-run preflight too.
+	if out, err := runMemoryCmdErr(t, dir, bin, dbPath, validReportPayload("other"), "report", "save", "dry-01", "--dry-run"); err == nil {
+		t.Fatalf("dry-run must fail on meta.id mismatch, got: %s", out)
+	}
+}
+
+func TestValidateSchemaOverride(t *testing.T) {
+	bin, dir := setupReportTestEnv(t)
+	dbPath := filepath.Join(t.TempDir(), "memory.db")
+
+	// A temp-located report with no "reports/" path segment: path-based
+	// detection cannot classify it.
+	draftDir := filepath.Join(dir, ".tmp")
+	if err := os.MkdirAll(draftDir, 0755); err != nil {
+		t.Fatalf("mkdir .tmp: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(draftDir, "draft.yaml"), []byte(validReportPayload("draft-01")), 0644); err != nil {
+		t.Fatalf("write draft: %v", err)
+	}
+
+	// --schema report makes it validate despite the temp location.
+	if out, err := runMemoryCmdErr(t, dir, bin, dbPath, "", "validate", "--schema", "report", ".tmp/draft.yaml"); err != nil {
+		t.Fatalf("validate --schema report should pass, got: %v\n%s", err, out)
+	}
+
+	// Without the override, path-based detection rejects it as unsupported.
+	if out, err := runMemoryCmdErr(t, dir, bin, dbPath, "", "validate", ".tmp/draft.yaml"); err == nil {
+		t.Fatalf("validate without --schema should fail on an unclassifiable path, got: %s", out)
+	}
+
+	// An unknown schema name is rejected by the whitelist.
+	out, err := runMemoryCmdErr(t, dir, bin, dbPath, "", "validate", "--schema", "bogus", ".tmp/draft.yaml")
+	if err == nil {
+		t.Fatalf("validate --schema bogus should fail, got: %s", out)
+	}
+	if !strings.Contains(out, "unknown schema") {
+		t.Errorf("expected 'unknown schema' error, got: %s", out)
+	}
+}

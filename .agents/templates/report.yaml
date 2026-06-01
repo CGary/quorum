@@ -1,39 +1,68 @@
+# Quorum report template — this is a PALETTE MENU, not a form.
+# Only `meta` is required. Uncomment ONLY the components that fit your report
+# and delete the rest. Never add a component that is not in report.schema.json:
+# the closed catalog rejects unknown components at save time.
+#
+# Field values follow the language of the user's prompt (see q-report SKILL.md).
+
 meta:
   id: "template-id"
   schemaVersion: "1.0"
   date: "2026-06-01T00:00:00Z"
+
+# verdict (string): front-loaded one-sentence bottom line, read first.
 verdict: "One-sentence bottom line, front-loaded so it is read first."
-summary: "Short context paragraph: what the reader should do or understand."
-decisionSurface:
-  recommendation: "The action to take."
-  confidence: "medium"
-  mainRisk: "The single biggest risk."
-  bestNextAction: "The first concrete step."
-  whenNotToFollow: "The condition that invalidates this verdict."
-keyFindings:
-  - finding: "Front-loaded finding statement."
-    whyItMatters: "Impact in engineering terms."
-    action: "What to do about it."
-findings:
-  - id: "FINDING-01"
-    description: "Description of the finding."
-    severity: "info"
-evidence:
-  - findingId: "FINDING-01"
-    path: "path/to/file"
-    details: "Details of the evidence."
-tradeoffs:
-  - option: "Option A"
-    upside: "What it gains."
-    downside: "What it costs."
-    useWhen: "When this option fits."
-    avoidWhen: "When this option does not fit."
-risks:
-  - id: "RISK-01"
-    description: "Description of the risk."
-    impact: "low"
-actionPlan:
-  - step: 1
-    action: "First action step."
-    owner: "unassigned"
-appendix: "Raw detail, logs, or exhaustive references kept off the main reading path."
+
+# --- Optional components (uncomment what you need) -------------------------
+
+# summary (string): short context — what the reader should do or understand.
+# summary: "Short context: what the reader should do or understand."
+
+# decisionSurface (object, free-form keys -> string): triage fields.
+# decisionSurface:
+#   recommendation: "The action to take."
+#   confidence: "medium"
+#   mainRisk: "The single biggest risk."
+#   bestNextAction: "The first concrete step."
+#   whenNotToFollow: "The condition that invalidates this verdict."
+
+# keyFindings (list): scannable findings with impact and action.
+# keyFindings:
+#   - finding: "Front-loaded finding statement."
+#     whyItMatters: "Impact in engineering terms."
+#     action: "What to do about it."
+
+# findings (list): audit findings; severity in critical/high/medium/low/info (pill).
+# findings:
+#   - id: "FINDING-01"
+#     description: "Description of the finding."
+#     severity: "info"
+
+# evidence (list): ties a finding to its location and detail.
+# evidence:
+#   - findingId: "FINDING-01"
+#     path: "path/to/file"
+#     details: "Details of the evidence."
+
+# tradeoffs (list): option comparison.
+# tradeoffs:
+#   - option: "Option A"
+#     upside: "What it gains."
+#     downside: "What it costs."
+#     useWhen: "When this option fits."
+#     avoidWhen: "When this option does not fit."
+
+# risks (list): risks with impact (pill).
+# risks:
+#   - id: "RISK-01"
+#     description: "Description of the risk."
+#     impact: "low"
+
+# actionPlan (list): executable next steps.
+# actionPlan:
+#   - step: 1
+#     action: "First action step."
+#     owner: "unassigned"
+
+# appendix (string): exhaustive detail / raw logs kept off the main path.
+# appendix: "Raw detail, logs, or exhaustive references kept off the main reading path."

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -183,7 +184,6 @@ func TestSkillProtocolArtifactProducingSkillsRequireEnglish(t *testing.T) {
 		"q-verify":    {"05-validation.json"},
 		"q-review":    {"06-review.json"},
 		"q-memory":    {"memory.schema.json", "quorum memory save"},
-		"q-report":    {".ai/reports/"},
 	}
 	for name, artifacts := range producers {
 		content := strings.ToLower(readProtocolSkill(t, name))
@@ -198,6 +198,60 @@ func TestSkillProtocolArtifactProducingSkillsRequireEnglish(t *testing.T) {
 				t.Errorf("%s: English rule must reference %s", name, art)
 			}
 		}
+	}
+}
+
+// TestReportCatalogDocsInSyncWithSchema closes the drift risk created by making
+// the q-report SKILL.md "Component catalog" the authoritative in-skill contract:
+// every component in report.schema.json (except `meta`) MUST be documented both
+// in the skill catalog (as `name`) and in the seed template menu, so the docs an
+// agent reads can never silently fall behind the schema.
+func TestReportCatalogDocsInSyncWithSchema(t *testing.T) {
+	root := sourceRoot(t)
+
+	schemaRaw, err := os.ReadFile(filepath.Join(root, ".agents", "schemas", "report.schema.json"))
+	if err != nil {
+		t.Fatalf("read report schema: %v", err)
+	}
+	var schema struct {
+		Properties map[string]json.RawMessage `json:"properties"`
+	}
+	if err := json.Unmarshal(schemaRaw, &schema); err != nil {
+		t.Fatalf("parse report schema: %v", err)
+	}
+
+	skill := readProtocolSkill(t, "q-report")
+	tmpl, err := os.ReadFile(filepath.Join(root, ".agents", "templates", "report.yaml"))
+	if err != nil {
+		t.Fatalf("read report template: %v", err)
+	}
+	tmplStr := string(tmpl)
+
+	for name := range schema.Properties {
+		if name == "meta" {
+			continue
+		}
+		if !strings.Contains(skill, "`"+name+"`") {
+			t.Errorf("q-report SKILL.md catalog is missing component %q (schema/doc drift)", name)
+		}
+		if !strings.Contains(tmplStr, name) {
+			t.Errorf("seed template menu is missing component %q (schema/template drift)", name)
+		}
+	}
+}
+
+// TestSkillProtocolReportFollowsUserLanguage guards the q-report exception to
+// the English mandate: reports are human-facing deliverables rendered in the
+// viewer, so their field values follow the user's prompt language (unless the
+// user requests a specific one), instead of the machine-interop English rule
+// that binds lifecycle artifacts (00-07) and SQLite memory.
+func TestSkillProtocolReportFollowsUserLanguage(t *testing.T) {
+	content := readProtocolSkill(t, "q-report")
+	if !strings.Contains(content, "match the language of the user's prompt") {
+		t.Error("q-report: field-value language rule must follow the user's prompt language")
+	}
+	if !strings.Contains(content, ".ai/reports/") {
+		t.Error("q-report: language rule must scope to .ai/reports/ field values")
 	}
 }
 

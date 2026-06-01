@@ -22,12 +22,12 @@ A Quorum report is NOT an essay and NOT a fixed audit form. It is an **informati
 1. **Single-pass generation**: Do not write report fragments iteratively; author the whole report in one pass.
 2. **The body is a palette, not a form**: `report.schema.json` defines a CLOSED catalog of optional components. Only `meta` is mandatory. SELECT the components that fit the material and omit the rest. NEVER invent a component outside the catalog — `additionalProperties:false` will reject it and nothing will be written.
 3. **Strict schema is the write barrier**: The report is persisted only through `quorum report save <id>`, which validates against `report.schema.json` before writing. Validation is the barrier, not an afterthought.
-4. **Read the source of truth first**: Before authoring, read `.agents/schemas/report.schema.json` (or the seed `.agents/templates/report.yaml`) so the single-pass output matches the contract exactly. Authoring from memory invites drift.
+4. **The catalog is the in-skill contract**: The Component catalog in Phase 1 mirrors `report.schema.json` and is authoritative here — author from it. Do NOT re-read the raw schema on every run; consult it (or the seed `.agents/templates/report.yaml`) only to resolve a specific doubt. A drift test keeps the catalog and the schema in sync.
 
 ## 🛠 Workflow
 
-### Phase 0: Read the Contract
-Read `.agents/schemas/report.schema.json` or `.agents/templates/report.yaml` before writing anything. This is mandatory: it anchors the single-pass output to the canonical structure and prevents schema drift.
+### Phase 0: Know the contract
+The **Component catalog** in Phase 1 below is authoritative for this skill: it lists every valid component and its YAML shape. Author from it directly — do NOT re-read the raw `report.schema.json` (~200 lines) on every run; that only burns context. Read the raw schema (or the seed `.agents/templates/report.yaml`) ONLY to resolve a genuine doubt about a field. The closed catalog still wins: anything outside it is rejected at save.
 
 ### Phase 1: Decide the ID and select components (proceed by default)
 - **Derive the `<id>`** from the user's request as a concise kebab-case slug that matches the canonical ID regex (`^[A-Za-z0-9][A-Za-z0-9_-]*$`). The `<id>` is both the filename and `meta.id` — they MUST be identical. **Proceed without asking.** Ask the user ONLY if the topic is irrecoverably vague or the derived `<id>` collides with an existing `.ai/reports/<id>.yaml`.
@@ -54,20 +54,33 @@ Read `.agents/schemas/report.schema.json` or `.agents/templates/report.yaml` bef
 - **Preserve 100%**: never delete detail to shorten — move it into `appendix`.
 - **Concise field values**: every field value is plain text rendered by the viewer (no Markdown emphasis); keep values short and scannable.
 
-### Phase 2: Single-Pass Population
-Author the report into a temporary file under `.tmp/` (never write directly into `.ai/reports/`). Set `meta.id` to the derived `<id>` exactly, `meta.schemaVersion` to `"1.0"`, and `meta.date` to the current UTC timestamp in RFC3339 / `date-time` format (e.g. `2026-06-01T12:00:00Z`).
+### Phase 2: Produce the draft in `.tmp/` (two equally valid paths)
+The goal is a `.tmp/<id>.yaml` draft. Pick whichever path is cheaper:
 
-### Phase 3: Validated Persistence
-Persist by piping the temp file into the validated write path. The CLI validates the ID regex, the `meta.id` ↔ filename identity, and the full schema before anything touches disk:
+- **Direct write (fewest tool calls)** — if you already know the catalog above, write the final YAML straight into `.tmp/<id>.yaml` with your file tool. Set `meta.id` = `<id>`, `meta.schemaVersion` = `"1.0"`, `meta.date` = current UTC RFC3339 (e.g. `2026-06-01T12:00:00Z`).
+- **Scaffold (when you want a guided skeleton)** — let the CLI stamp `meta` and emit the commented component menu, then fill only what fits:
 
 ```bash
-cat .tmp/temp_report.yaml | quorum report save <id>
+quorum report new <id> --output .tmp/<id>.yaml   # valid skeleton into .tmp/ (NOT .ai/reports/)
 ```
 
-A non-zero exit means nothing was written; fix the payload and re-run. Do NOT hand-write files into `.ai/reports/`.
+Either way: select ONLY the components that fit the material (palette — omit the rest) and never hand-build `.ai/reports/`. The dry-run in Phase 3 is your safety net, so direct authoring is safe.
+
+### Phase 3: Preflight then persist
+Dry-run first (full write-path check without touching disk), then save:
+
+```bash
+# 2) Preflight: validates id regex + meta.id↔filename identity + schema. Writes nothing.
+quorum report save <id> --file .tmp/<id>.yaml --dry-run
+
+# 3) On OK, persist (same command without --dry-run).
+quorum report save <id> --file .tmp/<id>.yaml
+```
+
+`--file` reads the draft from disk (the convention shared with `quorum memory save`); piping via stdin (`cat .tmp/<id>.yaml | quorum report save <id>`) also works. A non-zero exit means nothing was written; fix the payload and re-run. Do NOT hand-write files into `.ai/reports/`.
 
 ## 🚫 Rules
-- **Language**: The generated `.ai/reports/<id>.yaml` field values MUST be written in concise English, even if the user chat was in Spanish.
+- **Language**: The generated `.ai/reports/<id>.yaml` field values MUST match the language of the user's prompt, UNLESS the user explicitly requests a specific language. Reports are human-facing deliverables rendered in the viewer; unlike lifecycle artifacts (`00`–`07`) and SQLite memory — which stay in concise English for machine interoperability — report content follows the reader's language. Keep values concise and front-loaded in whatever language applies.
 - **Closed catalog**: Use ONLY the components defined in `report.schema.json`. Never invent a new top-level component; if the material needs something the catalog lacks, that is a schema-evolution decision (a `meta.schemaVersion` bump), not an authoring shortcut.
 - Persist reports ONLY through `quorum report save <id>`; never write directly into `.ai/reports/`.
 - Do not implement new Go core logic beyond the protocol test extension.

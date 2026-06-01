@@ -37,6 +37,7 @@ worktrees/
 !.ai/tasks/done/.gitkeep
 !.ai/tasks/failed/.gitkeep
 !.ai/tasks/inbox/.gitkeep
+quorum
 
 # IDEs
 .vscode/

@@ -1,10 +1,42 @@
 package core_test
 
 import (
+	"os"
 	"path/filepath"
 	"quorum/internal/core"
+	"strings"
 	"testing"
+	"testing/fstest"
 )
+
+// TestEmbeddedAgentsExtractionAndRead exercises the hermetic fallback helpers
+// with a synthetic bundle (the real embed is injected by package main, not
+// available to this unit test).
+func TestEmbeddedAgentsExtractionAndRead(t *testing.T) {
+	mapfs := fstest.MapFS{
+		"templates/report.yaml":      {Data: []byte("meta:\n  id: x\n")},
+		"schemas/report.schema.json": {Data: []byte("{}")},
+		"skills/q-report/SKILL.md":   {Data: []byte("# skill")},
+	}
+	core.SetEmbeddedAgents(mapfs)
+	t.Cleanup(func() { core.SetEmbeddedAgents(nil) })
+
+	if b, ok := core.EmbeddedAgentFile("templates/report.yaml"); !ok || !strings.Contains(string(b), "id: x") {
+		t.Fatalf("EmbeddedAgentFile failed: ok=%v b=%q", ok, b)
+	}
+	if _, ok := core.EmbeddedAgentFile("does-not-exist.yaml"); ok {
+		t.Error("EmbeddedAgentFile must report missing files as not-found")
+	}
+
+	dir, ok := core.EmbeddedAgentsDir()
+	if !ok {
+		t.Fatal("EmbeddedAgentsDir should extract the synthetic bundle")
+	}
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	if b, err := os.ReadFile(filepath.Join(dir, "schemas", "report.schema.json")); err != nil || string(b) != "{}" {
+		t.Fatalf("extracted file mismatch: err=%v b=%q", err, b)
+	}
+}
 
 func TestReportSchemaValidation(t *testing.T) {
 	// Let's create a minimal valid report

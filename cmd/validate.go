@@ -6,13 +6,33 @@ import (
 	"os"
 	"path/filepath"
 	"quorum/internal/core"
+	"sort"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
 
+// validateSchemaAliases is the closed whitelist for `validate --schema <name>`.
+// It lets a temp-located artifact (e.g. .tmp/draft.yaml) be validated without
+// forcing a rigid directory layout, while preventing arbitrary schema injection:
+// only known artifact schemas can be selected.
+var validateSchemaAliases = map[string]string{
+	"spec":               "spec.schema.json",
+	"blueprint":          "blueprint.schema.json",
+	"contract":           "contract.schema.json",
+	"implementation-log": "implementation-log.schema.json",
+	"validation":         "validation.schema.json",
+	"review":             "review.schema.json",
+	"trace":              "trace.schema.json",
+	"memory":             "memory.schema.json",
+	"feedback":           "feedback.schema.json",
+	"report":             "report.schema.json",
+}
+
 func newValidateCmd() *cobra.Command {
-	return &cobra.Command{
+	var schemaOverride string
+	cmd := &cobra.Command{
 		Use:   "validate <artifact-path>",
 		Short: "Validate an artifact against its schema",
 		Args:  cobra.ExactArgs(1),
@@ -40,7 +60,7 @@ func newValidateCmd() *cobra.Command {
 
 			payload = sanitizeYAML(payload)
 
-			if err := core.ValidateArtifact(path, payload); err != nil {
+			fail := func(err error) {
 				if ve, ok := err.(core.ArtifactValidationError); ok {
 					fmt.Fprintln(os.Stderr, ve.Message)
 				} else {
@@ -48,8 +68,34 @@ func newValidateCmd() *cobra.Command {
 				}
 				os.Exit(1)
 			}
+
+			// --schema overrides path-based detection so temp files validate
+			// without a rigid directory layout. The alias whitelist keeps the
+			// override from selecting an arbitrary schema.
+			if schemaOverride != "" {
+				schemaName, ok := validateSchemaAliases[schemaOverride]
+				if !ok {
+					names := make([]string, 0, len(validateSchemaAliases))
+					for k := range validateSchemaAliases {
+						names = append(names, k)
+					}
+					sort.Strings(names)
+					fmt.Fprintf(os.Stderr, "error: unknown schema %q; valid values: %s\n", schemaOverride, strings.Join(names, ", "))
+					os.Exit(1)
+				}
+				if err := core.ValidateAgainstSchema(schemaName, path, payload); err != nil {
+					fail(err)
+				}
+				return
+			}
+
+			if err := core.ValidateArtifact(path, payload); err != nil {
+				fail(err)
+			}
 		},
 	}
+	cmd.Flags().StringVar(&schemaOverride, "schema", "", "Validate against this schema by name (e.g. report) instead of path-based detection")
+	return cmd
 }
 
 func sanitizeYAML(v any) any {
