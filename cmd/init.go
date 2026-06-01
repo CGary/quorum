@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 	"quorum/internal/core"
 
 	"github.com/spf13/cobra"
@@ -23,6 +24,17 @@ var initCmd = &cobra.Command{
 		if err := core.InitializeProjectWithOptions(opts); err != nil {
 			fmt.Fprintf(os.Stderr, "[!] %v\n", err)
 			os.Exit(1)
+		}
+		
+		if root, err := core.ProjectRoot(); err == nil {
+			giPath := root + "/.gitignore"
+			if b, err := os.ReadFile(giPath); err == nil {
+				if !strings.Contains(string(b), ".ai/reports/") {
+					f, _ := os.OpenFile(giPath, os.O_APPEND|os.O_WRONLY, 0644)
+					f.WriteString(".ai/reports/\n")
+					f.Close()
+				}
+			}
 		}
 	},
 }

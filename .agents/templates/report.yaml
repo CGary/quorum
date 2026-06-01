@@ -1,0 +1,21 @@
+meta:
+  id: "template-id"
+  schemaVersion: "1.0"
+  date: "2026-06-01T00:00:00Z"
+summary: "This is a new report generated from the template."
+findings:
+  - id: "FINDING-01"
+    description: "Description of the finding."
+    severity: "info"
+evidence:
+  - findingId: "FINDING-01"
+    path: "path/to/file"
+    details: "Details of the evidence."
+risks:
+  - id: "RISK-01"
+    description: "Description of the risk."
+    impact: "low"
+actionPlan:
+  - step: 1
+    action: "First action step."
+    owner: "unassigned"

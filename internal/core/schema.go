@@ -26,12 +26,8 @@ var artifactSchemaMap = map[string]string{
 	"07-trace.json": "trace.schema.json", "feedback.json": "feedback.schema.json",
 }
 
-func ValidateArtifact(path string, payload any) error {
-	name, ok := artifactSchemaName(path)
-	if !ok {
-		return ArtifactValidationError{fmt.Sprintf("artifact=%s; field=$; reason=unsupported artifact path", path)}
-	}
-	schema, err := compileSchema(name)
+func ValidateAgainstSchema(schemaName string, path string, payload any) error {
+	schema, err := compileSchema(schemaName)
 	if err != nil {
 		return err
 	}
@@ -44,6 +40,14 @@ func ValidateArtifact(path string, payload any) error {
 		return ArtifactValidationError{fmt.Sprintf("artifact=%s; field=%s; reason=%s", path, jsonPointer(chosen.InstanceLocation), pythonReason(chosen, payload))}
 	}
 	return nil
+}
+
+func ValidateArtifact(path string, payload any) error {
+	name, ok := artifactSchemaName(path)
+	if !ok {
+		return ArtifactValidationError{fmt.Sprintf("artifact=%s; field=$; reason=unsupported artifact path", path)}
+	}
+	return ValidateAgainstSchema(name, path, payload)
 }
 
 func artifactSchemaName(path string) (string, bool) {
