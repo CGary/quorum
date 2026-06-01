@@ -48,6 +48,27 @@ func loadReportTemplate(projectRoot string) ([]byte, error) {
 	return nil, fmt.Errorf("report template not found on disk (%s) or embedded in the binary", onDisk)
 }
 
+// fillReportMetadata stamps machine-set meta fields (schemaVersion, date) when
+// the author omitted them, so a hand-written draft need only carry meta.id.
+// Explicit values are preserved. Runs before validation.
+func fillReportMetadata(payload any) {
+	root, ok := payload.(map[string]any)
+	if !ok {
+		return
+	}
+	meta, ok := root["meta"].(map[string]any)
+	if !ok {
+		meta = map[string]any{}
+		root["meta"] = meta
+	}
+	if s, _ := meta["schemaVersion"].(string); strings.TrimSpace(s) == "" {
+		meta["schemaVersion"] = "1.0"
+	}
+	if d, _ := meta["date"].(string); strings.TrimSpace(d) == "" {
+		meta["date"] = time.Now().UTC().Format(time.RFC3339)
+	}
+}
+
 // readReportSaveInput reads the report payload from --file or stdin, mirroring
 // readMemorySaveInput so the CLI exposes ONE convention for "input by file"
 // across `memory save` and `report save`. Supplying both stdin and --file is
@@ -243,6 +264,10 @@ var reportSaveCmd = &cobra.Command{
 			fmt.Fprintf(os.Stderr, "error: payload parse failed: %v\n", err)
 			os.Exit(1)
 		}
+
+		// Auto-fill machine-set metadata (schemaVersion, date) before validation,
+		// so a directly-authored draft only needs meta.id.
+		fillReportMetadata(payload)
 
 		// Hard write-point invariant #2: meta.id must match the filename id.
 		if err := core.CheckReportIDMatches(payload, id); err != nil {

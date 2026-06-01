@@ -48,6 +48,48 @@ The **Component catalog** in Phase 1 below is authoritative for this skill: it l
 | `actionPlan` | list of `{step, action, owner}` | Executable next steps. |
 | `appendix` | string | Exhaustive detail / raw logs kept off the main path. Preserve content here instead of deleting it. |
 
+#### Full example (cheat sheet — copy, then DELETE the components you don't need)
+
+```yaml
+meta:
+  id: "my-report"                 # MUST equal the filename / save <id>
+  schemaVersion: "1.0"            # optional: save auto-fills if omitted
+  date: "2026-06-01T12:00:00Z"    # optional: save auto-fills (UTC RFC3339)
+verdict: "One-sentence bottom line, read first."
+summary: "Short context: what the reader should do or understand."
+decisionSurface:                  # object, free-form keys -> string
+  recommendation: "The action to take."
+  confidence: "medium"
+  mainRisk: "The single biggest risk."
+keyFindings:                      # list
+  - finding: "Front-loaded finding statement."
+    whyItMatters: "Impact in engineering terms."   # optional
+    action: "What to do about it."                 # optional
+findings:                         # list; severity renders as a pill
+  - id: "F1"
+    description: "Description of the finding."
+    severity: "high"              # one of: critical|high|medium|low|info
+evidence:                         # list
+  - findingId: "F1"
+    path: "internal/core/schema.go"
+    details: "Supporting detail."
+tradeoffs:                        # list
+  - option: "Option A"
+    upside: "What it gains."      # optional
+    downside: "What it costs."    # optional
+    useWhen: "When it fits."      # optional
+    avoidWhen: "When it doesn't." # optional
+risks:                            # list; impact renders as a pill
+  - id: "R1"
+    description: "Description of the risk."
+    impact: "medium"
+actionPlan:                       # list
+  - step: 1                       # integer
+    action: "First action step."
+    owner: "unassigned"
+appendix: "Raw detail, logs, or exhaustive references kept off the main path."
+```
+
 #### Cognitive-load heuristics (apply while selecting and phrasing)
 - **Front-load**: start `verdict`, headings, and table cells with the information-carrying term ("Risk: cache invalidation is manual", not "Analysis").
 - **Tables over prose for comparison** (`tradeoffs`, `findings`, `risks`); reserve prose (`summary`) for causal reasoning; use scalar lists only for short parallel items.
@@ -57,7 +99,7 @@ The **Component catalog** in Phase 1 below is authoritative for this skill: it l
 ### Phase 2: Produce the draft in `.tmp/` (two equally valid paths)
 The goal is a `.tmp/<id>.yaml` draft. Pick whichever path is cheaper:
 
-- **Direct write (fewest tool calls)** — if you already know the catalog above, write the final YAML straight into `.tmp/<id>.yaml` with your file tool. Set `meta.id` = `<id>`, `meta.schemaVersion` = `"1.0"`, `meta.date` = current UTC RFC3339 (e.g. `2026-06-01T12:00:00Z`).
+- **Direct write (fewest tool calls)** — if you already know the catalog above, write the final YAML straight into `.tmp/<id>.yaml` with your file tool (copy the cheat sheet below and trim). Set `meta.id` = `<id>` (required); `meta.schemaVersion` and `meta.date` are OPTIONAL — `save` auto-fills them if omitted.
 - **Scaffold (when you want a guided skeleton)** — let the CLI stamp `meta` and emit the commented component menu, then fill only what fits:
 
 ```bash
@@ -66,18 +108,22 @@ quorum report new <id> --output .tmp/<id>.yaml   # valid skeleton into .tmp/ (NO
 
 Either way: select ONLY the components that fit the material (palette — omit the rest) and never hand-build `.ai/reports/`. The dry-run in Phase 3 is your safety net, so direct authoring is safe.
 
-### Phase 3: Preflight then persist
-Dry-run first (full write-path check without touching disk), then save:
+### Phase 3: Persist (one step — `save` is safe by default)
+`save` validates BEFORE writing (id regex + `meta.id`↔filename identity + full schema). On any failure it aborts with a non-zero exit and writes nothing, so a single `save` is the whole happy path — there is no separate "preflight" step:
 
 ```bash
-# 2) Preflight: validates id regex + meta.id↔filename identity + schema. Writes nothing.
-quorum report save <id> --file .tmp/<id>.yaml --dry-run
-
-# 3) On OK, persist (same command without --dry-run).
 quorum report save <id> --file .tmp/<id>.yaml
 ```
 
-`--file` reads the draft from disk (the convention shared with `quorum memory save`); piping via stdin (`cat .tmp/<id>.yaml | quorum report save <id>`) also works. A non-zero exit means nothing was written; fix the payload and re-run. Do NOT hand-write files into `.ai/reports/`.
+No temp file at all? Pipe the draft via stdin in one call:
+
+```bash
+cat .tmp/<id>.yaml | quorum report save <id>
+```
+
+`save` auto-fills `meta.schemaVersion` and `meta.date` if you omitted them. A non-zero exit means nothing was written — fix the payload and re-run. Do NOT hand-write files into `.ai/reports/`.
+
+Optional: add `--dry-run` ONLY when you want to check validity WITHOUT creating the file (e.g. CI). It is not a required step.
 
 ## 🚫 Rules
 - **Language**: The generated `.ai/reports/<id>.yaml` field values MUST match the language of the user's prompt, UNLESS the user explicitly requests a specific language. Reports are human-facing deliverables rendered in the viewer; unlike lifecycle artifacts (`00`–`07`) and SQLite memory — which stay in concise English for machine interoperability — report content follows the reader's language. Keep values concise and front-loaded in whatever language applies.

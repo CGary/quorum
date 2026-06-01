@@ -270,6 +270,31 @@ func TestReportSaveDryRun(t *testing.T) {
 	}
 }
 
+func TestReportSaveFillsMetadata(t *testing.T) {
+	bin, dir := setupReportTestEnv(t)
+	dbPath := filepath.Join(t.TempDir(), "memory.db")
+
+	// Draft carries only meta.id (no schemaVersion, no date): save must fill them
+	// before validation so a hand-written draft does not fail on missing metadata.
+	payload := "meta:\n  id: \"fill-01\"\nverdict: \"Bottom line.\"\n"
+	out, err := runMemoryCmdErr(t, dir, bin, dbPath, payload, "report", "save", "fill-01")
+	if err != nil {
+		t.Fatalf("save should auto-fill missing meta and succeed: %v\n%s", err, out)
+	}
+
+	saved, err := os.ReadFile(filepath.Join(dir, ".ai", "reports", "fill-01.yaml"))
+	if err != nil {
+		t.Fatalf("expected saved report: %v", err)
+	}
+	s := string(saved)
+	if !strings.Contains(s, "schemaVersion") {
+		t.Errorf("save must inject meta.schemaVersion; got:\n%s", s)
+	}
+	if !strings.Contains(s, "date") {
+		t.Errorf("save must inject meta.date; got:\n%s", s)
+	}
+}
+
 func TestValidateSchemaOverride(t *testing.T) {
 	bin, dir := setupReportTestEnv(t)
 	dbPath := filepath.Join(t.TempDir(), "memory.db")
