@@ -183,6 +183,7 @@ func TestSkillProtocolArtifactProducingSkillsRequireEnglish(t *testing.T) {
 		"q-verify":    {"05-validation.json"},
 		"q-review":    {"06-review.json"},
 		"q-memory":    {"memory.schema.json", "quorum memory save"},
+		"q-report":    {"report.yaml"},
 	}
 	for name, artifacts := range producers {
 		content := strings.ToLower(readProtocolSkill(t, name))
