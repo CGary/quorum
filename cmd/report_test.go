@@ -155,8 +155,10 @@ func TestReportSaveSchemaInvalidRejected(t *testing.T) {
 	bin, dir := setupReportTestEnv(t)
 	dbPath := filepath.Join(t.TempDir(), "memory.db")
 
-	// Missing required top-level fields (only meta present) must be rejected by schema.
-	payload := "meta:\n  id: \"audit-02\"\n  schemaVersion: \"1.0\"\n  date: \"2026-06-01T00:00:00Z\"\n"
+	// The body is a palette (meta-only is valid), but the catalog is CLOSED:
+	// an invented top-level component must be rejected by schema validation
+	// (additionalProperties:false) at the write path.
+	payload := "meta:\n  id: \"audit-02\"\n  schemaVersion: \"1.0\"\n  date: \"2026-06-01T00:00:00Z\"\ndiagram: \"graph TD; A-->B\"\n"
 	out, err := runMemoryCmdErr(t, dir, bin, dbPath, payload, "report", "save", "audit-02")
 	if err == nil {
 		t.Fatalf("expected save to fail on schema-invalid payload, but it succeeded: %s", out)

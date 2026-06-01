@@ -2,7 +2,18 @@ meta:
   id: "template-id"
   schemaVersion: "1.0"
   date: "2026-06-01T00:00:00Z"
-summary: "This is a new report generated from the template."
+verdict: "One-sentence bottom line, front-loaded so it is read first."
+summary: "Short context paragraph: what the reader should do or understand."
+decisionSurface:
+  recommendation: "The action to take."
+  confidence: "medium"
+  mainRisk: "The single biggest risk."
+  bestNextAction: "The first concrete step."
+  whenNotToFollow: "The condition that invalidates this verdict."
+keyFindings:
+  - finding: "Front-loaded finding statement."
+    whyItMatters: "Impact in engineering terms."
+    action: "What to do about it."
 findings:
   - id: "FINDING-01"
     description: "Description of the finding."
@@ -11,6 +22,12 @@ evidence:
   - findingId: "FINDING-01"
     path: "path/to/file"
     details: "Details of the evidence."
+tradeoffs:
+  - option: "Option A"
+    upside: "What it gains."
+    downside: "What it costs."
+    useWhen: "When this option fits."
+    avoidWhen: "When this option does not fit."
 risks:
   - id: "RISK-01"
     description: "Description of the risk."
@@ -19,3 +36,4 @@ actionPlan:
   - step: 1
     action: "First action step."
     owner: "unassigned"
+appendix: "Raw detail, logs, or exhaustive references kept off the main reading path."

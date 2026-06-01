@@ -63,6 +63,54 @@ func TestReportSchemaValidation(t *testing.T) {
 	}
 }
 
+// TestReportPaletteComponentsAreOptional guards the core design shift: the
+// report body is a PALETTE, not a fixed form. Only `meta` is required, so a
+// report that selects a single component (here a usage guide using just
+// verdict + summary) must validate.
+func TestReportPaletteComponentsAreOptional(t *testing.T) {
+	payload := map[string]any{
+		"meta": map[string]any{
+			"id":            "usage-guide",
+			"schemaVersion": "1.0",
+			"date":          "2026-06-01T12:00:00Z",
+		},
+		"verdict": "Adopt the SDC lifecycle for all feature work.",
+		"summary": "Quorum converts intent into validated artifacts.",
+	}
+	if err := core.ValidateAgainstSchema("report.schema.json", "dummy-report.yaml", payload); err != nil {
+		t.Fatalf("palette report (meta + verdict + summary only) must validate, got: %v", err)
+	}
+
+	// meta alone is the floor: nothing else is mandatory.
+	metaOnly := map[string]any{
+		"meta": map[string]any{
+			"id":            "minimal",
+			"schemaVersion": "1.0",
+			"date":          "2026-06-01T12:00:00Z",
+		},
+	}
+	if err := core.ValidateAgainstSchema("report.schema.json", "dummy-report.yaml", metaOnly); err != nil {
+		t.Fatalf("meta-only report must validate, got: %v", err)
+	}
+}
+
+// TestReportCatalogIsClosed guards the other half of the design: the catalog of
+// components is CLOSED (additionalProperties:false), so authors cannot invent
+// new top-level components outside report.schema.json.
+func TestReportCatalogIsClosed(t *testing.T) {
+	payload := map[string]any{
+		"meta": map[string]any{
+			"id":            "invented",
+			"schemaVersion": "1.0",
+			"date":          "2026-06-01T12:00:00Z",
+		},
+		"diagram": "graph TD; A-->B",
+	}
+	if err := core.ValidateAgainstSchema("report.schema.json", "dummy-report.yaml", payload); err == nil {
+		t.Fatal("an invented component (diagram) must be rejected by the closed catalog")
+	}
+}
+
 func TestReportIDPatternAcceptsAndRejects(t *testing.T) {
 	valid := []string{"report", "audit-01", "report_2026_05_21", "A", "x1"}
 	for _, id := range valid {

@@ -113,18 +113,11 @@ document.addEventListener('DOMContentLoaded', () => {
             return element;
         };
 
-        const skipKeys = ['meta']; 
-        
-        Object.entries(data).forEach(([key, value]) => {
-            if (skipKeys.includes(key)) return;
-
-            const section = el('div', 'section');
-            const header = el('div', 'section-header', key.replace(/([A-Z])/g, ' $1').trim());
-            const body = el('div', 'section-body');
-            
-            section.appendChild(header);
-            section.appendChild(body);
-
+        // Shape-based fallback renderer: infers the visual from the value's JS
+        // shape (string -> text, array of objects -> table, array of scalars ->
+        // list, object -> key-value). This is the default for any component that
+        // does not have a named renderer registered below.
+        const renderByShape = (value, body) => {
             if (typeof value === 'string') {
                 body.appendChild(el('div', 'text-block', value));
             } else if (Array.isArray(value)) {
@@ -136,13 +129,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     const thead = document.createElement('thead');
                     const tbody = document.createElement('tbody');
                     const trHead = document.createElement('tr');
-                    
+
                     const columns = Object.keys(value[0]);
                     columns.forEach(col => {
                         trHead.appendChild(el('th', '', col.replace(/([A-Z])/g, ' $1').trim()));
                     });
                     thead.appendChild(trHead);
-                    
+
                     value.forEach(row => {
                         const tr = document.createElement('tr');
                         columns.forEach(col => {
@@ -158,7 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                         tbody.appendChild(tr);
                     });
-                    
+
                     table.appendChild(thead);
                     table.appendChild(tbody);
                     body.appendChild(table);
@@ -181,7 +174,46 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 body.appendChild(el('div', 'text-block', String(value)));
             }
-            
+        };
+
+        // Component dispatch seam. report.schema.json is the closed catalog of
+        // components; the viewer maps each component name to a renderer. Named
+        // renderers are added additively (e.g. a future `diagram` paired with a
+        // meta.schemaVersion bump); any component without one falls back to
+        // renderByShape, so every catalog entry always has a visual.
+        const COMPONENT_RENDERERS = {
+            // key -> (value, body) => void. Empty today: all components render
+            // via renderByShape. New named renderers slot in here.
+        };
+
+        // COMPONENT_ORDER enforces the cognitive-load "layer-cake" reading order
+        // (verdict first, appendix last) regardless of the authoring key order.
+        // Components not listed here render after the known ones, in payload order.
+        const COMPONENT_ORDER = [
+            'verdict', 'summary', 'decisionSurface', 'keyFindings',
+            'findings', 'evidence', 'tradeoffs', 'risks', 'actionPlan', 'appendix'
+        ];
+
+        const skipKeys = new Set(['meta']);
+        const present = Object.keys(data).filter(k => !skipKeys.has(k));
+        const orderedKeys = [
+            ...COMPONENT_ORDER.filter(k => present.includes(k)),
+            ...present.filter(k => !COMPONENT_ORDER.includes(k))
+        ];
+
+        orderedKeys.forEach(key => {
+            const value = data[key];
+
+            const section = el('div', 'section');
+            const header = el('div', 'section-header', key.replace(/([A-Z])/g, ' $1').trim());
+            const body = el('div', 'section-body');
+
+            section.appendChild(header);
+            section.appendChild(body);
+
+            const renderer = COMPONENT_RENDERERS[key] || renderByShape;
+            renderer(value, body);
+
             reportContent.appendChild(section);
         });
     }
