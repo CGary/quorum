@@ -319,6 +319,11 @@ Memory entries are typed by nature, not by quality grade:
 
 This typology already encodes priority implicitly: patterns are high-signal canonical forms; lessons are operational learnings. **Do not add orthogonal status fields** like `gold_standard`, `operational_log`, `discarded`, or `confidence_score` — they duplicate what the type system already expresses, or create unverifiable LLM-generated precision.
 
+### ID Format
+
+Memory entries must use a 9-digit timestamp suffix (`HHmmssSSS`) based on the local clock to prevent PK collisions.
+Format: `[PAT|DEC|LES]-YYYY-MM-DD-HHmmssSSS` (e.g., `LES-2026-05-31-150405123`).
+
 ### What is NOT captured
 
 `q-memory` explicitly excludes:

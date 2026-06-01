@@ -85,11 +85,12 @@ quorum memory save --file <payload>.json
 If a temporary payload file is needed, place it under `.tmp/` or the system temporary directory. Do not create, recreate, or write durable outputs under `memory/`, `memory/decisions/`, `memory/patterns/`, or `memory/lessons/`.
 
 ID format:
+Generate IDs using the local clock's HHmmssSSS for the suffix (9 digits) to prevent collisions.
 
 ```text
-DEC-YYYY-MM-DD-N
-PAT-YYYY-MM-DD-N
-LES-YYYY-MM-DD-N
+DEC-YYYY-MM-DD-HHmmssSSS
+PAT-YYYY-MM-DD-HHmmssSSS
+LES-YYYY-MM-DD-HHmmssSSS
 ```
 
 ## JSON Shape
@@ -130,7 +131,7 @@ When superseding:
 1. Read task artifacts.
 2. Identify at most 3 high-signal memories.
 3. Pick correct memory type.
-4. Generate next numeric ID for today's date.
+4. Generate the ID using the local clock's HHmmssSSS for the suffix.
 5. Persist the JSON payload with `cat <payload>.json | quorum memory save` or `quorum memory save --file <payload>.json`.
 6. If `quorum memory save` fails because `.quorumrc` is missing or memory setup is unavailable, report `BLOCKED` and suggest `quorum init`; do not run `quorum init` automatically.
 7. If `quorum memory save` fails validation, correct the payload only when the issue is mechanical; otherwise report `BLOCKED` for human decision.

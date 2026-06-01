@@ -20,7 +20,7 @@ func validMemoryJSON(id string) []byte {
 		"related":       []string{"SQL-01", "external-note"},
 		"anti_patterns": []string{"Do not overwrite conflicting memory entries."},
 		"created_at":    "2026-05-31",
-		"supersedes":    "LES-2026-05-30-1",
+		"supersedes":    "LES-2026-05-30-100000001",
 	}
 	b, _ := json.Marshal(payload)
 	return b
@@ -41,11 +41,11 @@ func setupMemoryServiceTest(t *testing.T) (string, *QuorumConfig) {
 
 func TestSaveMemoryEntryPersistsEntryAndSatellites(t *testing.T) {
 	_, config := setupMemoryServiceTest(t)
-	result, err := SaveMemoryEntry(validMemoryJSON("LES-2026-05-31-1"))
+	result, err := SaveMemoryEntry(validMemoryJSON("LES-2026-05-31-100000001"))
 	if err != nil {
 		t.Fatalf("SaveMemoryEntry failed: %v", err)
 	}
-	if result.ProjectID != config.ProjectID || result.MemoryID != "LES-2026-05-31-1" || result.Status != "inserted" || result.ContentHash == "" {
+	if result.ProjectID != config.ProjectID || result.MemoryID != "LES-2026-05-31-100000001" || result.Status != "inserted" || result.ContentHash == "" {
 		t.Fatalf("unexpected result: %#v", result)
 	}
 
@@ -56,25 +56,25 @@ func TestSaveMemoryEntryPersistsEntryAndSatellites(t *testing.T) {
 	defer db.Close()
 
 	var title string
-	if err := db.QueryRow(`SELECT title FROM memory_entries WHERE project_id = ? AND id = ?`, "quorum", "LES-2026-05-31-1").Scan(&title); err != nil {
+	if err := db.QueryRow(`SELECT title FROM memory_entries WHERE project_id = ? AND id = ?`, "quorum", "LES-2026-05-31-100000001").Scan(&title); err != nil {
 		t.Fatal(err)
 	}
 	if title != "Memory CLI behavior" {
 		t.Fatalf("title = %q", title)
 	}
 
-	assertCount(t, db, `SELECT COUNT(*) FROM memory_related WHERE project_id = ? AND memory_id = ?`, 2, "quorum", "LES-2026-05-31-1")
-	assertCount(t, db, `SELECT COUNT(*) FROM memory_anti_patterns WHERE project_id = ? AND memory_id = ?`, 1, "quorum", "LES-2026-05-31-1")
-	assertCount(t, db, `SELECT COUNT(*) FROM memory_supersession_edges WHERE project_id = ? AND from_id = ? AND to_id = ?`, 1, "quorum", "LES-2026-05-31-1", "LES-2026-05-30-1")
+	assertCount(t, db, `SELECT COUNT(*) FROM memory_related WHERE project_id = ? AND memory_id = ?`, 2, "quorum", "LES-2026-05-31-100000001")
+	assertCount(t, db, `SELECT COUNT(*) FROM memory_anti_patterns WHERE project_id = ? AND memory_id = ?`, 1, "quorum", "LES-2026-05-31-100000001")
+	assertCount(t, db, `SELECT COUNT(*) FROM memory_supersession_edges WHERE project_id = ? AND from_id = ? AND to_id = ?`, 1, "quorum", "LES-2026-05-31-100000001", "LES-2026-05-30-100000001")
 }
 
 func TestSaveMemoryEntryIdempotencyAndConflict(t *testing.T) {
 	setupMemoryServiceTest(t)
-	first, err := SaveMemoryEntry(validMemoryJSON("LES-2026-05-31-2"))
+	first, err := SaveMemoryEntry(validMemoryJSON("LES-2026-05-31-200000002"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := SaveMemoryEntry(validMemoryJSON("LES-2026-05-31-2"))
+	second, err := SaveMemoryEntry(validMemoryJSON("LES-2026-05-31-200000002"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +82,7 @@ func TestSaveMemoryEntryIdempotencyAndConflict(t *testing.T) {
 		t.Fatalf("unexpected idempotent result: %#v", second)
 	}
 
-	changed := strings.Replace(string(validMemoryJSON("LES-2026-05-31-2")), "deterministic JSON output", "different deterministic JSON output", 1)
+	changed := strings.Replace(string(validMemoryJSON("LES-2026-05-31-200000002")), "deterministic JSON output", "different deterministic JSON output", 1)
 	_, err = SaveMemoryEntry([]byte(changed))
 	if err == nil || !strings.Contains(err.Error(), "existing content_hash differs") {
 		t.Fatalf("expected conflict error, got %v", err)
@@ -94,7 +94,7 @@ func TestSaveMemoryEntryValidationFailures(t *testing.T) {
 	if _, err := SaveMemoryEntry([]byte(`{"id":`)); err == nil || !strings.Contains(err.Error(), "invalid memory JSON") {
 		t.Fatalf("expected invalid JSON error, got %v", err)
 	}
-	if _, err := SaveMemoryEntry([]byte(`{"id":"LES-2026-05-31-3"}`)); err == nil || !strings.Contains(err.Error(), "required property") {
+	if _, err := SaveMemoryEntry([]byte(`{"id":"LES-2026-05-31-300000003"}`)); err == nil || !strings.Contains(err.Error(), "required property") {
 		t.Fatalf("expected schema error, got %v", err)
 	}
 }
@@ -104,7 +104,7 @@ func TestSaveMemoryEntryRejectsMissingQuorumConfig(t *testing.T) {
 	root := initGitRepo(t)
 	chdir(t, root)
 	t.Setenv("QUORUM_MEMORY_DB", filepath.Join(root, "memory.db"))
-	_, err := SaveMemoryEntry(validMemoryJSON("LES-2026-05-31-4"))
+	_, err := SaveMemoryEntry(validMemoryJSON("LES-2026-05-31-400000004"))
 	if err == nil || !strings.Contains(err.Error(), "run quorum init") {
 		t.Fatalf("expected .quorumrc error, got %v", err)
 	}
@@ -123,7 +123,7 @@ func TestMemoryStatusWithAndWithoutRegisteredProject(t *testing.T) {
 		t.Fatalf("project should not be registered before save: %#v", status)
 	}
 
-	if _, err := SaveMemoryEntry(validMemoryJSON("LES-2026-05-31-5")); err != nil {
+	if _, err := SaveMemoryEntry(validMemoryJSON("LES-2026-05-31-500000005")); err != nil {
 		t.Fatal(err)
 	}
 	status, err = MemoryStatus()
@@ -138,14 +138,14 @@ func TestMemoryStatusWithAndWithoutRegisteredProject(t *testing.T) {
 func TestSaveMemoryEntryAllowsAbsentOptionalArraysAndSupersedesTarget(t *testing.T) {
 	setupMemoryServiceTest(t)
 	payload := map[string]any{
-		"id":          "DEC-2026-05-31-1",
+		"id":          "DEC-2026-05-31-100000001",
 		"source_task": "SQL-02",
 		"type":        "decision",
 		"title":       "Minimal save command",
 		"context":     "While implementing SQL-02.",
 		"content":     "The save command accepts optional relationships without requiring target records to exist.",
 		"created_at":  "2026-05-31",
-		"supersedes":  "DEC-2026-01-01-1",
+		"supersedes":  "DEC-2026-01-01-100000001",
 	}
 	raw, _ := json.Marshal(payload)
 	if _, err := SaveMemoryEntry(raw); err != nil {

@@ -8,7 +8,7 @@
   "properties": {
     "id": {
       "type": "string",
-      "pattern": "^(PAT|DEC|LES)-[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]+"
+      "pattern": "^(PAT|DEC|LES)-[0-9]{4}-[0-9]{2}-[0-9]{2}-([0-9]{9}|[0-9]+)"
     },
     "source_task": {"type": "string"},
     "type": {
