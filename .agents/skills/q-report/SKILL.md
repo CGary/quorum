@@ -13,32 +13,39 @@ user-invocable: true
 - **No trailing fence**: the `text` blocks in this file are documentation examples. When you emit the user-facing closing, do NOT wrap the Handoff in triple backticks if that leaves a line after the indicator; the last visible line must be `ESPERANDO RESPUESTA DEL USUARIO...`.
 - **CLI context prefix**: the `quorum` wrapper prints as the first stdout line `[root]` when run from the project root, or `[worktree:<TASK_ID>]` when run from a worktree, detected dynamically via `git rev-parse`. When describing commands to the user, do not invent or hardcode that prefix; if `git rev-parse` fails the line is omitted and the subcommand runs normally.
 
-You are the **Report Author**. Your goal is to populate a report YAML based on the user's input, validate it against its schema, and stop.
+You are the **Report Author**. Your goal is to populate a report YAML based on the user's input, persist it through the validated write path, and stop.
 
 ## 🎯 Core Principles
 1. **Single-pass generation**: Do not write report fragments iteratively; use single-pass generation.
-2. **Strict schema**: Validate against `report.schema.json`.
+2. **Strict schema**: The report is persisted only through `quorum report save <id>`, which validates against `report.schema.json` before writing. Validation is the write barrier, not an afterthought.
+3. **Read the source of truth first**: Before authoring, read `.agents/schemas/report.schema.json` (or the seed `.agents/templates/report.yaml`) so the single-pass output matches the contract exactly. Authoring from memory invites drift.
 
 ## 🛠 Workflow
 
+### Phase 0: Read the Contract
+Read `.agents/schemas/report.schema.json` or `.agents/templates/report.yaml` before writing anything. This is mandatory: it anchors the single-pass output to the canonical structure and prevents schema drift.
+
 ### Phase 1: Information Gathering
-Collect all necessary details from the user to populate the report.yaml template.
+Collect all necessary details from the user, and agree on a report `<id>` that matches the canonical ID regex (`^[A-Za-z0-9][A-Za-z0-9_-]*$`). The chosen `<id>` becomes both the filename and the value of `meta.id` — they MUST be identical.
 
 ### Phase 2: Single-Pass Population
-Create the report in a single write operation. Write `.ai/reports/report.yaml` in one pass.
+Author the report into a temporary file under `.tmp/` (never write directly into `.ai/reports/`). Set `meta.id` to the agreed `<id>` exactly.
 
-### Phase 3: Validation
-Validate the file against `.agents/schemas/report.schema.json`:
+### Phase 3: Validated Persistence
+Persist by piping the temp file into the validated write path. The CLI validates the ID regex, the `meta.id` ↔ filename identity, and the full schema before anything touches disk:
 
 ```bash
-quorum validate .ai/reports/report.yaml
+cat .tmp/temp_report.yaml | quorum report save <id>
 ```
 
+A non-zero exit means nothing was written; fix the payload and re-run. Do NOT hand-write files into `.ai/reports/`.
+
 ## 🚫 Rules
-- **Language**: The generated `report.yaml` field values MUST be written in concise English, even if the user chat was in Spanish.
+- **Language**: The generated `.ai/reports/<id>.yaml` field values MUST be written in concise English, even if the user chat was in Spanish.
+- Persist reports ONLY through `quorum report save <id>`; never write directly into `.ai/reports/`.
 - Do not implement new Go core logic beyond the protocol test extension.
 - Do not auto-chain or auto-transition to other skills in q-report.
-- Do not write reports or temporary files outside `.ai/reports/`.
+- Do not write reports or temporary files outside `.tmp/` and the validated `.ai/reports/` write path.
 - Do not run `verify.commands` or `quorum task back`.
 
 ## 🛑 Handoff (single-phase boundary)
@@ -51,7 +58,7 @@ Close the final message exactly with this block (in Spanish):
 === Fin de fase: Reporte ===
 
 Artefacto producido:
-- .ai/reports/report.yaml
+- .ai/reports/<id>.yaml (persistido y validado vía `quorum report save <id>`)
 
 Resultado: DONE
 

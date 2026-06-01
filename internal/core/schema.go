@@ -61,6 +61,13 @@ func artifactSchemaName(path string) (string, bool) {
 			}
 		}
 	}
+	if filepath.Ext(path) == ".yaml" || filepath.Ext(path) == ".yml" {
+		for _, p := range strings.Split(filepath.ToSlash(path), "/") {
+			if p == "reports" {
+				return "report.schema.json", true
+			}
+		}
+	}
 	return "", false
 }
 

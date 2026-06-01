@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"quorum/internal/core"
@@ -22,6 +23,11 @@ var reportNewCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		id := args[0]
+		if err := core.ValidateReportID(id); err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
+
 		projectRoot, err := core.ProjectRoot()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error locating project root: %v\n", err)
@@ -33,14 +39,14 @@ var reportNewCmd = &cobra.Command{
 		if config == nil || err != nil {
 			config = &core.QuorumConfig{ProjectID: filepath.Base(projectRoot), ProjectName: filepath.Base(projectRoot)}
 		}
-		
+
 		db, err := core.OpenMemoryDB("")
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error opening memory db: %v\n", err)
 			os.Exit(1)
 		}
 		defer db.Close()
-		
+
 		remote := core.GitRemote(projectRoot)
 		if err := core.EnsureMemoryProject(db, config, projectRoot, remote); err != nil {
 			fmt.Fprintf(os.Stderr, "error registering project in memory: %v\n", err)
@@ -48,11 +54,6 @@ var reportNewCmd = &cobra.Command{
 		}
 
 		reportsDir := filepath.Join(projectRoot, ".ai", "reports")
-		if err := os.MkdirAll(reportsDir, 0755); err != nil {
-			fmt.Fprintf(os.Stderr, "error creating reports directory: %v\n", err)
-			os.Exit(1)
-		}
-
 		reportPath := filepath.Join(reportsDir, fmt.Sprintf("%s.yaml", id))
 		if _, err := os.Stat(reportPath); err == nil {
 			fmt.Fprintf(os.Stderr, "error: report file %s already exists\n", reportPath)
@@ -71,20 +72,17 @@ var reportNewCmd = &cobra.Command{
 			fmt.Fprintf(os.Stderr, "error parsing template: %v\n", err)
 			os.Exit(1)
 		}
-		
+
 		if meta, ok := payload["meta"].(map[string]any); ok {
 			meta["id"] = id
 			meta["date"] = time.Now().UTC().Format(time.RFC3339)
 		}
 
-		outData, err := yaml.Marshal(payload)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error serializing report: %v\n", err)
-			os.Exit(1)
-		}
-
-		if err := os.WriteFile(reportPath, outData, 0644); err != nil {
-			fmt.Fprintf(os.Stderr, "error writing report: %v\n", err)
+		// Validate-before-write: the seeded payload must pass report.schema.json
+		// before it reaches disk. This makes .agents/templates/report.yaml a seed
+		// that must be valid by construction.
+		if _, err := core.SaveArtifact(reportPath, payload); err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			os.Exit(1)
 		}
 
@@ -92,7 +90,72 @@ var reportNewCmd = &cobra.Command{
 	},
 }
 
+var reportSaveCmd = &cobra.Command{
+	Use:   "save <id>",
+	Short: "Validate a report from stdin and persist it to .ai/reports/<id>.yaml",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		id := args[0]
+
+		// Hard write-point invariant #1: the ID must match the canonical regex.
+		if err := core.ValidateReportID(id); err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
+
+		projectRoot, err := core.ProjectRoot()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error locating project root: %v\n", err)
+			os.Exit(1)
+		}
+
+		raw, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error reading stdin: %v\n", err)
+			os.Exit(1)
+		}
+
+		reportsDir := filepath.Join(projectRoot, ".ai", "reports")
+		if err := os.MkdirAll(reportsDir, 0755); err != nil {
+			fmt.Fprintf(os.Stderr, "error creating reports directory: %v\n", err)
+			os.Exit(1)
+		}
+
+		// Parse via a temp file so YAML and JSON inputs share the project's
+		// canonical loader (mirrors `task artifact-save`).
+		reportPath := filepath.Join(reportsDir, fmt.Sprintf("%s.yaml", id))
+		tmpPath := reportPath + ".tmp"
+		if err := os.WriteFile(tmpPath, raw, 0644); err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
+		defer os.Remove(tmpPath)
+
+		payload, err := core.LoadArtifactPayload(tmpPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: payload parse failed: %v\n", err)
+			os.Exit(1)
+		}
+
+		// Hard write-point invariant #2: meta.id must match the filename id.
+		if err := core.CheckReportIDMatches(payload, id); err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
+
+		// Validate-before-write: schema validation runs inside SaveArtifact via the
+		// dynamic reports/ matching before anything touches disk.
+		if _, err := core.SaveArtifact(reportPath, payload); err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
+
+		fmt.Printf("Saved report: %s\n", reportPath)
+	},
+}
+
 func init() {
 	reportCmd.AddCommand(reportNewCmd)
+	reportCmd.AddCommand(reportSaveCmd)
 	rootCmd.AddCommand(reportCmd)
 }
