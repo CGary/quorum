@@ -24,6 +24,7 @@ var artifactSchemaMap = map[string]string{
 	"02-contract.yaml": "contract.schema.json", "04-implementation-log.yaml": "implementation-log.schema.json",
 	"05-validation.json": "validation.schema.json", "06-review.json": "review.schema.json",
 	"07-trace.json": "trace.schema.json", "feedback.json": "feedback.schema.json",
+	"report.yaml": "report.schema.json",
 }
 
 func ValidateAgainstSchema(schemaName string, path string, payload any) error {
@@ -58,6 +59,13 @@ func artifactSchemaName(path string) (string, bool) {
 		for _, p := range strings.Split(filepath.ToSlash(path), "/") {
 			if p == "memory" {
 				return "memory.schema.json", true
+			}
+		}
+	}
+	if filepath.Ext(path) == ".yaml" || filepath.Ext(path) == ".yml" {
+		for _, p := range strings.Split(filepath.ToSlash(path), "/") {
+			if p == "reports" {
+				return "report.schema.json", true
 			}
 		}
 	}
