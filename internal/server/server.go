@@ -1,0 +1,206 @@
+package server
+
+import (
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+
+	"quorum/internal/core"
+)
+
+type Server struct {
+	db *sql.DB
+}
+
+func NewServer() (*Server, error) {
+	db, err := core.OpenMemoryDB("")
+	if err != nil {
+		return nil, err
+	}
+	return &Server{db: db}, nil
+}
+
+func (s *Server) Start(port int) error {
+	addr := fmt.Sprintf("127.0.0.1:%d", port)
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/api/projects", s.projectsHandler)
+	mux.HandleFunc("/api/projects/", s.projectSubRouteHandler)
+
+	log.Printf("Starting read-only Quorum server on %s", addr)
+	return http.ListenAndServe(addr, mux)
+}
+
+type Project struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	RootPath  string `json:"root_path"`
+	GitRemote string `json:"git_remote"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
+}
+
+func (s *Server) projectsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	rows, err := s.db.Query("SELECT id, name, COALESCE(root_path, ''), COALESCE(git_remote, ''), created_at, updated_at FROM projects")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var projects []Project
+	for rows.Next() {
+		var p Project
+		if err := rows.Scan(&p.ID, &p.Name, &p.RootPath, &p.GitRemote, &p.CreatedAt, &p.UpdatedAt); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if p.RootPath == "" {
+			log.Printf("Warning: Omitted project %s lacking valid root_path", p.ID)
+			continue
+		}
+		projects = append(projects, p)
+	}
+
+	if projects == nil {
+		projects = []Project{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(projects)
+}
+
+func (s *Server) projectSubRouteHandler(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/api/projects/")
+	parts := strings.Split(path, "/")
+	if len(parts) < 2 || parts[1] != "reports" {
+		http.NotFound(w, r)
+		return
+	}
+
+	projectID := parts[0]
+	var rootPath string
+	err := s.db.QueryRow("SELECT COALESCE(root_path, '') FROM projects WHERE id = ?", projectID).Scan(&rootPath)
+	if err == sql.ErrNoRows {
+		http.Error(w, "Project not found", http.StatusNotFound)
+		return
+	} else if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if rootPath == "" {
+		http.Error(w, "Project has no valid root_path", http.StatusNotFound)
+		return
+	}
+
+	if len(parts) == 2 {
+		s.reportsHandler(w, r, projectID, rootPath)
+	} else if len(parts) == 3 {
+		reportID := parts[2]
+		s.reportDetailHandler(w, r, projectID, rootPath, reportID)
+	} else {
+		http.NotFound(w, r)
+	}
+}
+
+type ReportMeta struct {
+	ID        string `json:"id"`
+	UpdatedAt string `json:"updated_at"`
+}
+
+func (s *Server) reportsHandler(w http.ResponseWriter, r *http.Request, projectID, rootPath string) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	reportsDir := filepath.Join(rootPath, ".ai", "reports")
+	entries, err := os.ReadDir(reportsDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte("[]\n"))
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	var reports []ReportMeta
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".yaml" {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+		reports = append(reports, ReportMeta{
+			ID:        strings.TrimSuffix(entry.Name(), ".yaml"),
+			UpdatedAt: info.ModTime().UTC().Format(http.TimeFormat),
+		})
+	}
+
+	sort.Slice(reports, func(i, j int) bool {
+		return reports[i].UpdatedAt > reports[j].UpdatedAt
+	})
+
+	if reports == nil {
+		reports = []ReportMeta{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(reports)
+}
+
+func (s *Server) reportDetailHandler(w http.ResponseWriter, r *http.Request, projectID, rootPath, reportID string) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	cleanReportID := filepath.Clean(reportID)
+	if strings.Contains(cleanReportID, string(filepath.Separator)) || cleanReportID == ".." || cleanReportID == "." {
+		http.Error(w, "Invalid report ID", http.StatusBadRequest)
+		return
+	}
+
+	reportPath := filepath.Join(rootPath, ".ai", "reports", cleanReportID+".yaml")
+	
+	reportsDir := filepath.Join(rootPath, ".ai", "reports")
+	rel, err := filepath.Rel(reportsDir, reportPath)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		http.Error(w, "Invalid report path", http.StatusBadRequest)
+		return
+	}
+
+	payload, err := core.LoadArtifactPayload(reportPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			http.Error(w, "Report not found", http.StatusNotFound)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	if err := core.ValidateAgainstSchema("report.schema.json", reportPath, payload); err != nil {
+		http.Error(w, fmt.Sprintf("Report validation failed: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(payload)
+}
