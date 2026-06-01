@@ -33,8 +33,14 @@ func (s *Server) Start(port int) error {
 	mux.HandleFunc("/api/projects", s.projectsHandler)
 	mux.HandleFunc("/api/projects/", s.projectSubRouteHandler)
 
+	s.MountEmbeddedViewer(mux)
+
 	log.Printf("Starting read-only Quorum server on %s", addr)
 	return http.ListenAndServe(addr, mux)
+}
+
+func (s *Server) MountEmbeddedViewer(mux *http.ServeMux) {
+	mux.Handle("/", AssetHandler())
 }
 
 type Project struct {
