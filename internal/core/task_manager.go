@@ -87,8 +87,6 @@ func FindTaskDirIn(projectRoot, taskID string, locations []string) (*TaskDirMatc
 	return &matches[0], nil
 }
 
-
-
 func readSpecTaskID(dir string) (string, bool) {
 	raw, err := os.ReadFile(filepath.Join(dir, "00-spec.yaml"))
 	if err != nil {
@@ -127,9 +125,6 @@ func ambiguityError(taskID string, matches []TaskDirMatch) error {
 	return fmt.Errorf("%s", b.String())
 }
 
-
-
-
 func ConsumeFeedback(taskDir string) (bool, error) {
 	feedbackPath := filepath.Join(taskDir, "feedback.json")
 	if _, err := os.Stat(feedbackPath); os.IsNotExist(err) {
@@ -145,7 +140,11 @@ func InitializeSpecify(taskID string) (string, error) {
 	if taskID == "" {
 		return "", fmt.Errorf("task ID is required")
 	}
-	taskDir, err := FindTaskDir(taskID, []string{"inbox", "active", "done", "failed"})
+	store, err := DefaultTaskStore()
+	if err != nil {
+		return "", err
+	}
+	taskDir, err := store.FindTask(taskID, "inbox", "active", "done", "failed")
 	if err != nil {
 		return "", err
 	}
@@ -154,15 +153,10 @@ func InitializeSpecify(taskID string) (string, error) {
 		return taskDir.Path, nil
 	}
 
-	root, err := ProjectRoot()
-	if err != nil {
-		return "", err
-	}
-	dirPath := filepath.Join(root, ".ai", "tasks", "inbox", taskID+"-new-spec")
+	dirPath := filepath.Join(store.ProjectRoot, ".ai", "tasks", "inbox", taskID+"-new-spec")
 	if err := os.MkdirAll(dirPath, 0755); err != nil {
 		return "", err
 	}
-	specPath := filepath.Join(dirPath, "00-spec.yaml")
 	spec := map[string]any{
 		"task_id":    taskID,
 		"summary":    "Draft spec; fill goal, invariants, and acceptance before blueprint.",
@@ -171,17 +165,21 @@ func InitializeSpecify(taskID string) (string, error) {
 		"acceptance": []any{"TODO: define acceptance criterion."},
 		"risk":       "medium",
 	}
-	_, err = SaveArtifact(specPath, spec)
+	_, err = store.SaveArtifact(&TaskDirMatch{Path: dirPath, Location: "inbox"}, "00-spec.yaml", spec)
 	return dirPath, err
 }
 
 func PrepareBlueprint(taskID string) (string, error) {
-	taskDir, err := FindTaskDir(taskID, []string{"inbox"})
+	store, err := DefaultTaskStore()
+	if err != nil {
+		return "", err
+	}
+	taskDir, err := store.FindTask(taskID, "inbox")
 	if err != nil {
 		return "", err
 	}
 	if taskDir == nil {
-		activeDir, err := FindTaskDir(taskID, []string{"active"})
+		activeDir, err := store.FindTask(taskID, "active")
 		if err != nil {
 			return "", err
 		}
@@ -192,10 +190,6 @@ func PrepareBlueprint(taskID string) (string, error) {
 		return "", fmt.Errorf("Task %s not found in inbox.", taskID)
 	}
 
-	store, err := DefaultTaskStore()
-	if err != nil {
-		return "", err
-	}
 	moved, err := store.MoveTask(taskDir, "active")
 	if err != nil {
 		return "", err
@@ -485,29 +479,33 @@ func GetBaseBranch() string {
 
 func StartTask(taskID string) {
 	fmt.Printf("[*] Starting task %s...\n", taskID)
-	taskDir, err := FindTaskDir(taskID, []string{"active", "inbox"})
+	store, err := DefaultTaskStore()
+	if err != nil {
+		fmt.Printf("[!] Error initializing task store: %v\n", err)
+		return
+	}
+	taskDir, err := store.FindTask(taskID, "active", "inbox")
 	if err != nil || taskDir == nil {
 		fmt.Printf("[!] Task %s not found.\n", taskID)
 		return
 	}
-	contractPath := filepath.Join(taskDir.Path, "02-contract.yaml")
+	contractPath, err := store.TaskArtifactPath(taskDir, "02-contract.yaml")
+	if err != nil {
+		fmt.Printf("[!] Contract validation failed for %s: %v\n", taskID, err)
+		return
+	}
 	if _, err := os.Stat(contractPath); os.IsNotExist(err) {
 		fmt.Printf("[!] Contract (02-contract.yaml) not found for %s.\n", taskID)
 		fmt.Printf("[!] Please run 'quorum task blueprint %s' first.\n", taskID)
 		return
 	}
-	contract, err := LoadArtifactPayload(contractPath)
+	contract, err := store.LoadArtifact(taskDir, "02-contract.yaml")
 	if err != nil {
-		fmt.Printf("[!] Contract validation failed for %s: %v\n", taskID, err)
-		return
-	}
-	if err := ValidateArtifact(contractPath, contract); err != nil {
 		fmt.Printf("[!] Contract validation failed for %s: %v\n", taskID, err)
 		return
 	}
 	if taskDir.Location == "inbox" {
 		fmt.Printf("[*] Moving task from inbox to active...\n")
-		store, _ := DefaultTaskStore()
 		if moved, err := store.MoveTask(taskDir, "active"); err == nil {
 			taskDir = moved
 		} else {
@@ -532,7 +530,11 @@ func StartTask(taskID string) {
 		}
 	}
 
-	logPath := filepath.Join(taskDir.Path, "04-implementation-log.yaml")
+	logPath, err := store.TaskArtifactPath(taskDir, "04-implementation-log.yaml")
+	if err != nil {
+		fmt.Printf("[!] Error initializing implementation log: %v\n", err)
+		return
+	}
 	if _, err := os.Stat(logPath); os.IsNotExist(err) {
 		summary := "Implementation log initialized."
 		if c, ok := contract.(map[string]any); ok {
@@ -545,13 +547,17 @@ func StartTask(taskID string) {
 			"summary": summary,
 			"entries": []any{},
 		}
-		if _, err := SaveArtifact(logPath, log); err != nil {
+		if _, err := store.SaveArtifact(taskDir, "04-implementation-log.yaml", log); err != nil {
 			fmt.Printf("[!] Error initializing implementation log: %v\n", err)
 			return
 		}
 	}
 
-	tracePath := filepath.Join(taskDir.Path, "07-trace.json")
+	tracePath, err := store.TaskArtifactPath(taskDir, "07-trace.json")
+	if err != nil {
+		fmt.Printf("[!] Error initializing trace: %v\n", err)
+		return
+	}
 	if _, err := os.Stat(tracePath); os.IsNotExist(err) {
 		summary := "Trace initialized for task."
 		execMode := "patch_only"
@@ -575,7 +581,10 @@ func StartTask(taskID string) {
 			"violations":        []any{},
 			"context_overflows": []any{},
 		}
-		SaveArtifact(tracePath, trace)
+		if _, err := store.SaveArtifact(taskDir, "07-trace.json", trace); err != nil {
+			fmt.Printf("[!] Error initializing trace: %v\n", err)
+			return
+		}
 	}
 	fmt.Printf("[+] Task %s initialized and worktree ready.\n", taskID)
 }
@@ -770,8 +779,15 @@ func CleanTask(taskID string, force, stash bool) {
 	DeleteBranchIfMerged("ai/"+taskID, GetBaseBranch())
 	if taskDir.Location == "active" {
 		fmt.Printf("[*] Archiving task to done/...\n")
-		store, _ := DefaultTaskStore()
-		store.MoveTask(taskDir, "done")
+		store, err := DefaultTaskStore()
+		if err != nil {
+			fmt.Printf("[!] Error initializing task store: %v\n", err)
+			return
+		}
+		if _, err := store.MoveTask(taskDir, "done"); err != nil {
+			fmt.Printf("[!] Error archiving task: %v\n", err)
+			return
+		}
 	}
 	fmt.Printf("[+] Task %s cleaned up.\n", taskID)
 	if parentID != "" {
@@ -812,8 +828,15 @@ func AutoArchiveParentIfComplete(parentID string) {
 		}
 	}
 	fmt.Printf("[*] All children of %s are in done/; auto-archiving parent...\n", parentID)
-	store, _ := DefaultTaskStore()
-	store.MoveTask(parentDir, "done")
+	store, err := DefaultTaskStore()
+	if err != nil {
+		fmt.Printf("[!] Cannot archive parent %s: %v\n", parentID, err)
+		return
+	}
+	if _, err := store.MoveTask(parentDir, "done"); err != nil {
+		fmt.Printf("[!] Cannot archive parent %s: %v\n", parentID, err)
+		return
+	}
 	fmt.Printf("[+] Parent task %s archived to done/.\n", parentID)
 }
 
@@ -891,15 +914,29 @@ func BackTask(taskID string, opts ...bool) {
 	}
 	if taskDir.Location == "done" || taskDir.Location == "failed" {
 		fmt.Printf("[*] Reversing 'clean': moving task from %s/ back to active/...\n", taskDir.Location)
-		store, _ := DefaultTaskStore()
-		store.MoveTask(taskDir, "active")
+		store, err := DefaultTaskStore()
+		if err != nil {
+			fmt.Printf("[!] Error initializing task store: %v\n", err)
+			return
+		}
+		if _, err := store.MoveTask(taskDir, "active"); err != nil {
+			fmt.Printf("[!] Error moving task: %v\n", err)
+			return
+		}
 		fmt.Printf("[+] Task %s restored to active/.\n", taskID)
 		return
 	}
 	if taskDir.Location == "active" {
 		fmt.Printf("[*] Reversing 'blueprint': moving task from active/ back to inbox/...\n")
-		store, _ := DefaultTaskStore()
-		store.MoveTask(taskDir, "inbox")
+		store, err := DefaultTaskStore()
+		if err != nil {
+			fmt.Printf("[!] Error initializing task store: %v\n", err)
+			return
+		}
+		if _, err := store.MoveTask(taskDir, "inbox"); err != nil {
+			fmt.Printf("[!] Error moving task: %v\n", err)
+			return
+		}
 		fmt.Printf("[+] Task %s returned to inbox/. Re-run '/q-brief %s' to refine the spec.\n", taskID, taskID)
 		return
 	}
@@ -1390,7 +1427,12 @@ func restoreParentForChildRetry(parentID string) bool {
 }
 
 func PrepareFailedChildRetry(taskID string) bool {
-	taskDir, err := FindTaskDir(taskID, []string{"active", "failed"})
+	store, err := DefaultTaskStore()
+	if err != nil {
+		fmt.Printf("[!] Error initializing task store: %v\n", err)
+		return false
+	}
+	taskDir, err := store.FindTask(taskID, "active", "failed")
 	if err != nil || taskDir == nil {
 		fmt.Printf("[!] Task %s not found in active/ or failed/.\n", taskID)
 		return false
@@ -1404,17 +1446,17 @@ func PrepareFailedChildRetry(taskID string) bool {
 		return false
 	}
 
-	specPath := filepath.Join(taskDir.Path, "00-spec.yaml")
-	if _, err := os.Stat(specPath); os.IsNotExist(err) {
-		fmt.Printf("[!] Cannot retry %s: missing 00-spec.yaml.\n", taskID)
-		return false
-	}
-	payload, err := LoadArtifactPayload(specPath)
+	specPath, err := store.TaskArtifactPath(taskDir, "00-spec.yaml")
 	if err != nil {
 		fmt.Printf("[!] Cannot retry %s: invalid 00-spec.yaml: %v\n", taskID, err)
 		return false
 	}
-	if err := ValidateArtifact(specPath, payload); err != nil {
+	if _, err := os.Stat(specPath); os.IsNotExist(err) {
+		fmt.Printf("[!] Cannot retry %s: missing 00-spec.yaml.\n", taskID)
+		return false
+	}
+	payload, err := store.LoadArtifact(taskDir, "00-spec.yaml")
+	if err != nil {
 		fmt.Printf("[!] Cannot retry %s: invalid 00-spec.yaml: %v\n", taskID, err)
 		return false
 	}
@@ -1429,23 +1471,22 @@ func PrepareFailedChildRetry(taskID string) bool {
 		return false
 	}
 
-	root, _ := ProjectRoot()
-	activeTarget := filepath.Join(root, ".ai", "tasks", "active", filepath.Base(taskDir.Path))
+	activeTarget := filepath.Join(store.ProjectRoot, ".ai", "tasks", "active", filepath.Base(taskDir.Path))
 	if _, err := os.Stat(activeTarget); err == nil {
 		fmt.Printf("[!] Cannot retry %s: active/%s already exists.\n", taskID, filepath.Base(taskDir.Path))
 		return false
 	}
 
-	tracePath := filepath.Join(taskDir.Path, "07-trace.json")
+	tracePath, err := store.TaskArtifactPath(taskDir, "07-trace.json")
+	if err != nil {
+		fmt.Printf("[!] Cannot retry %s: invalid 07-trace.json: %v\n", taskID, err)
+		return false
+	}
 	if _, err := os.Stat(tracePath); os.IsNotExist(err) {
 		fmt.Printf("[!] Cannot retry %s: missing 07-trace.json to preserve attempts history.\n", taskID)
 		return false
 	}
-	tracePayload, err := LoadArtifactPayload(tracePath)
-	if err == nil {
-		err = ValidateArtifact(tracePath, tracePayload)
-	}
-	if err != nil {
+	if _, err := store.LoadArtifact(taskDir, "07-trace.json"); err != nil {
 		fmt.Printf("[!] Cannot retry %s: invalid 07-trace.json: %v\n", taskID, err)
 		return false
 	}
@@ -1458,8 +1499,10 @@ func PrepareFailedChildRetry(taskID string) bool {
 	}
 
 	removed := clearRetryArtifacts(taskDir.Path)
-	store, _ := DefaultTaskStore()
-	store.MoveTask(taskDir, "active")
+	if _, err := store.MoveTask(taskDir, "active"); err != nil {
+		fmt.Printf("[!] Cannot retry %s: %v\n", taskID, err)
+		return false
+	}
 	if len(removed) > 0 {
 		fmt.Printf("[*] Removed stale retry artifacts for %s: %s\n", taskID, strings.Join(removed, ", "))
 	}

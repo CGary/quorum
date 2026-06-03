@@ -12,7 +12,7 @@ import (
 var analyzeFeedbackPartitionCmd = &cobra.Command{
 	Use:   "feedback-partition",
 	Short: "Partition feedback findings from stdin JSON into mechanical and semantic",
-	Args:  cobra.NoArgs,
+	Args:  cobra.ExactArgs(0),
 	Run: func(cmd *cobra.Command, args []string) {
 		var payload map[string]any
 		if err := readStdinJSON(&payload); err != nil {

@@ -17,7 +17,7 @@ type AnalyzeBlueprintContextRequest struct {
 var analyzeBlueprintContextCmd = &cobra.Command{
 	Use:   "blueprint-context",
 	Short: "Enrich blueprint with retrievers",
-	Args:  cobra.NoArgs,
+	Args:  cobra.ExactArgs(0),
 	Run: func(cmd *cobra.Command, args []string) {
 		var req AnalyzeBlueprintContextRequest
 		if err := readStdinJSON(&req); err != nil {

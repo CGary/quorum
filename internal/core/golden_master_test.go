@@ -83,6 +83,35 @@ func captureGolden(t *testing.T, repoRoot, bin string, args ...string) goldenCap
 	}
 }
 
+func captureGoldenWithStdin(t *testing.T, repoRoot, bin, stdin string, args ...string) goldenCapture {
+	t.Helper()
+	cmd := exec.Command(bin, args...)
+	cmd.Dir = repoRoot
+	cmd.Env = append(os.Environ(), "TERM=dumb", "NO_COLOR=1")
+	cmd.Stdin = strings.NewReader(stdin)
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	exitCode := 0
+	if err := cmd.Run(); err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			exitCode = exitErr.ExitCode()
+		} else {
+			t.Fatalf("failed to launch %q: %v", strings.Join(args, " "), err)
+		}
+	}
+
+	return goldenCapture{
+		command:  strings.Join(args, " "),
+		exitCode: exitCode,
+		stdout:   normalizeGolden(stdout.String(), repoRoot),
+		stderr:   normalizeGolden(stderr.String(), repoRoot),
+	}
+}
+
 func writeFile(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -127,6 +156,53 @@ func generateGoldenCorpus(t *testing.T, repoRoot, bin string) map[string]goldenC
 	}
 
 	return corpus
+}
+
+func TestAnalyzeCommandsRejectPositionalArgsBeforeStdin(t *testing.T) {
+	bin := buildQuorumCLI(t)
+	root := initGitRepo(t)
+
+	for _, analyzeCmd := range []string{
+		"blueprint-context",
+		"decomposition-coverage",
+		"decomposition-render",
+		"failure-lookup",
+		"feedback-partition",
+		"risk-score",
+	} {
+		t.Run(analyzeCmd, func(t *testing.T) {
+			got := captureGolden(t, root, bin, "analyze", analyzeCmd, "spurious-arg")
+			if got.exitCode == 0 {
+				t.Fatalf("%s accepted a positional argument", got.command)
+			}
+			if !strings.Contains(got.stderr, "accepts 0 arg(s), received 1") {
+				t.Fatalf("%s did not report the no-args contract\nstderr:\n%s", got.command, got.stderr)
+			}
+			if strings.Contains(got.stderr, "empty stdin") {
+				t.Fatalf("%s read stdin before rejecting positional args\nstderr:\n%s", got.command, got.stderr)
+			}
+		})
+	}
+}
+
+func TestAnalyzeValidStdinInvocationStillWorks(t *testing.T) {
+	bin := buildQuorumCLI(t)
+	root := initGitRepo(t)
+
+	got := captureGoldenWithStdin(
+		t,
+		root,
+		bin,
+		`{"decomposition":[{"child_id":"FEAT-001-a","depends_on":[]}]}`,
+		"analyze",
+		"decomposition-render",
+	)
+	if got.exitCode != 0 {
+		t.Fatalf("%s failed with valid stdin\nstderr:\n%s", got.command, got.stderr)
+	}
+	if !strings.Contains(got.stdout, "Decomposition DAG:") {
+		t.Fatalf("%s did not render expected DAG\nstdout:\n%s", got.command, got.stdout)
+	}
 }
 
 // TestGoldenCorpusStable asserts the binary's observable output is deterministic: two

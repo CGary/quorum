@@ -16,7 +16,7 @@ type AnalyzeFailureLookupRequest struct {
 var analyzeFailureLookupCmd = &cobra.Command{
 	Use:   "failure-lookup",
 	Short: "Find related failed tasks for a blueprint",
-	Args:  cobra.NoArgs,
+	Args:  cobra.ExactArgs(0),
 	Run: func(cmd *cobra.Command, args []string) {
 		var req AnalyzeFailureLookupRequest
 		if err := readStdinJSON(&req); err != nil {
