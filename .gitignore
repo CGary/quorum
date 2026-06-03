@@ -29,6 +29,8 @@ wheels/
 # Quorum Specific
 .atl/
 worktrees/
+.ai/runtime/*
+!.ai/runtime/.gitkeep
 .ai/tasks/active/*
 .ai/tasks/done/*
 .ai/tasks/failed/*

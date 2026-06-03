@@ -27,7 +27,7 @@ Humans think in stories; agents think in constraints. Quorum eliminates the huma
 - **A Human-Centric UI**: Operational artifacts are machine-first; humans inspect YAML planning files directly when needed.
 - **A Triage Tool for Trivial Changes**: Quorum is built for complex features where structure pays back. Bugfixes, typos, and 5-line edits are out of scope. Use direct CLI tools for those.
 
-> **Bounded exception (ADR 0004).** A narrow, read-only report-visualization capability is sanctioned: the `/q-report` skill authors transient report artifacts and `quorum serve` renders them locally. This does NOT make Quorum a documentation tool or a human-centric operational UI — the viewer adds no verdict and no merge authority, never mutates task state or the memory DB, and does not visualize lifecycle artifacts (`05`/`06`/`07`). Operational artifacts remain machine-first. Any further expansion (PDF export, themes, a report builder, state mutation) requires a new ADR. See `docs/adr/0004-visor-reportes-read-only.md`.
+> **Bounded exception (ADR 0004).** A narrow, read-only report-visualization capability is sanctioned: the `/q-report` skill authors transient report artifacts and `quorum serve` renders them through a read-only viewer with a configurable bind host. This does NOT make Quorum a documentation tool or a human-centric operational UI — the viewer adds no verdict and no merge authority, never mutates task state or the memory DB, and does not visualize lifecycle artifacts (`05`/`06`/`07`). Operational artifacts remain machine-first. Any further expansion (PDF export, themes, a report builder, state mutation) requires a new ADR. See `docs/adr/0004-visor-reportes-read-only.md`.
 
 ---
 

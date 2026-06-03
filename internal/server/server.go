@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -26,8 +27,11 @@ func NewServer() (*Server, error) {
 	return &Server{db: db}, nil
 }
 
-func (s *Server) Start(port int) error {
-	addr := fmt.Sprintf("127.0.0.1:%d", port)
+func (s *Server) Start(host string, port int) error {
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	addr := net.JoinHostPort(host, fmt.Sprintf("%d", port))
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/api/projects", s.projectsHandler)
@@ -184,7 +188,7 @@ func (s *Server) reportDetailHandler(w http.ResponseWriter, r *http.Request, pro
 	}
 
 	reportPath := filepath.Join(rootPath, ".ai", "reports", cleanReportID+".yaml")
-	
+
 	reportsDir := filepath.Join(rootPath, ".ai", "reports")
 	rel, err := filepath.Rel(reportsDir, reportPath)
 	if err != nil || strings.HasPrefix(rel, "..") {

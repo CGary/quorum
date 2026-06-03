@@ -10,7 +10,7 @@ El manifiesto (`quorum.md`), en la sección **"What Quorum IS NOT"**, declara ex
 Existe, sin embargo, un problema operativo real: revisar muchas salidas densas de agentes y de la CLI genera fatiga cognitiva en el humano que debe inspeccionarlas. Se propuso una feature en dos piezas:
 
 1. Un skill `/q-report` que rellena, desde una plantilla y en una sola pasada, un archivo **YAML** de reporte con una estructura predefinida orientada a reducir esa fatiga.
-2. Un comando `quorum serve` que levanta un servidor local de **solo lectura** y sirve un visor estático (embebido vía `go:embed`) capaz de listar proyectos desde la SQLite central y mostrar los reportes de cada proyecto.
+2. Un comando `quorum serve` que levanta un servidor configurable de **solo lectura** y sirve un visor estático (embebido vía `go:embed`) capaz de listar proyectos desde la SQLite central y mostrar los reportes de cada proyecto.
 
 Ambas piezas son, literalmente, generación y visualización de reportes para humanos: justo lo que la sección "What Quorum IS NOT" rechaza. La feature **no viola ninguna de las 9 Reglas Inmutables**, pero contradice una autodefinición del manifiesto. Por la regla "gana el manifiesto", construirla sin registrar la decisión convertiría la feature en una violación. Este ADR mueve esa frontera a propósito y deja rastro auditable.
 
@@ -18,7 +18,7 @@ Ambas piezas son, literalmente, generación y visualización de reportes para hu
 
 Se amplía la misión para **sancionar una capacidad acotada de visualización de reportes de solo lectura**, bajo las siguientes condiciones normativas vinculantes:
 
-1. **Solo lectura.** `quorum serve` NUNCA muta estado de tarea, NUNCA escribe en `.ai/tasks/` y NUNCA escribe en la SQLite de memoria (cuyo `CHECK (type IN ('pattern','decision','lesson'))` ya rechaza estructuralmente cualquier reporte). La SQLite se lee únicamente para enumerar la tabla `projects`. Binding forzado a `127.0.0.1`.
+1. **Solo lectura.** `quorum serve` NUNCA muta estado de tarea, NUNCA escribe en `.ai/tasks/` y NUNCA escribe en la SQLite de memoria (cuyo `CHECK (type IN ('pattern','decision','lesson'))` ya rechaza estructuralmente cualquier reporte). La SQLite se lee únicamente para enumerar la tabla `projects`. El host de escucha es configurable para permitir acceso desde otras interfaces cuando el operador lo solicita; el valor por defecto sigue siendo `127.0.0.1`.
 
 2. **La autoría es un skill auxiliar.** `/q-report` es un skill de un solo propósito, **NO** una fase del ciclo SDC (`00`–`07`). Cumple el protocolo de skills (salida en español, valores persistidos en inglés, `ESPERANDO RESPUESTA DEL USUARIO...` solo en turnos de espera) y **no tiene auto-transición** (no es ninguna de las tres autorizadas). No auto-activa otros skills (Regla #9 intacta).
 
