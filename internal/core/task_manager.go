@@ -2,7 +2,6 @@ package core
 
 import (
 	"bufio"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -13,8 +12,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	"gopkg.in/yaml.v3"
 )
 
 var parentIDRE = regexp.MustCompile(`^[A-Z]+-[0-9]+$`)
