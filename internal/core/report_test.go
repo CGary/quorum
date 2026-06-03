@@ -143,6 +143,26 @@ func TestReportCatalogIsClosed(t *testing.T) {
 	}
 }
 
+func TestReportDiagramsComponentValidates(t *testing.T) {
+	payload := map[string]any{
+		"meta": map[string]any{
+			"id":            "diagram-report",
+			"schemaVersion": "1.0",
+			"date":          "2026-06-01T12:00:00Z",
+		},
+		"diagrams": []any{
+			map[string]any{
+				"title": "Target flow",
+				"type":  "mermaid",
+				"code":  "flowchart LR\n  A[Input] --> B[Report]\n",
+			},
+		},
+	}
+	if err := core.ValidateAgainstSchema("report.schema.json", "dummy-report.yaml", payload); err != nil {
+		t.Fatalf("diagrams component must validate, got: %v", err)
+	}
+}
+
 func TestReportIDPatternAcceptsAndRejects(t *testing.T) {
 	valid := []string{"report", "audit-01", "report_2026_05_21", "A", "x1"}
 	for _, id := range valid {

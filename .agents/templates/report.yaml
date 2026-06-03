@@ -26,11 +26,32 @@ verdict: "One-sentence bottom line, front-loaded so it is read first."
 #   bestNextAction: "The first concrete step."
 #   whenNotToFollow: "The condition that invalidates this verdict."
 
+# callouts (list, max 3): human decisions, warnings, or notes to surface early.
+# callouts:
+#   - kind: "decision"     # decision | warning | note
+#     label: "Human decision"
+#     text: "Decision that needs explicit human attention."
+
+# verify (list, 1-4): where the author/AI may be wrong and how to check it.
+# verify:
+#   - what: "The fragile assumption, file, command, or claim to inspect."
+#     why: "Why this is risky or likely to be wrong."
+#     check: "Exact command or concrete inspection step."
+
 # keyFindings (list): scannable findings with impact and action.
 # keyFindings:
 #   - finding: "Front-loaded finding statement."
 #     whyItMatters: "Impact in engineering terms."
 #     action: "What to do about it."
+
+# diagrams (list): small Mermaid diagrams for flows, dependencies, states, sequences, or timelines.
+# diagrams:
+#   - title: "Target flow"
+#     type: "mermaid"
+#     code: |
+#       flowchart LR
+#         A[Input] --> B[Validated report]
+#         B --> C[Read-only viewer]
 
 # findings (list): audit findings; severity in critical/high/medium/low/info (pill).
 # findings:

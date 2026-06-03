@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "report.schema.json",
   "title": "Report Artifact Schema",
-  "description": "Validation schema for Quorum report artifacts. The body is a PALETTE of optional visual components, NOT a fixed form: only `meta` is required, every other property is an opt-in component the author selects when it fits the material. `additionalProperties:false` keeps the catalog CLOSED: authors use the established components and never invent new ones. Each component maps 1:1 to a renderer in the embedded viewer (internal/server/web/app.js); growing the catalog (e.g. a future `diagram`) is an additive change paired with a `meta.schemaVersion` bump.",
+  "description": "Validation schema for Quorum report artifacts. The body is a PALETTE of optional visual components, NOT a fixed form: only `meta` is required, every other property is an opt-in component the author selects when it fits the material. `additionalProperties:false` keeps the catalog CLOSED: authors use the established components and never invent new ones. Each component maps 1:1 to a renderer in the embedded viewer (internal/server/web/app.js); growing the catalog (e.g. a future renderer specialization) is an additive change paired with a `meta.schemaVersion` bump.",
   "type": "object",
   "properties": {
     "meta": {
@@ -41,6 +41,61 @@
         "type": "string"
       }
     },
+    "callouts": {
+      "type": "array",
+      "description": "Up to three visually distinct decision, warning, or note callouts for human attention. Renders immediately after the decision surface.",
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "decision",
+              "warning",
+              "note"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "text"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "verify": {
+      "type": "array",
+      "description": "One to four explicit uncertainty or fragility checks: what to inspect, why it is risky, and the exact check to run. Renders near the top to reduce AI-review fatigue.",
+      "minItems": 1,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "properties": {
+          "what": {
+            "type": "string"
+          },
+          "why": {
+            "type": "string"
+          },
+          "check": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "what",
+          "why",
+          "check"
+        ],
+        "additionalProperties": false
+      }
+    },
     "keyFindings": {
       "type": "array",
       "description": "Scannable findings with impact and action. Renders as a table.",
@@ -59,6 +114,33 @@
         },
         "required": [
           "finding"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "diagrams": {
+      "type": "array",
+      "description": "Small diagrams as code for flows, dependencies, state, sequence, or timelines. Mermaid diagrams render in the embedded viewer; source remains local and schema-validated.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "mermaid"
+            ]
+          },
+          "code": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "type",
+          "code"
         ],
         "additionalProperties": false
       }

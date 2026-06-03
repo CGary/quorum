@@ -40,7 +40,10 @@ The **Component catalog** in Phase 1 below is authoritative for this skill: it l
 | `verdict` | string | The front-loaded one-sentence bottom line. Read first. |
 | `summary` | string | Short context: what the reader should do or understand. |
 | `decisionSurface` | object (free-form keys → string) | Triage fields: recommendation, confidence, main risk, best next action, when not to follow. |
+| `callouts` | list of `{kind, text, label?}` | Up to 3 early human decisions, warnings, or notes; `kind` ∈ decision/warning/note. |
+| `verify` | list of `{what, why, check}` | 1–4 places where the author/AI may be wrong, with exact verification steps. |
 | `keyFindings` | list of `{finding, whyItMatters?, action?}` | Scannable findings with impact and action. |
+| `diagrams` | list of `{title, type, code}` | Small Mermaid diagrams for flows, dependencies, state, sequence, or timelines. |
 | `findings` | list of `{id, description, severity}` | Audit findings; `severity` ∈ critical/high/medium/low/info renders as a pill. |
 | `evidence` | list of `{findingId, path, details}` | Ties a finding to its location and detail. |
 | `tradeoffs` | list of `{option, upside?, downside?, useWhen?, avoidWhen?}` | Option comparison. |
@@ -61,10 +64,25 @@ decisionSurface:                  # object, free-form keys -> string
   recommendation: "The action to take."
   confidence: "medium"
   mainRisk: "The single biggest risk."
+callouts:                         # list, max 3
+  - kind: "decision"              # decision | warning | note
+    label: "Human decision"       # optional
+    text: "Decision needing explicit human attention."
+verify:                           # list, 1-4 rows
+  - what: "A fragile assumption, file, command, or claim."
+    why: "Why this is risky or likely to be wrong."
+    check: "Exact command or concrete inspection step."
 keyFindings:                      # list
   - finding: "Front-loaded finding statement."
     whyItMatters: "Impact in engineering terms."   # optional
     action: "What to do about it."                 # optional
+diagrams:                         # list; small Mermaid diagrams
+  - title: "Target flow"
+    type: "mermaid"
+    code: |
+      flowchart LR
+        A[Input] --> B[Validated report]
+        B --> C[Read-only viewer]
 findings:                         # list; severity renders as a pill
   - id: "F1"
     description: "Description of the finding."
@@ -94,6 +112,9 @@ appendix: "Raw detail, logs, or exhaustive references kept off the main path."
 - **Front-load**: start `verdict`, headings, and table cells with the information-carrying term ("Risk: cache invalidation is manual", not "Analysis").
 - **Tables over prose for comparison** (`tradeoffs`, `findings`, `risks`); reserve prose (`summary`) for causal reasoning; use scalar lists only for short parallel items.
 - **Preserve 100%**: never delete detail to shorten — move it into `appendix`.
+- **Verify first**: when the report is based on AI analysis or unexecuted assumptions, include `verify` with 1–4 concrete checks. Each row must say what to inspect, why it is risky, and the exact command or action to verify it. If everything looks suspicious, choose the few checks that would prevent the most rework.
+- **Surface human decisions**: use `callouts` for pending human choices, warnings, or notes that should be visible before detail. Keep it to 3 or fewer so alert fatigue does not replace cognitive fatigue.
+- **Use diagrams only for relationships**: include `diagrams` when prose would force the reader to mentally simulate flow, dependency, sequence, state, ownership, or phases. Keep Mermaid diagrams small (about 5–9 nodes), prefer `flowchart LR` for left-to-right process flow, `flowchart TD` for hierarchies, `sequenceDiagram` for temporal interactions, `stateDiagram-v2` for lifecycle states, and `timeline` for phased plans. Do not use diagrams as decoration.
 - **Concise field values**: every field value is plain text rendered by the viewer (no Markdown emphasis); keep values short and scannable.
 
 ### Phase 2: Produce the draft in `.tmp/` (two equally valid paths)

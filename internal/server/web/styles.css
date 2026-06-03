@@ -266,3 +266,239 @@ select:focus {
     white-space: pre-wrap;
     color: var(--text-primary);
 }
+
+/* Cognitive report refinements: layer-cake navigation, low-friction reading,
+   explicit uncertainty checks, and progressive disclosure. */
+:root {
+    --warn-bg: rgba(234, 179, 8, 0.10);
+    --warn-border: rgba(234, 179, 8, 0.38);
+    --decision-bg: rgba(59, 130, 246, 0.10);
+    --note-bg: rgba(100, 116, 139, 0.12);
+    --measure: 70ch;
+}
+
+.report-content {
+    line-height: 1.6;
+    scroll-behavior: smooth;
+}
+
+.report-section-nav {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: -8px 0 24px;
+    padding: 10px 0;
+    background: linear-gradient(180deg, var(--bg-primary) 75%, rgba(15, 17, 21, 0));
+}
+
+.report-section-nav a {
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 4px 10px;
+    text-decoration: none;
+    font-size: 0.75rem;
+    line-height: 1.2;
+    background: var(--bg-secondary);
+}
+
+.report-section-nav a:hover {
+    color: var(--text-primary);
+    border-color: var(--accent);
+}
+
+.report-section-nav a.alert {
+    color: var(--severity-high);
+    border-color: var(--warn-border);
+    background: var(--warn-bg);
+}
+
+.section {
+    scroll-margin-top: 72px;
+}
+
+.section-verdict .section-body,
+.section-summary .section-body,
+.section-appendix .section-body,
+.text-block,
+.section-lead {
+    max-width: var(--measure);
+}
+
+.section-verdict .text-block {
+    font-size: 1.08rem;
+    line-height: 1.65;
+}
+
+.section-verify {
+    border-color: var(--warn-border);
+    box-shadow: 0 0 0 1px rgba(234, 179, 8, 0.04) inset;
+}
+
+.section-verify .section-header {
+    background: var(--warn-bg);
+    color: var(--severity-medium);
+}
+
+.section-lead {
+    margin-bottom: 16px;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.table-wrap {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.data-table {
+    min-width: 560px;
+}
+
+.data-table th {
+    white-space: nowrap;
+}
+
+.data-table td {
+    vertical-align: top;
+}
+
+.scalar-list {
+    list-style-position: inside;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+}
+
+.callout-list {
+    display: grid;
+    gap: 12px;
+}
+
+.callout {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    background: var(--note-bg);
+}
+
+.callout.decision {
+    background: var(--decision-bg);
+    border-color: rgba(59, 130, 246, 0.38);
+}
+
+.callout.warning {
+    background: var(--warn-bg);
+    border-color: var(--warn-border);
+}
+
+.callout-label {
+    margin-bottom: 6px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+
+.callout.warning .callout-label { color: var(--severity-medium); }
+.callout.decision .callout-label { color: var(--accent); }
+
+.callout-text {
+    max-width: var(--measure);
+    font-size: 0.92rem;
+    color: var(--text-primary);
+}
+
+.appendix-details {
+    max-width: var(--measure);
+}
+
+.appendix-details summary {
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+
+.appendix-details summary:hover {
+    color: var(--text-primary);
+}
+
+.appendix-details .text-block {
+    border-left: 3px solid var(--border);
+    padding-left: 14px;
+    color: var(--text-secondary);
+}
+
+.pill.decision { background: rgba(59, 130, 246, 0.1); color: var(--severity-low); }
+.pill.warning { background: rgba(234, 179, 8, 0.1); color: var(--severity-medium); }
+.pill.note { background: rgba(100, 116, 139, 0.1); color: var(--severity-info); }
+
+@media (max-width: 900px) {
+    .app-container { flex-direction: column; }
+    .sidebar { width: 100%; max-height: 42vh; }
+    .content-header { padding: 18px 20px; }
+    .report-content { padding: 24px 20px; }
+}
+
+.diagram-card {
+    margin: 0 0 18px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--bg-primary);
+    overflow: hidden;
+}
+
+.diagram-title {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.diagram-render {
+    padding: 18px;
+    overflow-x: auto;
+    text-align: center;
+    background: var(--bg-secondary);
+}
+
+.diagram-render svg {
+    max-width: 100%;
+    height: auto;
+}
+
+.diagram-source {
+    border-top: 1px solid var(--border);
+    background: var(--bg-primary);
+}
+
+.diagram-source summary {
+    cursor: pointer;
+    padding: 10px 14px;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.diagram-source summary:hover {
+    color: var(--text-primary);
+}
+
+.diagram-source pre,
+.diagram-fallback {
+    margin: 0;
+    padding: 14px;
+    overflow-x: auto;
+    color: var(--text-primary);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    font-size: 0.82rem;
+    line-height: 1.55;
+    white-space: pre;
+}
