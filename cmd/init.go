@@ -3,8 +3,9 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"strings"
+	"path/filepath"
 	"quorum/internal/core"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -25,18 +26,34 @@ var initCmd = &cobra.Command{
 			fmt.Fprintf(os.Stderr, "[!] %v\n", err)
 			os.Exit(1)
 		}
-		
+
 		if root, err := core.ProjectRoot(); err == nil {
-			giPath := root + "/.gitignore"
-			if b, err := os.ReadFile(giPath); err == nil {
-				if !strings.Contains(string(b), ".ai/reports/") {
-					f, _ := os.OpenFile(giPath, os.O_APPEND|os.O_WRONLY, 0644)
-					f.WriteString(".ai/reports/\n")
-					f.Close()
-				}
-			}
+			_ = ensureReportsGitignoreEntry(root)
 		}
 	},
+}
+
+func ensureReportsGitignoreEntry(root string) error {
+	giPath := filepath.Join(root, ".gitignore")
+	b, err := os.ReadFile(giPath)
+	if err != nil {
+		return err
+	}
+	if strings.Contains(string(b), ".ai/reports/") {
+		return nil
+	}
+	f, err := os.OpenFile(giPath, os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	if len(b) > 0 && b[len(b)-1] != '\n' {
+		if _, err := f.WriteString("\n"); err != nil {
+			return err
+		}
+	}
+	_, err = f.WriteString(".ai/reports/\n")
+	return err
 }
 
 func init() {

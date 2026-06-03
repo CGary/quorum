@@ -342,9 +342,11 @@ The schema field `supersedes` allows a new memory to formally replace a prior on
 
 The optional `anti_patterns` field on every memory entry captures approaches that were considered and rejected with technical justification. This prevents rediscovery of known dead-ends and is a peer of positive knowledge, not a footnote.
 
-### External memory systems are out of scope
+### Storage sovereignty and rebuildability
 
-Quorum is local-first. Integrations with external semantic stores (HSME, vector DBs, RRF rerankers, time-decay scoring) are out of scope for the framework itself. Such systems may consume exported SQLite data as a read-only source, but Quorum does not depend on them. Proposals to embed external retrieval logic into `q-memory` violate Rule #1 (Git is the code truth).
+Quorum is **user-sovereign**, not local-first. Local task directories, worktrees, and SQLite memory are operational state owned by the user, not a constitutional boundary. A user may request tooling to export, delete, reset, or rebuild local Quorum data at any time, provided the operation is explicit, reversible when practical, and does not let agents bypass Git truth, validation finality, contract boundaries, or human merge authority.
+
+External semantic stores (HSME, vector DBs, RRF rerankers, time-decay scoring) are permitted integration targets when they remain subordinate to Quorum artifacts and Git. They may consume exported SQLite data, support restoration, or enrich retrieval, but they must not become the code truth or silently replace curated `q-memory` ingestion. Proposals that support user-controlled deletion and recreation of local state are constitutional; proposals that let an agent erase evidence, mutate task history, or treat external memory as proof of code remain rejected.
 
 ---
 
@@ -551,6 +553,9 @@ This preserves:
 
 9. **Skills Are Single-Phase Units**  
    Every `/q-*` skill executes exactly one declared phase and stops. Skills never auto-activate other skills, never chain into the next phase, and never make routing decisions. They MAY auto-execute one authorized forward state-transition CLI (the three listed in "Skill Modularity"); rollback (`quorum task back`) is exclusively human. The orchestrator (human or external runtime) dispatches each phase independently.
+
+10. **User Data Sovereignty**  
+   Quorum is not local-first as a constitutional constraint. Local operational data belongs to the user and may be explicitly exported, deleted, reset, or rebuilt by user-approved tooling. This never authorizes agents to hide evidence, rewrite append-only history, bypass validation, or replace Git as the code truth.
 
 ---
 

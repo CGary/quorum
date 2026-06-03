@@ -69,7 +69,7 @@ Estos componentes de la propuesta original quedan formalmente descartados. No re
 |---|---|
 | Estados `gold_standard` / `operational_log` / `discarded` | Redundante con la tipología existente (`pattern` ≈ gold; `lesson` ≈ operacional). Añade dimensión ortogonal sin justificación. |
 | Artefacto dedicado `09/10-impact-report.json` | Innecesario: `q-memory` escribe directamente en `memory/*`. Añadir un artefacto intermedio duplica el flujo. |
-| Integración con HSME (RRF, time-decay, factor de confianza) | Out of scope. Quorum es local-first y machine-first sobre disco. HSME es un sistema externo del usuario, no del framework. Romper esa frontera viola Regla #1 ("Git es la verdad"). |
+| Integración con HSME que reemplaza Git/artefactos como fuente de verdad | Rechazado. HSME/vector DBs pueden integrarse para exportar, restaurar o enriquecer recuperación, pero no pueden convertirse en prueba de código, borrar evidencia append-only ni saltarse `q-memory`. |
 | Campo `confidence_score: 0.95` | Score arbitrario sin fuente verificable. Anti-patrón conocido en sistemas LLM (falsa precisión). |
 | CLI dedicada `agents task consolidate <ID> --as-gold` | El binomio `q-accept` + `q-memory` ya cubre el flujo. Añadir un comando duplica responsabilidades. |
 | Veto humano explícito durante el Merge Gate | Ya implícito: `q-memory` es invocación humana, no automatismo. No hay automatismo que vetar. |

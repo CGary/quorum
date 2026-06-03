@@ -158,7 +158,7 @@ The rest of `internal/core` is small, pure, single-purpose logic exposed through
 
 The centralized SQLite memory is a knowledge library, NOT an activity log (the activity log is `07-trace.json`). Entries are typed (`pattern` / `decision` / `lesson`), not graded. The schema field `supersedes` records causal corrections — superseded entries are kept, never deleted. `q-memory` is the only ingestion path via `quorum memory save`; there is no auto-capture, and proposals to add one are rejected by the manifesto.
 
-External semantic stores (HSME, vector DBs) may *consume* exported SQLite data read-only, but Quorum itself is local-first and does not depend on or write to them.
+Quorum is user-sovereign, not local-first: local operational data belongs to the user and may be explicitly exported, deleted, reset, or rebuilt by user-approved tooling. External semantic stores (HSME, vector DBs) may integrate with exported/restored data when they remain subordinate to Git, lifecycle artifacts, validation, and curated `q-memory`; they must never become code truth or erase append-only evidence.
 
 ## The Constitution (immutable rules)
 
@@ -173,6 +173,7 @@ These are enforced by both the manifesto and the code paths above. Violations ar
 7. **Cost is bounded by policy.** Routing/retries/escalations are dispatcher decisions, never agent self-judgments.
 8. **Tests are the only proof.** Specs and blueprints don't prove functionality.
 9. **Skills are single-phase.** See the auto-transition table above. The orchestrator dispatches; skills don't.
+10. **User data sovereignty.** Quorum is not local-first as a constitutional constraint. User-approved tooling may export, delete, reset, or rebuild local operational data without treating external memory as code truth or bypassing trace/validation/contract invariants.
 
 ## Skill output protocol
 

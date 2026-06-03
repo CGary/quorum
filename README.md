@@ -23,7 +23,7 @@ Quorum es un framework **AI-first** para ejecutar funcionalidades complejas medi
 - No es una herramienta para cambios triviales de 5 líneas.
 - No es un generador de documentación narrativa.
 - No es un sistema de merge automático.
-- No depende de HSME/vector DBs: sistemas externos pueden consumir data exportada, pero Quorum es local-first.
+- No es local-first como restricción constitucional: la data operacional local pertenece al usuario y puede exportarse, borrarse, resetearse o recrearse con tooling explícitamente aprobado; HSME/vector DBs pueden integrarse si quedan subordinados a Git, artefactos y validación.
 
 ---
 
