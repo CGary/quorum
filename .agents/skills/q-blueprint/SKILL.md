@@ -40,7 +40,13 @@ cat .ai/tasks/<state>/<TASK_ID>/feedback.json | quorum analyze feedback-partitio
 4. Query related failed tasks. Read `.ai/tasks/failed/` for tasks whose blueprint touches the same files. Use the helper:
 
    ```bash
-   cat .ai/tasks/active/<TASK_ID>/01-blueprint.yaml | quorum analyze failure-lookup
+   cat << 'EOF' | quorum analyze failure-lookup
+   {
+     "blueprint": {
+       "affected_files": ["path/to/file.go"]
+     }
+   }
+   EOF
    ```
 
    For each match, surface the failure context in the new blueprint's `risks` array. Example:
@@ -55,7 +61,13 @@ cat .ai/tasks/<state>/<TASK_ID>/feedback.json | quorum analyze feedback-partitio
 5. Before finalizing `01-blueprint.yaml`, enrich the draft blueprint with retriever context so orphaned retrievers remain wired into this phase:
 
    ```bash
-   cat .ai/tasks/active/<TASK_ID>/01-blueprint.yaml | quorum analyze blueprint-context
+   cat << 'EOF' | quorum analyze blueprint-context
+   {
+     "blueprint": {
+       "affected_files": ["path/to/file.go"]
+     }
+   }
+   EOF
    ```
 
    The helper consumes `retrievers.ast_neighbors` and `retrievers.import_graph`; its output MUST be considered before writing `affected_files` and `dependencies` to YAML. This is still a human-operated blueprint step, not an automatic dispatcher or phase runner.
@@ -118,7 +130,14 @@ strategy:
 After generating `01-blueprint.yaml`, invoke the risk scorer to suggest a level:
 
 ```bash
-quorum analyze risk-score <TASK_ID>
+cat << 'EOF' | quorum analyze risk-score
+{
+  "blueprint": {
+    "affected_files": ["path/to/file.go"]
+  },
+  "declared_risk": "medium"
+}
+EOF
 ```
 
 Then:

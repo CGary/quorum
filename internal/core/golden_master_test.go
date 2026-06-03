@@ -121,6 +121,11 @@ func generateGoldenCorpus(t *testing.T, repoRoot, bin string) map[string]goldenC
 	_ = os.RemoveAll(ambig1)
 	_ = os.RemoveAll(ambig2)
 
+	// 4. Analyze commands reject positional arguments.
+	for _, cmd := range []string{"blueprint-context", "decomposition-coverage", "decomposition-render", "failure-lookup", "feedback-partition", "risk-score"} {
+		corpus["analyze_no_args_"+cmd] = captureGolden(t, repoRoot, bin, "analyze", cmd, "spurious-arg")
+	}
+
 	return corpus
 }
 

@@ -24,6 +24,7 @@ type AnalyzeRiskScoreResponse struct {
 var analyzeRiskScoreCmd = &cobra.Command{
 	Use:   "risk-score",
 	Short: "Score risk based on blueprint and policy",
+	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		var req AnalyzeRiskScoreRequest
 		if err := readStdinJSON(&req); err != nil {
