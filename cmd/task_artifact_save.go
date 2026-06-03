@@ -17,7 +17,13 @@ var artifactSaveCmd = &cobra.Command{
 		taskID := args[0]
 		artifactPath := args[1]
 		
-		taskDir, err := core.FindTaskDir(taskID, nil)
+		store, err := core.DefaultTaskStore()
+		if err != nil {
+			fmt.Println("[!] Error initializing task store:", err)
+			os.Exit(1)
+		}
+		
+		taskDir, err := store.FindTask(taskID)
 		if err != nil {
 			fmt.Println("[!] Error:", err)
 			os.Exit(1)
@@ -33,23 +39,19 @@ var artifactSaveCmd = &cobra.Command{
 			os.Exit(1)
 		}
 		
-		destPath := taskDir.Path + "/" + artifactPath
-		
-		// Write to temporary file to parse
-		tmpPath := destPath + ".tmp"
-		if err := os.WriteFile(tmpPath, raw, 0644); err != nil {
-			fmt.Println("[!] Error:", err)
+		destPath, err := store.TaskArtifactPath(taskDir, artifactPath)
+		if err != nil {
+			fmt.Printf("[!] Error building path: %v\n", err)
 			os.Exit(1)
 		}
-		defer os.Remove(tmpPath)
 		
-		payload, err := core.LoadArtifactPayload(tmpPath)
+		payload, err := core.ParseArtifactPayload(artifactPath, raw)
 		if err != nil {
 			fmt.Printf("[!] artifact=%s; field=$; reason=payload parse failed: %v\n", destPath, err)
 			os.Exit(1)
 		}
 		
-		if _, err := core.SaveArtifact(destPath, payload); err != nil {
+		if _, err := store.SaveArtifact(taskDir, artifactPath, payload); err != nil {
 			fmt.Printf("[!] %v\n", err)
 			os.Exit(1)
 		}
