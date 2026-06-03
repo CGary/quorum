@@ -83,7 +83,7 @@ Flag:
 If `00-spec.yaml` has a `decomposition` array, run a read-only parent-child coverage pass using `quorum analyze decomposition-coverage`:
 
 ```bash
-quorum analyze decomposition-coverage <PARENT>
+echo '{"parent_spec_path": ".ai/tasks/active/<PARENT>-<slug>/00-spec.yaml"}' | quorum analyze decomposition-coverage
 ```
 
 Report:

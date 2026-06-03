@@ -19,6 +19,7 @@ type AnalyzeDecompositionRenderResponse struct {
 var analyzeDecompositionRenderCmd = &cobra.Command{
 	Use:   "decomposition-render",
 	Short: "Render an ASCII DAG for a decomposition",
+	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		var req AnalyzeDecompositionRenderRequest
 		if err := readStdinJSON(&req); err != nil {

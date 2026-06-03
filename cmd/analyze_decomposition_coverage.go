@@ -16,6 +16,7 @@ type AnalyzeDecompositionCoverageRequest struct {
 var analyzeDecompositionCoverageCmd = &cobra.Command{
 	Use:   "decomposition-coverage",
 	Short: "Analyze decomposition coverage",
+	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		var req AnalyzeDecompositionCoverageRequest
 		if err := readStdinJSON(&req); err != nil {
