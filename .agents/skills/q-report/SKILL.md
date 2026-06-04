@@ -35,77 +35,68 @@ The **Component catalog** in Phase 1 below is authoritative for this skill: it l
 
 #### Component catalog (each maps 1:1 to a viewer renderer)
 
-| Component | YAML shape | Use it for |
-|-----------|-----------|------------|
-| `verdict` | string | The front-loaded one-sentence bottom line. Read first. |
-| `summary` | string | Short context: what the reader should do or understand. |
-| `decisionSurface` | object (free-form keys → string) | Triage fields: recommendation, confidence, main risk, best next action, when not to follow. |
-| `callouts` | list of `{kind, text, label?}` | Up to 3 early human decisions, warnings, or notes; `kind` ∈ decision/warning/note. |
-| `verify` | list of `{what, why, check}` | 1–4 places where the author/AI may be wrong, with exact verification steps. |
-| `keyFindings` | list of `{finding, whyItMatters?, action?}` | Scannable findings with impact and action. |
-| `diagrams` | list of `{title, type, code}` | Small Mermaid diagrams for flows, dependencies, state, sequence, or timelines. |
-| `findings` | list of `{id, description, severity}` | Audit findings; `severity` ∈ critical/high/medium/low/info renders as a pill. |
-| `evidence` | list of `{findingId, path, details}` | Ties a finding to its location and detail. |
-| `tradeoffs` | list of `{option, upside?, downside?, useWhen?, avoidWhen?}` | Option comparison. |
-| `risks` | list of `{id, description, impact}` | Risks; `impact` renders as a pill. |
-| `actionPlan` | list of `{step, action, owner}` | Executable next steps. |
-| `appendix` | string | Exhaustive detail / raw logs kept off the main path. Preserve content here instead of deleting it. |
+##### Top-Level Semantic Properties (New v1.1 Model)
+- `kind`: Report classification. Enumerates: `generic`, `project_usage`, `refactor_plan`, `refactor_result`, `audit`, `decision_brief`, `technical_analysis`.
+- `presentation`: Visual settings with mandatory fields `profile` (e.g. `presentation.profile` matches one of `cognitive`, `executive`, `audit`, `teaching`, `raw`), `density`, `audience`, `language`.
+- `content`: Root container for semantic content, containing `content.title`, `kicker`, `summary`, `verdict`, and `content.sections`.
+
+##### Semantic Section Roles
+- `decision_surface`: Key triage fields (recommendation, main risk, etc.).
+- `verification`: Explicit uncertainty or correctness checks.
+- `findings`: Structured technical or audit findings.
+- `analysis`: Narrative/causal prose with optional progressive disclosure details.
+- `diagram`: Mermaid diagram code.
+- `tradeoffs`: Option comparison table.
+- `risks`: Risks table with impact levels.
+- `action_plan`: Executable next steps.
+- `evidence`: Supports findings with paths and details.
+- `appendix`: Non-blocking exhaustive detail.
+- `metrics`: Numeric scalar tables or bars.
+- `callout`: Decision, warning, or note boxes.
+
+##### Legacy Model Properties (Compatibility Only)
+- `verdict`: Front-loaded bottom line.
+- `summary`: Short context paragraph.
+- `decisionSurface`: Key-value triage fields.
+- `callouts`: List of alert boxes.
+- `verify`: Places to inspect and check.
+- `keyFindings`: Scannable findings table.
+- `diagrams`: Mermaid diagram list.
+- `findings`: Audit findings table.
+- `evidence`: Supporting location table.
+- `tradeoffs`: Option comparison table.
+- `risks`: Risks table.
+- `actionPlan`: Action steps list.
+- `appendix`: Exhaustive detail string.
 
 #### Full example (cheat sheet — copy, then DELETE the components you don't need)
 
 ```yaml
 meta:
   id: "my-report"                 # MUST equal the filename / save <id>
-  schemaVersion: "1.0"            # optional: save auto-fills if omitted
+  schemaVersion: "1.1"            # optional: save auto-fills if omitted
   date: "2026-06-01T12:00:00Z"    # optional: save auto-fills (UTC RFC3339)
-verdict: "One-sentence bottom line, read first."
-summary: "Short context: what the reader should do or understand."
-decisionSurface:                  # object, free-form keys -> string
-  recommendation: "The action to take."
-  confidence: "medium"
-  mainRisk: "The single biggest risk."
-callouts:                         # list, max 3
-  - kind: "decision"              # decision | warning | note
-    label: "Human decision"       # optional
-    text: "Decision needing explicit human attention."
-verify:                           # list, 1-4 rows
-  - what: "A fragile assumption, file, command, or claim."
-    why: "Why this is risky or likely to be wrong."
-    check: "Exact command or concrete inspection step."
-keyFindings:                      # list
-  - finding: "Front-loaded finding statement."
-    whyItMatters: "Impact in engineering terms."   # optional
-    action: "What to do about it."                 # optional
-diagrams:                         # list; small Mermaid diagrams
-  - title: "Target flow"
-    type: "mermaid"
-    code: |
-      flowchart LR
-        A[Input] --> B[Validated report]
-        B --> C[Read-only viewer]
-findings:                         # list; severity renders as a pill
-  - id: "F1"
-    description: "Description of the finding."
-    severity: "high"              # one of: critical|high|medium|low|info
-evidence:                         # list
-  - findingId: "F1"
-    path: "internal/core/schema.go"
-    details: "Supporting detail."
-tradeoffs:                        # list
-  - option: "Option A"
-    upside: "What it gains."      # optional
-    downside: "What it costs."    # optional
-    useWhen: "When it fits."      # optional
-    avoidWhen: "When it doesn't." # optional
-risks:                            # list; impact renders as a pill
-  - id: "R1"
-    description: "Description of the risk."
-    impact: "medium"
-actionPlan:                       # list
-  - step: 1                       # integer
-    action: "First action step."
-    owner: "unassigned"
-appendix: "Raw detail, logs, or exhaustive references kept off the main path."
+
+kind: generic
+
+presentation:
+  profile: cognitive              # cognitive | executive | audit | teaching | raw
+  density: medium                 # low | medium | high
+  audience: engineer              # engineer | maintainer | reviewer | manager | user
+  language: es                    # es | en
+
+content:
+  title: "My Semantic Report"
+  kicker: "Subtitle/kicker"
+  summary: "Context paragraph"
+  verdict:
+    text: "Bottom line text"
+    confidence: high              # high | medium | low
+  sections:
+    - id: section-1
+      role: analysis
+      title: "Section Title"
+      body: "Body text"
 ```
 
 #### Cognitive-load heuristics (apply while selecting and phrasing)

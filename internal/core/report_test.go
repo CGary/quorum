@@ -224,3 +224,251 @@ func TestSeedTemplateValidAgainstSchema(t *testing.T) {
 		t.Errorf("seed template is not valid against report.schema.json: %v", err)
 	}
 }
+
+func TestReportSemanticModelValidation(t *testing.T) {
+	// 1. Semantic report minimo valida
+	validSemantic := map[string]any{
+		"meta": map[string]any{
+			"id":            "semantic-01",
+			"schemaVersion": "1.1",
+			"date":          "2026-06-01T12:00:00Z",
+		},
+		"kind": "generic",
+		"presentation": map[string]any{
+			"profile":  "cognitive",
+			"density":  "medium",
+			"audience": "engineer",
+			"language": "es",
+		},
+		"content": map[string]any{
+			"title": "A Semantic Report",
+			"verdict": map[string]any{
+				"text": "Passed validation",
+			},
+			"sections": []any{
+				map[string]any{
+					"id":    "sec-1",
+					"role":  "analysis",
+					"title": "Analysis Section",
+					"body":  "Some body text",
+				},
+			},
+		},
+	}
+	if err := core.ValidateAgainstSchema("report.schema.json", "reports/semantic.yaml", validSemantic); err != nil {
+		t.Fatalf("expected valid semantic report to pass, got: %v", err)
+	}
+
+	// 2. Mezclar content con cualquier componente legacy top-level falla
+	mixed := map[string]any{
+		"meta": map[string]any{
+			"id":            "semantic-01",
+			"schemaVersion": "1.1",
+			"date":          "2026-06-01T12:00:00Z",
+		},
+		"kind": "generic",
+		"presentation": map[string]any{
+			"profile":  "cognitive",
+			"density":  "medium",
+			"audience": "engineer",
+			"language": "es",
+		},
+		"summary": "This is a legacy property", // legacy property mixed with semantic content
+		"content": map[string]any{
+			"title": "A Semantic Report",
+			"verdict": map[string]any{
+				"text": "Passed validation",
+			},
+			"sections": []any{
+				map[string]any{
+					"id":    "sec-1",
+					"role":  "analysis",
+					"title": "Analysis Section",
+					"body":  "Some body text",
+				},
+			},
+		},
+	}
+	if err := core.ValidateAgainstSchema("report.schema.json", "reports/semantic.yaml", mixed); err == nil {
+		t.Fatal("expected mixed legacy + semantic report to fail validation")
+	}
+
+	// 3. content.sections: [] falla por minItems: 1
+	emptySections := map[string]any{
+		"meta": map[string]any{
+			"id":            "semantic-01",
+			"schemaVersion": "1.1",
+			"date":          "2026-06-01T12:00:00Z",
+		},
+		"kind": "generic",
+		"presentation": map[string]any{
+			"profile":  "cognitive",
+			"density":  "medium",
+			"audience": "engineer",
+			"language": "es",
+		},
+		"content": map[string]any{
+			"title": "A Semantic Report",
+			"verdict": map[string]any{
+				"text": "Passed validation",
+			},
+			"sections": []any{},
+		},
+	}
+	if err := core.ValidateAgainstSchema("report.schema.json", "reports/semantic.yaml", emptySections); err == nil {
+		t.Fatal("expected empty sections list to fail validation")
+	}
+
+	// 4. IDs duplicados en content.sections[].id fallan
+	duplicateSections := map[string]any{
+		"meta": map[string]any{
+			"id":            "semantic-01",
+			"schemaVersion": "1.1",
+			"date":          "2026-06-01T12:00:00Z",
+		},
+		"kind": "generic",
+		"presentation": map[string]any{
+			"profile":  "cognitive",
+			"density":  "medium",
+			"audience": "engineer",
+			"language": "es",
+		},
+		"content": map[string]any{
+			"title": "A Semantic Report",
+			"verdict": map[string]any{
+				"text": "Passed validation",
+			},
+			"sections": []any{
+				map[string]any{
+					"id":    "sec-1",
+					"role":  "analysis",
+					"title": "Analysis Section 1",
+					"body":  "Some body text",
+				},
+				map[string]any{
+					"id":    "sec-1", // duplicate id
+					"role":  "analysis",
+					"title": "Analysis Section 2",
+					"body":  "Some other body text",
+				},
+			},
+		},
+	}
+	err := core.ValidateAgainstSchema("report.schema.json", "reports/semantic.yaml", duplicateSections)
+	if err == nil {
+		t.Fatal("expected duplicate section IDs to fail validation")
+	}
+	if !strings.Contains(err.Error(), "duplicate section id") {
+		t.Errorf("expected duplicate section ID error message, got: %v", err)
+	}
+
+	// 5. findings.items[].id duplicados a través del reporte fallan
+	duplicateFindings := map[string]any{
+		"meta": map[string]any{
+			"id":            "semantic-01",
+			"schemaVersion": "1.1",
+			"date":          "2026-06-01T12:00:00Z",
+		},
+		"kind": "generic",
+		"presentation": map[string]any{
+			"profile":  "cognitive",
+			"density":  "medium",
+			"audience": "engineer",
+			"language": "es",
+		},
+		"content": map[string]any{
+			"title": "A Semantic Report",
+			"verdict": map[string]any{
+				"text": "Passed validation",
+			},
+			"sections": []any{
+				map[string]any{
+					"id":    "findings-1",
+					"role":  "findings",
+					"title": "Findings 1",
+					"items": []any{
+						map[string]any{
+							"id":          "f1",
+							"finding":      "First finding",
+							"severity":    "high",
+						},
+					},
+				},
+				map[string]any{
+					"id":    "findings-2",
+					"role":  "findings",
+					"title": "Findings 2",
+					"items": []any{
+						map[string]any{
+							"id":          "f1", // duplicate finding ID across sections
+							"finding":      "Second finding",
+							"severity":    "low",
+						},
+					},
+				},
+			},
+		},
+	}
+	err = core.ValidateAgainstSchema("report.schema.json", "reports/semantic.yaml", duplicateFindings)
+	if err == nil {
+		t.Fatal("expected duplicate finding IDs to fail validation")
+	}
+	if !strings.Contains(err.Error(), "duplicate finding id") {
+		t.Errorf("expected duplicate finding ID error message, got: %v", err)
+	}
+
+	// 6. evidence.items[].findingId que no existe en findings.items[].id falla
+	badEvidence := map[string]any{
+		"meta": map[string]any{
+			"id":            "semantic-01",
+			"schemaVersion": "1.1",
+			"date":          "2026-06-01T12:00:00Z",
+		},
+		"kind": "generic",
+		"presentation": map[string]any{
+			"profile":  "cognitive",
+			"density":  "medium",
+			"audience": "engineer",
+			"language": "es",
+		},
+		"content": map[string]any{
+			"title": "A Semantic Report",
+			"verdict": map[string]any{
+				"text": "Passed validation",
+			},
+			"sections": []any{
+				map[string]any{
+					"id":    "findings-1",
+					"role":  "findings",
+					"title": "Findings 1",
+					"items": []any{
+						map[string]any{
+							"id":          "f1",
+							"finding":      "First finding",
+							"severity":    "high",
+						},
+					},
+				},
+				map[string]any{
+					"id":    "evidence-1",
+					"role":  "evidence",
+					"title": "Evidence 1",
+					"items": []any{
+						map[string]any{
+							"findingId": "f2", // does not exist
+							"details":   "details of f2",
+						},
+					},
+				},
+			},
+		},
+	}
+	err = core.ValidateAgainstSchema("report.schema.json", "reports/semantic.yaml", badEvidence)
+	if err == nil {
+		t.Fatal("expected evidence referencing unknown finding to fail validation")
+	}
+	if !strings.Contains(err.Error(), "unknown finding id") {
+		t.Errorf("expected unknown finding ID error message, got: %v", err)
+	}
+}
+

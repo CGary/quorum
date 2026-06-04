@@ -103,9 +103,9 @@ document.addEventListener('DOMContentLoaded', () => {
             reportDate.textContent = '';
         }
 
-        reportContent.innerHTML = ''; // Safe because we just set it to empty string
+        reportContent.innerHTML = '';
 
-        // Safe helper to create elements using textContent.
+        // Shared helpers
         const el = (tag, className, text) => {
             const element = document.createElement(tag);
             if (className) element.className = className;
@@ -117,22 +117,6 @@ document.addEventListener('DOMContentLoaded', () => {
             .replace(/([A-Z])/g, ' $1')
             .replace(/^./, c => c.toUpperCase())
             .trim();
-
-        const sectionTitles = {
-            verdict: 'Verdict',
-            summary: 'Summary',
-            decisionSurface: 'Decision surface',
-            callouts: 'Callouts',
-            verify: 'Verify first',
-            keyFindings: 'Key findings',
-            diagrams: 'Diagrams',
-            findings: 'Findings',
-            evidence: 'Evidence',
-            tradeoffs: 'Trade-offs',
-            risks: 'Risks',
-            actionPlan: 'Action plan',
-            appendix: 'Appendix'
-        };
 
         const appendText = (parent, text, className = 'text-block') => {
             parent.appendChild(el('div', className, text));
@@ -183,10 +167,6 @@ document.addEventListener('DOMContentLoaded', () => {
             body.appendChild(kvList);
         };
 
-        // Shape-based fallback renderer: infers the visual from the value's JS
-        // shape (string -> text, array of objects -> table, array of scalars ->
-        // list, object -> key-value). Named renderers below override this for
-        // cognitive-load-critical components.
         const renderByShape = (value, body) => {
             if (typeof value === 'string') {
                 appendText(body, value);
@@ -288,61 +268,344 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
-        // Component dispatch seam. report.schema.json is the closed catalog of
-        // components; the viewer maps each component name to a renderer.
-        const COMPONENT_RENDERERS = {
-            decisionSurface: renderKeyValue,
-            callouts: renderCallouts,
-            verify: renderVerify,
-            diagrams: renderDiagrams,
-            appendix: renderAppendix
+        // --- LEGACY RENDERER ---
+        const renderLegacyReport = () => {
+            const sectionTitles = {
+                verdict: 'Verdict',
+                summary: 'Summary',
+                decisionSurface: 'Decision surface',
+                callouts: 'Callouts',
+                verify: 'Verify first',
+                keyFindings: 'Key findings',
+                diagrams: 'Diagrams',
+                findings: 'Findings',
+                evidence: 'Evidence',
+                tradeoffs: 'Trade-offs',
+                risks: 'Risks',
+                actionPlan: 'Action plan',
+                appendix: 'Appendix'
+            };
+
+            const COMPONENT_RENDERERS = {
+                decisionSurface: renderKeyValue,
+                callouts: renderCallouts,
+                verify: renderVerify,
+                diagrams: renderDiagrams,
+                appendix: renderAppendix
+            };
+
+            const COMPONENT_ORDER = [
+                'verdict', 'summary', 'decisionSurface', 'callouts', 'verify',
+                'keyFindings', 'diagrams', 'findings', 'evidence', 'tradeoffs', 'risks',
+                'actionPlan', 'appendix'
+            ];
+
+            const skipKeys = new Set(['meta']);
+            const present = Object.keys(data).filter(k => !skipKeys.has(k));
+            const orderedKeys = [
+                ...COMPONENT_ORDER.filter(k => present.includes(k)),
+                ...present.filter(k => !COMPONENT_ORDER.includes(k))
+            ];
+
+            if (orderedKeys.length > 1) {
+                const nav = el('nav', 'report-section-nav');
+                orderedKeys.forEach(key => {
+                    const a = document.createElement('a');
+                    a.href = `#report-section-${key}`;
+                    a.textContent = sectionTitles[key] || titleize(key);
+                    if (key === 'verify') a.className = 'alert';
+                    nav.appendChild(a);
+                });
+                reportContent.appendChild(nav);
+            }
+
+            orderedKeys.forEach(key => {
+                const value = data[key];
+                const section = el('section', `section section-${key}`);
+                section.id = `report-section-${key}`;
+                const header = el('div', 'section-header', sectionTitles[key] || titleize(key));
+                const body = el('div', 'section-body');
+
+                section.appendChild(header);
+                section.appendChild(body);
+
+                const renderer = COMPONENT_RENDERERS[key] || renderByShape;
+                renderer(value, body);
+
+                reportContent.appendChild(section);
+            });
+
+            renderMermaidDiagrams();
         };
 
-        // COMPONENT_ORDER enforces the cognitive-load "layer-cake" reading order
-        // regardless of authoring key order: decision surface first, fragile
-        // verification checks near the top, appendix last.
-        const COMPONENT_ORDER = [
-            'verdict', 'summary', 'decisionSurface', 'callouts', 'verify',
-            'keyFindings', 'diagrams', 'findings', 'evidence', 'tradeoffs', 'risks',
-            'actionPlan', 'appendix'
-        ];
+        // --- SEMANTIC RENDERER ---
+        const renderSemanticReport = () => {
+            const content = data.content;
+            const presentation = data.presentation || {};
+            const profile = presentation.profile || 'cognitive';
 
-        const skipKeys = new Set(['meta']);
-        const present = Object.keys(data).filter(k => !skipKeys.has(k));
-        const orderedKeys = [
-            ...COMPONENT_ORDER.filter(k => present.includes(k)),
-            ...present.filter(k => !COMPONENT_ORDER.includes(k))
-        ];
+            // 1. Render Header (title, kicker, verdict, summary)
+            renderSemanticHeader(content, presentation);
 
-        if (orderedKeys.length > 1) {
-            const nav = el('nav', 'report-section-nav');
-            orderedKeys.forEach(key => {
-                const a = document.createElement('a');
-                a.href = `#report-section-${key}`;
-                a.textContent = sectionTitles[key] || titleize(key);
-                if (key === 'verify') a.className = 'alert';
-                nav.appendChild(a);
+            // 2. Order sections according to presentation.profile
+            const orderedSections = orderSections(content.sections || [], profile);
+
+            // 3. Render Navigation
+            if (orderedSections.length > 1) {
+                const nav = el('nav', 'report-section-nav');
+                orderedSections.forEach(sec => {
+                    const a = document.createElement('a');
+                    a.href = `#report-section-${sec.id}`;
+                    a.textContent = sec.title;
+                    if (sec.role === 'verification') a.className = 'alert';
+                    nav.appendChild(a);
+                });
+                reportContent.appendChild(nav);
+            }
+
+            // 4. Render each section
+            orderedSections.forEach(sec => {
+                const section = el('section', `section section-${sec.role}`);
+                section.id = `report-section-${sec.id}`;
+                const header = el('div', 'section-header', sec.title);
+                const body = el('div', 'section-body');
+
+                section.appendChild(header);
+                section.appendChild(body);
+
+                renderSemanticSection(sec, body, presentation);
+
+                reportContent.appendChild(section);
             });
-            reportContent.appendChild(nav);
+
+            renderMermaidDiagrams();
+        };
+
+        const renderSemanticHeader = (content, presentation) => {
+            const headerWrap = el('div', 'report-header-wrap');
+            if (content.kicker) {
+                headerWrap.appendChild(el('div', 'report-kicker', content.kicker));
+            }
+            headerWrap.appendChild(el('h1', 'report-main-title', content.title));
+
+            if (content.verdict) {
+                const confClass = content.verdict.confidence ? `confidence-${content.verdict.confidence.toLowerCase()}` : '';
+                const verdictBox = el('div', `verdict-box ${confClass}`);
+                verdictBox.appendChild(el('div', 'verdict-text', content.verdict.text));
+                if (content.verdict.confidence) {
+                    verdictBox.appendChild(el('span', 'verdict-confidence', `Confidence: ${content.verdict.confidence}`));
+                }
+                headerWrap.appendChild(verdictBox);
+            }
+
+            if (content.summary) {
+                headerWrap.appendChild(el('div', 'report-summary-prosa', content.summary));
+            }
+
+            reportContent.appendChild(headerWrap);
+        };
+
+        // PROFILE_ORDER definition
+        const PROFILE_ORDER = {
+            cognitive: [
+                'decision_surface', 'verification', 'callout', 'findings',
+                'diagram', 'analysis', 'tradeoffs', 'risks',
+                'action_plan', 'evidence', 'metrics', 'appendix'
+            ],
+            executive: [
+                'decision_surface', 'risks', 'tradeoffs', 'action_plan'
+            ],
+            audit: [
+                'verification', 'findings', 'evidence', 'risks',
+                'action_plan', 'appendix'
+            ],
+            teaching: [
+                'diagram', 'analysis', 'action_plan', 'verification', 'appendix'
+            ],
+            raw: [] // preserves authoring order
+        };
+
+        const orderSections = (sections, profile) => {
+            const order = PROFILE_ORDER[profile] || PROFILE_ORDER.cognitive;
+            if (profile === 'raw' || order.length === 0) {
+                return [...sections];
+            }
+
+            // Sort logic: stable sort placing non-enumerated roles at the end in authoring order
+            const mapped = sections.map((sec, idx) => ({ sec, idx }));
+            mapped.sort((a, b) => {
+                const idxA = order.indexOf(a.sec.role);
+                const idxB = order.indexOf(b.sec.role);
+
+                const hasA = idxA !== -1;
+                const hasB = idxB !== -1;
+
+                if (hasA && hasB) {
+                    if (idxA !== idxB) return idxA - idxB;
+                    return a.idx - b.idx; // Keep author order for same role
+                }
+                if (hasA && !hasB) return -1;
+                if (!hasA && hasB) return 1;
+                return a.idx - b.idx; // Keep author order for both non-enumerated
+            });
+
+            return mapped.map(item => item.sec);
+        };
+
+        const renderSemanticSection = (sec, body, presentation) => {
+            const density = presentation.density || 'medium';
+
+            switch (sec.role) {
+                case 'decision_surface':
+                    if (sec.body) {
+                        renderKeyValue(sec.body, body);
+                    }
+                    break;
+
+                case 'verification':
+                    if (sec.items) {
+                        const items = Array.isArray(sec.items) ? sec.items : [];
+                        renderVerify(items, body);
+                    }
+                    break;
+
+                case 'findings':
+                    if (sec.items) {
+                        appendTable(body, ['id', 'finding', 'why', 'action', 'severity'], sec.items, {
+                            id: 'ID',
+                            finding: 'Finding',
+                            why: 'Why it matters',
+                            action: 'Recommended action',
+                            severity: 'Severity'
+                        });
+                    }
+                    break;
+
+                case 'analysis':
+                    if (sec.body) {
+                        appendText(body, sec.body);
+                    }
+                    if (sec.details && sec.details.body) {
+                        const details = document.createElement('details');
+                        details.className = 'analysis-details-element';
+                        // Collapse if density != high
+                        if (density === 'high') {
+                            details.open = true;
+                        }
+                        const summary = el('summary', '', sec.details.label || 'Show details');
+                        details.appendChild(summary);
+                        appendText(details, sec.details.body);
+                        body.appendChild(details);
+                    }
+                    break;
+
+                case 'diagram':
+                    if (sec.diagram) {
+                        const title = sec.title || 'Diagram';
+                        const figure = el('figure', 'diagram-card');
+                        if (sec.diagram.type === 'mermaid') {
+                            const diagRender = el('div', 'mermaid diagram-render', sec.diagram.code || '');
+                            figure.appendChild(diagRender);
+
+                            const source = document.createElement('details');
+                            source.className = 'diagram-source';
+                            source.appendChild(el('summary', '', 'Show Mermaid source'));
+                            source.appendChild(el('pre', '', sec.diagram.code || ''));
+                            figure.appendChild(source);
+                        } else {
+                            figure.appendChild(el('pre', 'diagram-fallback', sec.diagram.code || ''));
+                        }
+                        body.appendChild(figure);
+                    }
+                    break;
+
+                case 'tradeoffs':
+                    if (sec.items) {
+                        appendTable(body, ['option', 'upside', 'downside', 'useWhen', 'avoidWhen'], sec.items, {
+                            option: 'Option',
+                            upside: 'Upside',
+                            downside: 'Downside',
+                            useWhen: 'Use when',
+                            avoidWhen: 'Avoid when'
+                        });
+                    }
+                    break;
+
+                case 'risks':
+                    if (sec.items) {
+                        appendTable(body, ['risk', 'signal', 'impact', 'mitigation'], sec.items, {
+                            risk: 'Risk',
+                            signal: 'Risk signal',
+                            impact: 'Impact',
+                            mitigation: 'Mitigation'
+                        });
+                    }
+                    break;
+
+                case 'action_plan':
+                    if (sec.items) {
+                        appendTable(body, ['step', 'action', 'owner'], sec.items, {
+                            step: 'Step',
+                            action: 'Action',
+                            owner: 'Owner'
+                        });
+                    }
+                    break;
+
+                case 'evidence':
+                    if (sec.items) {
+                        // Render with links if possible, or table
+                        appendTable(body, ['findingId', 'path', 'details'], sec.items, {
+                            findingId: 'Finding ID',
+                            path: 'Path',
+                            details: 'Details'
+                        });
+                    }
+                    break;
+
+                case 'appendix':
+                    if (sec.body) {
+                        const details = document.createElement('details');
+                        details.className = 'appendix-details';
+                        const summary = el('summary', '', 'Show exhaustive detail');
+                        details.appendChild(summary);
+                        appendText(details, sec.body);
+                        body.appendChild(details);
+                    }
+                    break;
+
+                case 'metrics':
+                    if (sec.items) {
+                        appendTable(body, ['label', 'value', 'unit', 'display'], sec.items, {
+                            label: 'Metric',
+                            value: 'Value',
+                            unit: 'Unit',
+                            display: 'Visual'
+                        });
+                    }
+                    break;
+
+                case 'callout':
+                    if (sec.body) {
+                        const kind = String(sec.kind || 'note').toLowerCase();
+                        const card = el('div', `callout ${kind}`);
+                        card.appendChild(el('div', 'callout-label', sec.label || kind.toUpperCase()));
+                        card.appendChild(el('div', 'callout-text', sec.body));
+                        body.appendChild(card);
+                    }
+                    break;
+
+                default:
+                    renderByShape(sec, body);
+            }
+        };
+
+        // --- DISPATCH GATE ---
+        const isSemanticReport = Boolean(data.content);
+        if (isSemanticReport) {
+            renderSemanticReport();
+        } else {
+            renderLegacyReport();
         }
-
-        orderedKeys.forEach(key => {
-            const value = data[key];
-
-            const section = el('section', `section section-${key}`);
-            section.id = `report-section-${key}`;
-            const header = el('div', 'section-header', sectionTitles[key] || titleize(key));
-            const body = el('div', 'section-body');
-
-            section.appendChild(header);
-            section.appendChild(body);
-
-            const renderer = COMPONENT_RENDERERS[key] || renderByShape;
-            renderer(value, body);
-
-            reportContent.appendChild(section);
-        });
-
-        renderMermaidDiagrams();
     }
 });

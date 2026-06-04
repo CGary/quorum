@@ -40,8 +40,152 @@ func ValidateAgainstSchema(schemaName string, path string, payload any) error {
 		chosen := chooseError(ve)
 		return ArtifactValidationError{fmt.Sprintf("artifact=%s; field=%s; reason=%s", path, jsonPointer(chosen.InstanceLocation), pythonReason(chosen, payload))}
 	}
+	if valFn, ok := postSchemaValidators[schemaName]; ok {
+		if err := valFn(path, payload); err != nil {
+			return err
+		}
+	}
 	return nil
 }
+
+var postSchemaValidators = map[string]func(path string, payload any) error{
+	"report.schema.json": validateReportSemanticInvariants,
+}
+
+func validateReportSemanticInvariants(path string, payload any) error {
+	content, ok := lookupKey(payload, "content")
+	if !ok || content == nil {
+		return nil
+	}
+
+	// Enforce schemaVersion == "1.1" for semantic report
+	metaVal, ok := lookupKey(payload, "meta")
+	if ok && metaVal != nil {
+		versionVal, ok := lookupKey(metaVal, "schemaVersion")
+		if ok && versionVal != nil {
+			if versionStr, ok := versionVal.(string); ok && versionStr != "1.1" {
+				return ArtifactValidationError{
+					Message: fmt.Sprintf("artifact=%s; field=$.meta.schemaVersion; reason=%s was expected", path, pyRepr("1.1")),
+				}
+			}
+		}
+	}
+
+	sectionsVal, ok := lookupKey(content, "sections")
+	if !ok || sectionsVal == nil {
+		return nil
+	}
+	sections, ok := asSlice(sectionsVal)
+	if !ok {
+		return nil
+	}
+
+	// 1. Unicidad de section ID
+	seenSectionIDs := make(map[string]int)
+	for i, sec := range sections {
+		idVal, ok := lookupKey(sec, "id")
+		if !ok || idVal == nil {
+			continue
+		}
+		idStr, ok := idVal.(string)
+		if !ok {
+			continue
+		}
+		if _, exists := seenSectionIDs[idStr]; exists {
+			return ArtifactValidationError{
+				Message: fmt.Sprintf("artifact=%s; field=$.content.sections[%d].id; reason=duplicate section id %q", path, i, idStr),
+			}
+		}
+		seenSectionIDs[idStr] = i
+	}
+
+	// 2. Unicidad de findings.items[].id en todo el reporte
+	type findingLocation struct {
+		secIndex  int
+		itemIndex int
+	}
+	seenFindingIDs := make(map[string]findingLocation)
+	for i, sec := range sections {
+		roleVal, _ := lookupKey(sec, "role")
+		if roleVal == "findings" {
+			itemsVal, ok := lookupKey(sec, "items")
+			if ok && itemsVal != nil {
+				items, _ := asSlice(itemsVal)
+				for j, item := range items {
+					idVal, _ := lookupKey(item, "id")
+					if idVal == nil {
+						continue
+					}
+					idStr, ok := idVal.(string)
+					if !ok {
+						continue
+					}
+					if _, exists := seenFindingIDs[idStr]; exists {
+						return ArtifactValidationError{
+							Message: fmt.Sprintf("artifact=%s; field=$.content.sections[%d].items[%d].id; reason=duplicate finding id %q", path, i, j, idStr),
+						}
+					}
+					seenFindingIDs[idStr] = findingLocation{secIndex: i, itemIndex: j}
+				}
+			}
+		}
+	}
+
+	// 3. Integridad de evidence.items[].findingId -> findings.items[].id
+	for i, sec := range sections {
+		roleVal, _ := lookupKey(sec, "role")
+		if roleVal == "evidence" {
+			itemsVal, ok := lookupKey(sec, "items")
+			if ok && itemsVal != nil {
+				items, _ := asSlice(itemsVal)
+				for j, item := range items {
+					findingIdVal, _ := lookupKey(item, "findingId")
+					if findingIdVal == nil {
+						continue
+					}
+					findingIdStr, ok := findingIdVal.(string)
+					if !ok {
+						continue
+					}
+					if _, exists := seenFindingIDs[findingIdStr]; !exists {
+						return ArtifactValidationError{
+							Message: fmt.Sprintf("artifact=%s; field=$.content.sections[%d].items[%d].findingId; reason=unknown finding id %q", path, i, j, findingIdStr),
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func lookupKey(obj any, key string) (any, bool) {
+	if obj == nil {
+		return nil, false
+	}
+	if m, ok := obj.(map[string]any); ok {
+		val, found := m[key]
+		return val, found
+	}
+	if m, ok := obj.(map[any]any); ok {
+		val, found := m[key]
+		return val, found
+	}
+	rv := reflect.ValueOf(obj)
+	if rv.Kind() == reflect.Map {
+		for _, k := range rv.MapKeys() {
+			if k.Kind() == reflect.String && k.String() == key {
+				return rv.MapIndex(k).Interface(), true
+			}
+			if fmt.Sprintf("%v", k.Interface()) == key {
+				return rv.MapIndex(k).Interface(), true
+			}
+		}
+	}
+	return nil, false
+}
+
 
 func ValidateArtifact(path string, payload any) error {
 	name, ok := artifactSchemaName(path)

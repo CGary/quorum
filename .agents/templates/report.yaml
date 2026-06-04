@@ -1,89 +1,33 @@
-# Quorum report template — this is a PALETTE MENU, not a form.
-# Only `meta` is required. Uncomment ONLY the components that fit your report
-# and delete the rest. Never add a component that is not in report.schema.json:
-# the closed catalog rejects unknown components at save time.
+# Quorum semantic report template — this is a PALETTE MENU, not a form.
+# Only `meta`, `kind`, `presentation`, and `content` are required.
+# Seed format: semantic model v1.1.
 #
-# Field values follow the language of the user's prompt (see q-report SKILL.md).
+# Properties and roles catalog (uncomment/copy what you need):
+# Top-level: `kind`, `presentation`, `content`
+# Legacy properties: `verdict`, `summary`, `decisionSurface`, `callouts`, `verify`, `keyFindings`, `diagrams`, `findings`, `evidence`, `tradeoffs`, `risks`, `actionPlan`, `appendix`
+# Semantic roles: `decision_surface`, `verification`, `findings`, `analysis`, `diagram`, `tradeoffs`, `risks`, `action_plan`, `evidence`, `appendix`, `metrics`, `callout`
 
 meta:
   id: "template-id"
-  schemaVersion: "1.0"
+  schemaVersion: "1.1"
   date: "2026-06-01T00:00:00Z"
 
-# verdict (string): front-loaded one-sentence bottom line, read first.
-verdict: "One-sentence bottom line, front-loaded so it is read first."
+kind: generic
 
-# --- Optional components (uncomment what you need) -------------------------
+presentation:
+  profile: cognitive
+  density: medium
+  audience: engineer
+  language: es
 
-# summary (string): short context — what the reader should do or understand.
-# summary: "Short context: what the reader should do or understand."
-
-# decisionSurface (object, free-form keys -> string): triage fields.
-# decisionSurface:
-#   recommendation: "The action to take."
-#   confidence: "medium"
-#   mainRisk: "The single biggest risk."
-#   bestNextAction: "The first concrete step."
-#   whenNotToFollow: "The condition that invalidates this verdict."
-
-# callouts (list, max 3): human decisions, warnings, or notes to surface early.
-# callouts:
-#   - kind: "decision"     # decision | warning | note
-#     label: "Human decision"
-#     text: "Decision that needs explicit human attention."
-
-# verify (list, 1-4): where the author/AI may be wrong and how to check it.
-# verify:
-#   - what: "The fragile assumption, file, command, or claim to inspect."
-#     why: "Why this is risky or likely to be wrong."
-#     check: "Exact command or concrete inspection step."
-
-# keyFindings (list): scannable findings with impact and action.
-# keyFindings:
-#   - finding: "Front-loaded finding statement."
-#     whyItMatters: "Impact in engineering terms."
-#     action: "What to do about it."
-
-# diagrams (list): small Mermaid diagrams for flows, dependencies, states, sequences, or timelines.
-# diagrams:
-#   - title: "Target flow"
-#     type: "mermaid"
-#     code: |
-#       flowchart LR
-#         A[Input] --> B[Validated report]
-#         B --> C[Read-only viewer]
-
-# findings (list): audit findings; severity in critical/high/medium/low/info (pill).
-# findings:
-#   - id: "FINDING-01"
-#     description: "Description of the finding."
-#     severity: "info"
-
-# evidence (list): ties a finding to its location and detail.
-# evidence:
-#   - findingId: "FINDING-01"
-#     path: "path/to/file"
-#     details: "Details of the evidence."
-
-# tradeoffs (list): option comparison.
-# tradeoffs:
-#   - option: "Option A"
-#     upside: "What it gains."
-#     downside: "What it costs."
-#     useWhen: "When this option fits."
-#     avoidWhen: "When this option does not fit."
-
-# risks (list): risks with impact (pill).
-# risks:
-#   - id: "RISK-01"
-#     description: "Description of the risk."
-#     impact: "low"
-
-# actionPlan (list): executable next steps.
-# actionPlan:
-#   - step: 1
-#     action: "First action step."
-#     owner: "unassigned"
-
-# appendix (string): exhaustive detail / raw logs kept off the main path.
-# appendix: "Raw detail, logs, or exhaustive references kept off the main reading path."
+content:
+  title: "Generic Report Title"
+  kicker: "Context / Subtitle"
+  verdict:
+    text: "One-sentence bottom line, front-loaded so it is read first."
+    confidence: high
+  sections:
+    - id: executive-summary
+      role: analysis
+      title: "Resumen Ejecutivo"
+      body: "Describe the primary outcomes and technical analysis here."

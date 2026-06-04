@@ -61,8 +61,20 @@ func fillReportMetadata(payload any) {
 		meta = map[string]any{}
 		root["meta"] = meta
 	}
+	hasSemanticMarker := false
+	if _, ok := root["content"]; ok {
+		hasSemanticMarker = true
+	} else if _, ok := root["kind"]; ok {
+		hasSemanticMarker = true
+	} else if _, ok := root["presentation"]; ok {
+		hasSemanticMarker = true
+	}
 	if s, _ := meta["schemaVersion"].(string); strings.TrimSpace(s) == "" {
-		meta["schemaVersion"] = "1.0"
+		if hasSemanticMarker {
+			meta["schemaVersion"] = "1.1"
+		} else {
+			meta["schemaVersion"] = "1.0"
+		}
 	}
 	if d, _ := meta["date"].(string); strings.TrimSpace(d) == "" {
 		meta["date"] = time.Now().UTC().Format(time.RFC3339)

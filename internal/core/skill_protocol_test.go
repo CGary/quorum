@@ -201,11 +201,6 @@ func TestSkillProtocolArtifactProducingSkillsRequireEnglish(t *testing.T) {
 	}
 }
 
-// TestReportCatalogDocsInSyncWithSchema closes the drift risk created by making
-// the q-report SKILL.md "Component catalog" the authoritative in-skill contract:
-// every component in report.schema.json (except `meta`) MUST be documented both
-// in the skill catalog (as `name`) and in the seed template menu, so the docs an
-// agent reads can never silently fall behind the schema.
 func TestReportCatalogDocsInSyncWithSchema(t *testing.T) {
 	root := sourceRoot(t)
 
@@ -213,9 +208,7 @@ func TestReportCatalogDocsInSyncWithSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read report schema: %v", err)
 	}
-	var schema struct {
-		Properties map[string]json.RawMessage `json:"properties"`
-	}
+	var schema map[string]any
 	if err := json.Unmarshal(schemaRaw, &schema); err != nil {
 		t.Fatalf("parse report schema: %v", err)
 	}
@@ -227,16 +220,117 @@ func TestReportCatalogDocsInSyncWithSchema(t *testing.T) {
 	}
 	tmplStr := string(tmpl)
 
-	for name := range schema.Properties {
-		if name == "meta" {
-			continue
+	// Helper to extract properties from a def key
+	getProperties := func(defKey string) []string {
+		defs, _ := schema["$defs"].(map[string]any)
+		if defs == nil {
+			return nil
 		}
+		def, _ := defs[defKey].(map[string]any)
+		if def == nil {
+			return nil
+		}
+		properties, _ := def["properties"].(map[string]any)
+		if properties == nil {
+			return nil
+		}
+		var names []string
+		for name := range properties {
+			if name != "meta" {
+				names = append(names, name)
+			}
+		}
+		return names
+	}
+
+	// Helper to extract roles from $defs.semanticSection
+	getRoles := func() []string {
+		defs, _ := schema["$defs"].(map[string]any)
+		if defs == nil {
+			return nil
+		}
+		section, _ := defs["semanticSection"].(map[string]any)
+		if section == nil {
+			return nil
+		}
+		properties, _ := section["properties"].(map[string]any)
+		if properties == nil {
+			return nil
+		}
+		roleField, _ := properties["role"].(map[string]any)
+		if roleField == nil {
+			return nil
+		}
+		enumVal, _ := roleField["enum"].([]any)
+		var roles []string
+		for _, ev := range enumVal {
+			if rStr, ok := ev.(string); ok {
+				roles = append(roles, rStr)
+			}
+		}
+		return roles
+	}
+
+	// Legacy properties (should still be present in catalog/template comments or text)
+	legacyProps := getProperties("legacyModel")
+	for _, name := range legacyProps {
 		if !strings.Contains(skill, "`"+name+"`") {
-			t.Errorf("q-report SKILL.md catalog is missing component %q (schema/doc drift)", name)
+			t.Errorf("q-report SKILL.md catalog is missing legacy component %q (schema/doc drift)", name)
 		}
 		if !strings.Contains(tmplStr, name) {
-			t.Errorf("seed template menu is missing component %q (schema/template drift)", name)
+			t.Errorf("seed template menu is missing legacy component %q (schema/template drift)", name)
 		}
+	}
+
+	// Semantic top-level properties: kind, presentation, content
+	semanticProps := getProperties("semanticModel")
+	for _, name := range semanticProps {
+		if !strings.Contains(skill, "`"+name+"`") {
+			t.Errorf("q-report SKILL.md catalog is missing semantic component %q (schema/doc drift)", name)
+		}
+		if !strings.Contains(tmplStr, name) {
+			t.Errorf("seed template menu is missing semantic component %q (schema/template drift)", name)
+		}
+	}
+
+	// Semantic roles
+	roles := getRoles()
+	if len(roles) == 0 {
+		t.Errorf("expected to find semantic roles in schema, found none")
+	}
+	for _, role := range roles {
+		if !strings.Contains(skill, "`"+role+"`") {
+			t.Errorf("q-report SKILL.md catalog is missing semantic role %q (schema/doc drift)", role)
+		}
+		if !strings.Contains(tmplStr, role) {
+			t.Errorf("seed template menu is missing semantic role %q (schema/template drift)", role)
+		}
+	}
+
+	// Asserts from §11.3:
+	// 1. menciona content.sections
+	if !strings.Contains(skill, "content.sections") {
+		t.Error("q-report SKILL.md does not mention 'content.sections'")
+	}
+	// 2. menciona kind
+	if !strings.Contains(skill, "kind") {
+		t.Error("q-report SKILL.md does not mention 'kind'")
+	}
+	// 3. menciona presentation.profile
+	if !strings.Contains(skill, "presentation.profile") {
+		t.Error("q-report SKILL.md does not mention 'presentation.profile'")
+	}
+	// 4. mantiene persistencia por quorum report save
+	if !strings.Contains(skill, "quorum report save") {
+		t.Error("q-report SKILL.md does not mention 'quorum report save'")
+	}
+	// 5. mantiene salida en español
+	if !strings.Contains(strings.ToLower(skill), "always respond in spanish") && !strings.Contains(strings.ToLower(skill), "siempre responde en español") {
+		t.Error("q-report SKILL.md does not require Spanish output")
+	}
+	// 6. no auto-encadena otra skill
+	if !strings.Contains(skill, "Do not auto-chain") && !strings.Contains(skill, "do not auto-chain") && !strings.Contains(skill, "no auto-encadena") && !strings.Contains(skill, "Auto-chaining violates Rule #9") {
+		t.Error("q-report SKILL.md does not prohibit auto-chaining")
 	}
 }
 
