@@ -199,52 +199,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         };
 
-        const renderCallouts = (items, body) => {
-            const wrap = el('div', 'callout-list');
-            items.forEach(item => {
-                const kind = String(item.kind || 'note').toLowerCase();
-                const card = el('div', `callout ${kind}`);
-                const defaultLabel = kind === 'decision' ? 'Decision' : kind === 'warning' ? 'Warning' : 'Note';
-                card.appendChild(el('div', 'callout-label', item.label || defaultLabel));
-                card.appendChild(el('div', 'callout-text', item.text || ''));
-                wrap.appendChild(card);
-            });
-            body.appendChild(wrap);
-        };
-
-        const renderAppendix = (value, body) => {
-            const details = document.createElement('details');
-            details.className = 'appendix-details';
-            const summary = el('summary', '', 'Show exhaustive detail');
-            details.appendChild(summary);
-            appendText(details, value);
-            body.appendChild(details);
-        };
-
-        const renderDiagrams = (items, body) => {
-            const lead = el('p', 'section-lead', 'Small diagrams reduce mental simulation for flows, dependencies, state, sequence, and timelines.');
-            body.appendChild(lead);
-            items.forEach((item, index) => {
-                const figure = el('figure', 'diagram-card');
-                figure.appendChild(el('figcaption', 'diagram-title', item.title || `Diagram ${index + 1}`));
-
-                if ((item.type || 'mermaid') === 'mermaid') {
-                    const diagram = el('div', 'mermaid diagram-render', item.code || '');
-                    figure.appendChild(diagram);
-
-                    const source = document.createElement('details');
-                    source.className = 'diagram-source';
-                    source.appendChild(el('summary', '', 'Show Mermaid source'));
-                    source.appendChild(el('pre', '', item.code || ''));
-                    figure.appendChild(source);
-                } else {
-                    figure.appendChild(el('pre', 'diagram-fallback', item.code || ''));
-                }
-
-                body.appendChild(figure);
-            });
-        };
-
         const renderMermaidDiagrams = () => {
             const nodes = reportContent.querySelectorAll('.mermaid');
             if (nodes.length === 0 || !window.mermaid) return;
