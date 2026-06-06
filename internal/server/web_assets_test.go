@@ -115,14 +115,14 @@ func TestViewerLoadsSplitStylesheetsAndMemoryUI(t *testing.T) {
 	}
 	app := readAppJS(t)
 	idx := string(index)
-	for _, want := range []string{`href="styles.css"`, `href="style.css"`, `id="memories-tab"`, `id="memory-list"`} {
+	for _, want := range []string{`href="styles.css"`, `href="style.css"`, `id="memories-tab"`, `id="memory-list"`, `id="tasks-tab"`, `id="task-list"`} {
 		if !strings.Contains(idx, want) {
 			t.Errorf("index.html missing %s", want)
 		}
 	}
-	for _, want := range []string{"/memories", "renderMemory", "memoryType"} {
+	for _, want := range []string{"/memories", "renderMemory", "memoryType", "/tasks", "loadTasks", "renderTask"} {
 		if !strings.Contains(app, want) {
-			t.Errorf("app.js missing memory UI marker %q", want)
+			t.Errorf("app.js missing memory/task UI marker %q", want)
 		}
 	}
 }

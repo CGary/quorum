@@ -122,6 +122,10 @@
       ],
       "minimum": 0
     },
+    "events": {
+      "type": "array",
+      "items": { "type": "object", "additionalProperties": true }
+    },
     "violations": {
       "type": "array",
       "items": {

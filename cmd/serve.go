@@ -32,8 +32,8 @@ type serveState struct {
 
 var serveCmd = &cobra.Command{
 	Use:   "serve",
-	Short: "Start a read-only server for projects and reports",
-	Long:  `Start a read-only API server to serve JSON data about projects and their reports.`,
+	Short: "Start a read-only server for projects, reports, memories, and task state",
+	Long:  `Start a read-only API server to serve JSON data about projects, reports, memories, and task state.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		srv, err := server.NewServer()
 		if err != nil {

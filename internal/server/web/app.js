@@ -2,11 +2,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const projectSelect = document.getElementById('project-select');
     const reportList = document.getElementById('report-list');
     const memoryList = document.getElementById('memory-list');
+    const taskList = document.getElementById('task-list');
     const reportsTab = document.getElementById('reports-tab');
     const memoriesTab = document.getElementById('memories-tab');
+    const tasksTab = document.getElementById('tasks-tab');
     const memoryControls = document.getElementById('memory-controls');
+    const taskControls = document.getElementById('task-controls');
     const memoryType = document.getElementById('memory-type');
     const memorySearch = document.getElementById('memory-search');
+    const taskLocation = document.getElementById('task-location');
+    const taskSearch = document.getElementById('task-search');
     const reportTitle = document.getElementById('report-title');
     const reportDate = document.getElementById('report-date');
     const reportContent = document.getElementById('report-content');
@@ -14,6 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentProject = '';
     let activeView = 'reports';
     let memorySearchTimer = null;
+    let taskSearchTimer = null;
 
     const makeEl = (tag, className, text) => {
         const element = document.createElement(tag);
@@ -45,45 +51,76 @@ document.addEventListener('DOMContentLoaded', () => {
 
     projectSelect.addEventListener('change', (e) => {
         currentProject = e.target.value;
-        clearContent(activeView === 'reports' ? 'No Report Selected' : 'No Memory Selected');
+        let title = 'No Report Selected';
+        if (activeView === 'memories') title = 'No Memory Selected';
+        if (activeView === 'tasks') title = 'No Task Selected';
+        clearContent(title);
         if (activeView === 'reports') {
             loadReports(currentProject);
-        } else {
+        } else if (activeView === 'memories') {
             loadMemories(currentProject);
+        } else {
+            loadTasks(currentProject);
         }
     });
 
     reportsTab.addEventListener('click', () => switchView('reports'));
     memoriesTab.addEventListener('click', () => switchView('memories'));
+    tasksTab.addEventListener('click', () => switchView('tasks'));
     memoryType.addEventListener('change', () => currentProject && loadMemories(currentProject));
     memorySearch.addEventListener('input', () => {
         clearTimeout(memorySearchTimer);
         memorySearchTimer = setTimeout(() => currentProject && loadMemories(currentProject), 200);
     });
+    taskLocation.addEventListener('change', () => currentProject && loadTasks(currentProject));
+    taskSearch.addEventListener('input', () => {
+        clearTimeout(taskSearchTimer);
+        taskSearchTimer = setTimeout(() => currentProject && loadTasks(currentProject), 200);
+    });
 
     function switchView(view) {
         activeView = view;
         const reportsActive = view === 'reports';
+        const memoriesActive = view === 'memories';
+        const tasksActive = view === 'tasks';
+
         reportsTab.classList.toggle('active', reportsActive);
-        memoriesTab.classList.toggle('active', !reportsActive);
+        memoriesTab.classList.toggle('active', memoriesActive);
+        tasksTab.classList.toggle('active', tasksActive);
+
         reportsTab.setAttribute('aria-selected', reportsActive ? 'true' : 'false');
-        memoriesTab.setAttribute('aria-selected', reportsActive ? 'false' : 'true');
+        memoriesTab.setAttribute('aria-selected', memoriesActive ? 'true' : 'false');
+        tasksTab.setAttribute('aria-selected', tasksActive ? 'true' : 'false');
+
         reportList.classList.toggle('hidden', !reportsActive);
-        memoryList.classList.toggle('hidden', reportsActive);
-        memoryControls.classList.toggle('hidden', reportsActive);
-        clearContent(reportsActive ? 'No Report Selected' : 'No Memory Selected');
+        memoryList.classList.toggle('hidden', !memoriesActive);
+        taskList.classList.toggle('hidden', !tasksActive);
+
+        memoryControls.classList.toggle('hidden', !memoriesActive);
+        taskControls.classList.toggle('hidden', !tasksActive);
+
+        let title = 'No Report Selected';
+        if (memoriesActive) title = 'No Memory Selected';
+        if (tasksActive) title = 'No Task Selected';
+        clearContent(title);
+
         if (!currentProject) return;
         if (reportsActive) {
             loadReports(currentProject);
-        } else {
+        } else if (memoriesActive) {
             loadMemories(currentProject);
+        } else {
+            loadTasks(currentProject);
         }
     }
 
     function clearContent(title) {
         reportTitle.textContent = title;
         reportDate.textContent = '';
-        reportContent.innerHTML = `<div class="empty-state"><p>Select a ${activeView === 'reports' ? 'report' : 'memory'} from the sidebar to view its contents.</p></div>`;
+        let typeLabel = 'report';
+        if (activeView === 'memories') typeLabel = 'memory';
+        if (activeView === 'tasks') typeLabel = 'task';
+        reportContent.innerHTML = `<div class="empty-state"><p>Select a ${typeLabel} from the sidebar to view its contents.</p></div>`;
     }
 
     function loadReports(projectId) {
@@ -636,5 +673,292 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         renderSemanticReport();
+    }
+
+    function loadTasks(projectId) {
+        taskList.innerHTML = '<div class="empty-state">Loading tasks...</div>';
+
+        const loc = taskLocation.value;
+        const q = taskSearch.value;
+
+        let url = `/api/projects/${projectId}/tasks?`;
+        if (loc) url += `location=${encodeURIComponent(loc)}&`;
+        if (q) url += `q=${encodeURIComponent(q)}&`;
+
+        fetch(url)
+            .then(res => res.json())
+            .then(data => {
+                taskList.innerHTML = '';
+                const tasks = data.items || [];
+                if (tasks.length > 0) {
+                    tasks.forEach(t => {
+                        const item = document.createElement('div');
+                        item.className = 'report-item';
+
+                        const titleWrap = document.createElement('div');
+                        titleWrap.style.display = 'flex';
+                        titleWrap.style.justifyContent = 'space-between';
+                        titleWrap.style.alignItems = 'center';
+
+                        const title = document.createElement('div');
+                        title.className = 'report-item-title';
+                        title.textContent = t.id;
+
+                        const pill = document.createElement('span');
+                        pill.className = `pill ${t.location}`;
+                        pill.textContent = t.location;
+
+                        titleWrap.appendChild(title);
+                        titleWrap.appendChild(pill);
+
+                        const summary = document.createElement('div');
+                        summary.className = 'report-item-date';
+                        summary.textContent = t.summary || 'No summary';
+                        summary.style.whiteSpace = 'nowrap';
+                        summary.style.overflow = 'hidden';
+                        summary.style.textOverflow = 'ellipsis';
+                        summary.style.marginTop = '4px';
+
+                        item.appendChild(titleWrap);
+                        item.appendChild(summary);
+
+                        item.addEventListener('click', () => {
+                            document.querySelectorAll('.report-item').forEach(el => el.classList.remove('active'));
+                            item.classList.add('active');
+                            loadTaskDetail(projectId, t.id);
+                        });
+
+                        taskList.appendChild(item);
+                    });
+                } else {
+                    taskList.innerHTML = '<div class="empty-state">No tasks found</div>';
+                }
+            })
+            .catch(err => {
+                console.error('Error fetching tasks:', err);
+                taskList.innerHTML = '<div class="empty-state">Error loading tasks</div>';
+            });
+    }
+
+    function loadTaskDetail(projectId, taskId) {
+        reportContent.innerHTML = '<div class="empty-state">Loading task...</div>';
+        reportTitle.textContent = `Loading ${taskId}...`;
+        reportDate.textContent = '';
+
+        fetch(`/api/projects/${projectId}/tasks/${taskId}`)
+            .then(res => {
+                if (!res.ok) throw new Error('Failed to load task details');
+                return res.json();
+            })
+            .then(data => {
+                renderTask(data);
+            })
+            .catch(err => {
+                console.error('Error fetching task details:', err);
+                reportTitle.textContent = 'Error';
+                reportContent.innerHTML = '<div class="empty-state">Failed to load task details.</div>';
+            });
+    }
+
+    function renderTask(task) {
+        reportTitle.textContent = task.id;
+        const d = new Date(task.updated_at);
+        reportDate.textContent = isNaN(d.getTime()) ? task.updated_at : d.toLocaleString();
+        reportContent.innerHTML = '';
+
+        // Header
+        const header = makeEl('div', 'report-header-wrap');
+        const topRow = document.createElement('div');
+        topRow.style.display = 'flex';
+        topRow.style.alignItems = 'center';
+        topRow.style.gap = '1rem';
+
+        topRow.appendChild(makeEl('div', `pill ${task.location}`, task.location));
+        if (task.risk) {
+            topRow.appendChild(makeEl('div', `pill ${task.risk}`, `Risk: ${task.risk}`));
+        }
+        header.appendChild(topRow);
+
+        header.appendChild(makeEl('h1', 'report-main-title', task.id));
+        header.appendChild(makeEl('div', 'report-kicker', `Directory: ${task.directory}`));
+
+        if (task.summary) {
+            header.appendChild(makeEl('div', 'report-summary-prosa', task.summary));
+        }
+        reportContent.appendChild(header);
+
+        // Metadata section
+        const metaSection = makeEl('section', 'section');
+        metaSection.appendChild(makeEl('div', 'section-header', 'Task Metadata'));
+        const metaBody = makeEl('div', 'section-body');
+        const metaKV = makeEl('div', 'key-value-list');
+        const appendMetaKV = (key, value) => {
+            metaKV.appendChild(makeEl('div', 'key-value-key', key));
+            metaKV.appendChild(makeEl('div', 'key-value-value', value || 'None'));
+        };
+
+        appendMetaKV('Worktree Present', task.worktree_present ? 'Yes' : 'No');
+        if (task.parent_task) {
+            appendMetaKV('Parent Task', task.parent_task);
+        }
+        if (task.parent_state) {
+            appendMetaKV('Parent State', task.parent_state);
+        }
+        metaBody.appendChild(metaKV);
+        metaSection.appendChild(metaBody);
+        reportContent.appendChild(metaSection);
+
+        // Children tasks section if applicable
+        if (task.children && task.children.length > 0) {
+            const childrenSection = makeEl('section', 'section');
+            childrenSection.appendChild(makeEl('div', 'section-header', 'Decomposition Children'));
+            const childrenBody = makeEl('div', 'section-body');
+            const ul = document.createElement('ul');
+            ul.className = 'bullet-list';
+            task.children.forEach(c => {
+                const li = document.createElement('li');
+                li.innerHTML = `<strong>${c.id}</strong> [${c.location}]: ${c.summary || 'No summary'}`;
+                ul.appendChild(li);
+            });
+            childrenBody.appendChild(ul);
+            childrenSection.appendChild(childrenBody);
+            reportContent.appendChild(childrenSection);
+        }
+
+        // Artifacts checklist section
+        const artifactsSection = makeEl('section', 'section');
+        artifactsSection.appendChild(makeEl('div', 'section-header', 'Lifecycle Artifacts Status'));
+        const artifactsBody = makeEl('div', 'section-body');
+
+        const artTableWrap = makeEl('div', 'table-wrap');
+        const artTable = makeEl('table', 'data-table');
+        artTable.innerHTML = `
+            <thead>
+                <tr>
+                    <th>Artifact</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${Object.entries(task.artifacts).map(([name, present]) => `
+                    <tr>
+                        <td><strong>${name}</strong></td>
+                        <td>
+                            <span class="pill ${present ? 'done' : 'info'}">
+                                ${present ? 'Present ✓' : 'Missing ✗'}
+                            </span>
+                        </td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        `;
+        artTableWrap.appendChild(artTable);
+        artifactsBody.appendChild(artTableWrap);
+        artifactsSection.appendChild(artifactsBody);
+        reportContent.appendChild(artifactsSection);
+
+        // Suggestions / Manual Actions section
+        const suggSection = makeEl('section', 'section');
+        suggSection.appendChild(makeEl('div', 'section-header', 'Suggested Actions'));
+        const suggBody = makeEl('div', 'section-body');
+        suggBody.innerHTML = `
+            <div class="verdict-box">
+                <div class="verdict-text">Manual CLI Commands</div>
+                <div class="verdict-confidence">
+                    <pre style="margin: 0.5rem 0 0 0; font-family: monospace; color: #cbd5e1; background: transparent; border: none; padding: 0;">quorum task status ${task.id}\nquorum task back ${task.id}</pre>
+                </div>
+            </div>
+        `;
+        suggSection.appendChild(suggBody);
+        reportContent.appendChild(suggSection);
+
+        // Render detailed/summarized artifacts
+        if (task.spec) {
+            renderCollapsibleArtifact('00-spec.yaml', task.spec);
+        }
+        if (task.blueprint) {
+            renderCollapsibleArtifact('01-blueprint.yaml', task.blueprint);
+        }
+        if (task.contract) {
+            renderCollapsibleContract(task.contract);
+        }
+        if (task.implementation_log) {
+            renderCollapsibleArtifact('04-implementation-log.yaml', task.implementation_log);
+        }
+        if (task.validation) {
+            renderCollapsibleArtifact('05-validation.json', task.validation);
+        }
+        if (task.review) {
+            renderCollapsibleArtifact('06-review.json', task.review);
+        }
+        if (task.trace) {
+            renderCollapsibleTrace(task.trace);
+        }
+        if (task.feedback) {
+            renderCollapsibleArtifact('feedback.json', task.feedback);
+        }
+    }
+
+    function renderCollapsibleArtifact(name, data) {
+        const details = makeEl('details', 'artifact-details');
+        const summary = makeEl('summary', '', name);
+        const pre = document.createElement('pre');
+        const code = document.createElement('code');
+
+        code.textContent = JSON.stringify(data, null, 2);
+
+        pre.appendChild(code);
+        details.appendChild(summary);
+        details.appendChild(pre);
+        reportContent.appendChild(details);
+    }
+
+    function renderCollapsibleContract(contract) {
+        const details = makeEl('details', 'artifact-details');
+        const summary = makeEl('summary', '', '02-contract.yaml (summarized)');
+        const content = makeEl('div', 'section-body');
+        content.style.padding = '1rem';
+
+        const kv = makeEl('div', 'key-value-list');
+        const appendKV = (key, value) => {
+            kv.appendChild(makeEl('div', 'key-value-key', key));
+            kv.appendChild(makeEl('div', 'key-value-value', value || 'None'));
+        };
+
+        appendKV('Contract Summary', contract.summary);
+        appendKV('Contract Goal', contract.goal);
+        appendKV('Touch Paths', contract.touch && contract.touch.length > 0 ? contract.touch.join('\n') : 'None');
+        appendKV('Verify Commands', contract.verify_commands && contract.verify_commands.length > 0 ? contract.verify_commands.join('\n') : 'None');
+
+        content.appendChild(kv);
+        details.appendChild(summary);
+        details.appendChild(content);
+        reportContent.appendChild(details);
+    }
+
+    function renderCollapsibleTrace(trace) {
+        const details = makeEl('details', 'artifact-details');
+        const summary = makeEl('summary', '', '07-trace.json (summarized)');
+        const content = makeEl('div', 'section-body');
+        content.style.padding = '1rem';
+
+        const kv = makeEl('div', 'key-value-list');
+        const appendKV = (key, value) => {
+            kv.appendChild(makeEl('div', 'key-value-key', key));
+            kv.appendChild(makeEl('div', 'key-value-value', value || 'None'));
+        };
+
+        appendKV('Trace Summary', trace.summary);
+        appendKV('Attempts Count', String(trace.attempts_count));
+        appendKV('Total Cost USD', trace.total_cost_usd !== undefined ? `$${trace.total_cost_usd.toFixed(4)}` : '$0.0000');
+
+        if (trace.last_attempt) {
+            appendKV('Last Attempt', JSON.stringify(trace.last_attempt, null, 2));
+        }
+
+        content.appendChild(kv);
+        details.appendChild(summary);
+        details.appendChild(content);
+        reportContent.appendChild(details);
     }
 });

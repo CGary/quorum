@@ -93,16 +93,20 @@ func (s *Server) projectsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) projectSubRouteHandler(w http.ResponseWriter, r *http.Request) {
+	if strings.Contains(r.URL.Path, "..") {
+		http.Error(w, "Invalid path: traversal detected", http.StatusBadRequest)
+		return
+	}
 	path := strings.TrimPrefix(r.URL.Path, "/api/projects/")
 	parts := strings.Split(path, "/")
-	if len(parts) < 2 || (parts[1] != "reports" && parts[1] != "memories") || parts[0] == "" {
+	if len(parts) < 2 || (parts[1] != "reports" && parts[1] != "memories" && parts[1] != "tasks") || parts[0] == "" {
 		http.NotFound(w, r)
 		return
 	}
 
 	projectID := parts[0]
 	var rootPath string
-	err := s.db.QueryRow("SELECT COALESCE(root_path, '') FROM projects WHERE id = ?", projectID).Scan(&rootPath)
+	err := s.db.QueryRow("SELECT COALESCE(root_path, ''), name FROM projects WHERE id = ?", projectID).Scan(&rootPath, new(string)) // scan both to match query or keep it simple
 	if err == sql.ErrNoRows {
 		http.Error(w, "Project not found", http.StatusNotFound)
 		return
@@ -128,6 +132,18 @@ func (s *Server) projectSubRouteHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	if parts[1] == "tasks" {
+		if len(parts) == 2 {
+			s.tasksHandler(w, r, projectID, rootPath)
+		} else if len(parts) == 3 {
+			taskID := parts[2]
+			s.taskDetailHandler(w, r, projectID, rootPath, taskID)
+		} else {
+			http.NotFound(w, r)
+		}
+		return
+	}
+
 	if len(parts) == 2 {
 		s.memoriesHandler(w, r, projectID)
 	} else if len(parts) == 3 {
@@ -135,6 +151,65 @@ func (s *Server) projectSubRouteHandler(w http.ResponseWriter, r *http.Request) 
 	} else {
 		http.Error(w, "Invalid memory path", http.StatusBadRequest)
 	}
+}
+
+func (s *Server) tasksHandler(w http.ResponseWriter, r *http.Request, projectID, rootPath string) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	limit, err := parseOptionalInt(r.URL.Query().Get("limit"), 0)
+	if err != nil {
+		http.Error(w, "Invalid limit", http.StatusBadRequest)
+		return
+	}
+	offset, err := parseOptionalInt(r.URL.Query().Get("offset"), 0)
+	if err != nil {
+		http.Error(w, "Invalid offset", http.StatusBadRequest)
+		return
+	}
+
+	res, err := core.QueryTasks(core.TaskListOptions{
+		ProjectRoot: rootPath,
+		Location:    r.URL.Query().Get("location"),
+		Query:       r.URL.Query().Get("q"),
+		ParentTask:  r.URL.Query().Get("parent_task"),
+		Limit:       limit,
+		Offset:      offset,
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(res)
+}
+
+func (s *Server) taskDetailHandler(w http.ResponseWriter, r *http.Request, projectID, rootPath, taskID string) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if err := core.ValidateTaskID(taskID); err != nil {
+		http.Error(w, "Invalid task ID", http.StatusBadRequest)
+		return
+	}
+
+	detail, err := core.GetTaskDetailIn(rootPath, taskID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if detail == nil {
+		http.Error(w, "Task not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(detail)
 }
 
 func (s *Server) memoriesHandler(w http.ResponseWriter, r *http.Request, projectID string) {

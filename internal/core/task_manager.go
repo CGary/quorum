@@ -1511,6 +1511,14 @@ func PrepareFailedChildRetry(taskID string) bool {
 }
 
 func DeriveParentState(spec map[string]any) string {
+	root, err := ProjectRoot()
+	if err != nil {
+		return "active"
+	}
+	return DeriveParentStateIn(root, spec)
+}
+
+func DeriveParentStateIn(projectRoot string, spec map[string]any) string {
 	decompObj := spec["decomposition"]
 	if decompObj == nil {
 		return "active"
@@ -1523,7 +1531,7 @@ func DeriveParentState(spec map[string]any) string {
 	for _, entryAny := range decomp {
 		if entry, ok := entryAny.(map[string]any); ok {
 			if childID, ok := entry["child_id"].(string); ok && childID != "" {
-				c, err := FindTaskDir(childID, nil)
+				c, err := FindTaskDirIn(projectRoot, childID, nil)
 				if err == nil && c != nil {
 					childLocs = append(childLocs, c.Location)
 				}

@@ -308,3 +308,89 @@ func TestProjectWithoutRootMemorySubroute404(t *testing.T) {
 		t.Fatalf("expected project without root subroute 404, got %v", w.Result().StatusCode)
 	}
 }
+
+func TestProjectTasksSubroutes(t *testing.T) {
+	db, tempDir := setupTestDB(t)
+	defer db.Close()
+	srv := &Server{db: db}
+
+	// Create task mock files
+	locPath := filepath.Join(tempDir, ".ai", "tasks", "active")
+	if err := os.MkdirAll(locPath, 0755); err != nil {
+		t.Fatalf("mkdir active: %v", err)
+	}
+	taskDir := filepath.Join(locPath, "FEAT-001-some-feature")
+	if err := os.MkdirAll(taskDir, 0755); err != nil {
+		t.Fatalf("mkdir taskDir: %v", err)
+	}
+	specContent := `
+task_id: FEAT-001
+summary: "This is a test task"
+goal: "Expose task state in serve UI"
+`
+	if err := os.WriteFile(filepath.Join(taskDir, "00-spec.yaml"), []byte(specContent), 0644); err != nil {
+		t.Fatalf("write spec: %v", err)
+	}
+
+	// 1. GET list of tasks
+	req := httptest.NewRequest(http.MethodGet, "/api/projects/proj1/tasks", nil)
+	w := httptest.NewRecorder()
+	srv.projectSubRouteHandler(w, req)
+	if w.Result().StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %v", w.Result().StatusCode)
+	}
+	var listRes core.TaskListResponse
+	if err := json.NewDecoder(w.Result().Body).Decode(&listRes); err != nil {
+		t.Fatalf("decode list: %v", err)
+	}
+	if len(listRes.Items) != 1 || listRes.Items[0].ID != "FEAT-001" {
+		t.Fatalf("expected FEAT-001 task item, got %+v", listRes.Items)
+	}
+
+	// 2. GET detail of task
+	req = httptest.NewRequest(http.MethodGet, "/api/projects/proj1/tasks/FEAT-001", nil)
+	w = httptest.NewRecorder()
+	srv.projectSubRouteHandler(w, req)
+	if w.Result().StatusCode != http.StatusOK {
+		t.Fatalf("expected detail status 200, got %v", w.Result().StatusCode)
+	}
+	var detail core.TaskDetail
+	if err := json.NewDecoder(w.Result().Body).Decode(&detail); err != nil {
+		t.Fatalf("decode detail: %v", err)
+	}
+	if detail.ID != "FEAT-001" || detail.Summary != "This is a test task" {
+		t.Fatalf("expected FEAT-001 detail, got %+v", detail)
+	}
+
+	// 3. Project without root_path gives 404
+	req = httptest.NewRequest(http.MethodGet, "/api/projects/proj2/tasks", nil)
+	w = httptest.NewRecorder()
+	srv.projectSubRouteHandler(w, req)
+	if w.Result().StatusCode != http.StatusNotFound {
+		t.Fatalf("expected project without root 404, got %v", w.Result().StatusCode)
+	}
+
+	// 4. Invalid location gives 400
+	req = httptest.NewRequest(http.MethodGet, "/api/projects/proj1/tasks?location=bad", nil)
+	w = httptest.NewRecorder()
+	srv.projectSubRouteHandler(w, req)
+	if w.Result().StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected invalid location 400, got %v", w.Result().StatusCode)
+	}
+
+	// 5. Invalid task ID / traversal gives 400
+	req = httptest.NewRequest(http.MethodGet, "/api/projects/proj1/tasks/..%2FFEAT-001", nil)
+	w = httptest.NewRecorder()
+	srv.projectSubRouteHandler(w, req)
+	if w.Result().StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected invalid task ID 400, got %v", w.Result().StatusCode)
+	}
+
+	// 6. Methods other than GET give 405
+	req = httptest.NewRequest(http.MethodPost, "/api/projects/proj1/tasks", nil)
+	w = httptest.NewRecorder()
+	srv.projectSubRouteHandler(w, req)
+	if w.Result().StatusCode != http.StatusMethodNotAllowed {
+		t.Fatalf("expected POST method not allowed 405, got %v", w.Result().StatusCode)
+	}
+}
