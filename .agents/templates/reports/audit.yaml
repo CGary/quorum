@@ -1,0 +1,33 @@
+meta:
+  id: "template-id"
+  # date: ""
+kind: "audit"
+presentation:
+  profile: "audit"
+  density: "high"
+  audience: "reviewer"
+  language: "en"
+content:
+  title: "Security & Code Audit"
+  kicker: "Audit"
+  summary: "Comprehensive audit of the codebase."
+  verdict:
+    text: "Codebase meets required standards."
+    confidence: "medium"
+  sections:
+    - id: "findings"
+      role: "findings"
+      title: "Key Findings"
+      items:
+        - id: "f-001"
+          finding: "Hardcoded secret"
+          why: "Security risk"
+          action: "Use env var"
+          severity: "high"
+    - id: "evidence"
+      role: "evidence"
+      title: "Evidence"
+      items:
+        - findingId: "f-001"
+          path: "config.go"
+          details: "Line 42 contains hardcoded key"

@@ -58,19 +58,6 @@ func validateReportSemanticInvariants(path string, payload any) error {
 		return nil
 	}
 
-	// Enforce schemaVersion == "1.1" for semantic report
-	metaVal, ok := lookupKey(payload, "meta")
-	if ok && metaVal != nil {
-		versionVal, ok := lookupKey(metaVal, "schemaVersion")
-		if ok && versionVal != nil {
-			if versionStr, ok := versionVal.(string); ok && versionStr != "1.1" {
-				return ArtifactValidationError{
-					Message: fmt.Sprintf("artifact=%s; field=$.meta.schemaVersion; reason=%s was expected", path, pyRepr("1.1")),
-				}
-			}
-		}
-	}
-
 	sectionsVal, ok := lookupKey(content, "sections")
 	if !ok || sectionsVal == nil {
 		return nil

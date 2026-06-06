@@ -1,0 +1,34 @@
+meta:
+  id: "template-id"
+  # date: ""
+kind: "refactor_plan"
+presentation:
+  profile: "executive"
+  density: "medium"
+  audience: "engineer"
+  language: "en"
+content:
+  title: "Refactor Plan"
+  kicker: "Architecture"
+  summary: "Plan to refactor a specific component."
+  verdict:
+    text: "Refactor is necessary to reduce technical debt."
+    confidence: "high"
+  sections:
+    - id: "tradeoffs"
+      role: "tradeoffs"
+      title: "Options"
+      items:
+        - option: "Complete rewrite"
+          upside: "Clean slate"
+          downside: "High risk"
+          useWhen: "Legacy is unmaintainable"
+          avoidWhen: "Tight deadline"
+    - id: "risks"
+      role: "risks"
+      title: "Risks"
+      items:
+        - risk: "Regression"
+          signal: "Test failures"
+          impact: "high"
+          mitigation: "Improve coverage first"

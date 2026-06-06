@@ -1,0 +1,32 @@
+meta:
+  id: "template-id"
+  # date: ""
+kind: "refactor_result"
+presentation:
+  profile: "audit"
+  density: "high"
+  audience: "maintainer"
+  language: "en"
+content:
+  title: "Refactor Result"
+  kicker: "Review"
+  summary: "Results of the completed refactoring."
+  verdict:
+    text: "Refactor successfully completed."
+    confidence: "high"
+  sections:
+    - id: "metrics"
+      role: "metrics"
+      title: "Code Metrics"
+      items:
+        - label: "Lines Removed"
+          value: 1000
+          unit: "LOC"
+          display: "negative"
+    - id: "verify"
+      role: "verification"
+      title: "Verification"
+      items:
+        - what: "Core flows"
+          why: "Ensure no regressions"
+          check: "Run integration tests"

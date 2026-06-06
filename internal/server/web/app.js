@@ -268,76 +268,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
-        // --- LEGACY RENDERER ---
-        const renderLegacyReport = () => {
-            const sectionTitles = {
-                verdict: 'Verdict',
-                summary: 'Summary',
-                decisionSurface: 'Decision surface',
-                callouts: 'Callouts',
-                verify: 'Verify first',
-                keyFindings: 'Key findings',
-                diagrams: 'Diagrams',
-                findings: 'Findings',
-                evidence: 'Evidence',
-                tradeoffs: 'Trade-offs',
-                risks: 'Risks',
-                actionPlan: 'Action plan',
-                appendix: 'Appendix'
-            };
-
-            const COMPONENT_RENDERERS = {
-                decisionSurface: renderKeyValue,
-                callouts: renderCallouts,
-                verify: renderVerify,
-                diagrams: renderDiagrams,
-                appendix: renderAppendix
-            };
-
-            const COMPONENT_ORDER = [
-                'verdict', 'summary', 'decisionSurface', 'callouts', 'verify',
-                'keyFindings', 'diagrams', 'findings', 'evidence', 'tradeoffs', 'risks',
-                'actionPlan', 'appendix'
-            ];
-
-            const skipKeys = new Set(['meta']);
-            const present = Object.keys(data).filter(k => !skipKeys.has(k));
-            const orderedKeys = [
-                ...COMPONENT_ORDER.filter(k => present.includes(k)),
-                ...present.filter(k => !COMPONENT_ORDER.includes(k))
-            ];
-
-            if (orderedKeys.length > 1) {
-                const nav = el('nav', 'report-section-nav');
-                orderedKeys.forEach(key => {
-                    const a = document.createElement('a');
-                    a.href = `#report-section-${key}`;
-                    a.textContent = sectionTitles[key] || titleize(key);
-                    if (key === 'verify') a.className = 'alert';
-                    nav.appendChild(a);
-                });
-                reportContent.appendChild(nav);
-            }
-
-            orderedKeys.forEach(key => {
-                const value = data[key];
-                const section = el('section', `section section-${key}`);
-                section.id = `report-section-${key}`;
-                const header = el('div', 'section-header', sectionTitles[key] || titleize(key));
-                const body = el('div', 'section-body');
-
-                section.appendChild(header);
-                section.appendChild(body);
-
-                const renderer = COMPONENT_RENDERERS[key] || renderByShape;
-                renderer(value, body);
-
-                reportContent.appendChild(section);
-            });
-
-            renderMermaidDiagrams();
-        };
-
         // --- SEMANTIC RENDERER ---
         const renderSemanticReport = () => {
             const content = data.content;
@@ -600,12 +530,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
-        // --- DISPATCH GATE ---
-        const isSemanticReport = Boolean(data.content);
-        if (isSemanticReport) {
-            renderSemanticReport();
-        } else {
-            renderLegacyReport();
-        }
+        renderSemanticReport();
     }
 });

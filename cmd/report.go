@@ -15,9 +15,11 @@ import (
 )
 
 var (
-	reportSaveFile   string
-	reportSaveDryRun bool
-	reportNewOutput  string
+	reportSaveFile      string
+	reportSaveDryRun    bool
+	reportNewOutput     string
+	reportNewKind       string
+	reportMigrateDryRun bool
 )
 
 // reportMetaDateLine matches the single active `date:` line inside the template's
@@ -37,15 +39,26 @@ func scaffoldReportTemplate(tmpl []byte, id string) string {
 // can customize it), then the bundle embedded in the binary. The embedded
 // fallback makes `report new` work even in projects where `quorum init` never
 // placed a template on disk.
-func loadReportTemplate(projectRoot string) ([]byte, error) {
-	onDisk := filepath.Join(projectRoot, ".agents", "templates", "report.yaml")
+func loadReportTemplate(projectRoot, kind string) ([]byte, error) {
+	if kind == "" || kind == "generic" {
+		onDisk := filepath.Join(projectRoot, ".agents", "templates", "report.yaml")
+		if b, err := os.ReadFile(onDisk); err == nil {
+			return b, nil
+		}
+		if b, ok := core.EmbeddedAgentFile("templates/report.yaml"); ok {
+			return b, nil
+		}
+		return nil, fmt.Errorf("report template not found on disk (%s) or embedded in the binary", onDisk)
+	}
+
+	onDisk := filepath.Join(projectRoot, ".agents", "templates", "reports", kind+".yaml")
 	if b, err := os.ReadFile(onDisk); err == nil {
 		return b, nil
 	}
-	if b, ok := core.EmbeddedAgentFile("templates/report.yaml"); ok {
+	if b, ok := core.EmbeddedAgentFile("templates/reports/" + kind + ".yaml"); ok {
 		return b, nil
 	}
-	return nil, fmt.Errorf("report template not found on disk (%s) or embedded in the binary", onDisk)
+	return nil, fmt.Errorf("report template for kind %q not found on disk (%s) or embedded in the binary", kind, onDisk)
 }
 
 // fillReportMetadata stamps machine-set meta fields (schemaVersion, date) when
@@ -61,20 +74,8 @@ func fillReportMetadata(payload any) {
 		meta = map[string]any{}
 		root["meta"] = meta
 	}
-	hasSemanticMarker := false
-	if _, ok := root["content"]; ok {
-		hasSemanticMarker = true
-	} else if _, ok := root["kind"]; ok {
-		hasSemanticMarker = true
-	} else if _, ok := root["presentation"]; ok {
-		hasSemanticMarker = true
-	}
 	if s, _ := meta["schemaVersion"].(string); strings.TrimSpace(s) == "" {
-		if hasSemanticMarker {
-			meta["schemaVersion"] = "1.1"
-		} else {
-			meta["schemaVersion"] = "1.0"
-		}
+		meta["schemaVersion"] = "1.1"
 	}
 	if d, _ := meta["date"].(string); strings.TrimSpace(d) == "" {
 		meta["date"] = time.Now().UTC().Format(time.RFC3339)
@@ -147,7 +148,7 @@ var reportNewCmd = &cobra.Command{
 		// does NOT touch .ai/reports/ — persistence still goes through
 		// `quorum report save`.
 		if reportNewOutput != "" {
-			tmplData, err := loadReportTemplate(projectRoot)
+			tmplData, err := loadReportTemplate(projectRoot, reportNewKind)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error: %v\n", err)
 				os.Exit(1)
@@ -201,7 +202,7 @@ var reportNewCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		tmplData, err := loadReportTemplate(projectRoot)
+		tmplData, err := loadReportTemplate(projectRoot, reportNewKind)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			os.Exit(1)
@@ -310,11 +311,248 @@ var reportSaveCmd = &cobra.Command{
 	},
 }
 
+var reportMigrateCmd = &cobra.Command{
+	Use:   "migrate <id>",
+	Short: "Migrate a legacy v1.0 report to semantic v1.1 format",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		id := args[0]
+
+		projectRoot, err := core.ProjectRoot()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error locating project root: %v\n", err)
+			os.Exit(1)
+		}
+
+		reportsDir := filepath.Join(projectRoot, ".ai", "reports")
+		reportPath := filepath.Join(reportsDir, fmt.Sprintf("%s.yaml", id))
+
+		payload, err := core.LoadArtifactPayload(reportPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: payload parse failed: %v\n", err)
+			os.Exit(1)
+		}
+
+		root, ok := payload.(map[string]any)
+		if !ok {
+			fmt.Fprintf(os.Stderr, "error: payload is not a map\n")
+			os.Exit(1)
+		}
+
+		if _, ok := root["content"]; ok {
+			fmt.Fprintf(os.Stderr, "report is already semantic\n")
+			os.Exit(1)
+		}
+
+		migrated := map[string]any{
+			"meta": root["meta"],
+			"kind": "generic",
+			"presentation": map[string]any{
+				"profile":  "cognitive",
+				"density":  "medium",
+				"audience": "engineer",
+				"language": "en",
+			},
+			"content": map[string]any{
+				"title":    id,
+				"kicker":   "Migrated",
+				"sections": []any{},
+			},
+		}
+
+		meta, ok := migrated["meta"].(map[string]any)
+		if ok {
+			meta["schemaVersion"] = "1.1"
+		}
+
+		content := migrated["content"].(map[string]any)
+		sections := []any{}
+
+		if verdict, ok := root["verdict"].(string); ok {
+			content["verdict"] = map[string]any{"text": verdict}
+		} else {
+			content["verdict"] = map[string]any{"text": "Migrated legacy report"}
+		}
+		if summary, ok := root["summary"].(string); ok {
+			content["summary"] = summary
+		}
+
+		if ds, ok := root["decisionSurface"].(map[string]any); ok {
+			sections = append(sections, map[string]any{
+				"id":    "surface",
+				"role":  "decision_surface",
+				"title": "Decision Surface",
+				"body":  ds,
+			})
+		}
+		if ver, ok := root["verify"].([]any); ok {
+			sections = append(sections, map[string]any{
+				"id":    "verify",
+				"role":  "verification",
+				"title": "Verify First",
+				"items": ver,
+			})
+		}
+		if calls, ok := root["callouts"].([]any); ok {
+			for i, c := range calls {
+				if call, ok := c.(map[string]any); ok {
+					sections = append(sections, map[string]any{
+						"id":    fmt.Sprintf("callout-%d", i),
+						"role":  "callout",
+						"title": call["label"],
+						"kind":  call["kind"],
+						"body":  call["text"],
+					})
+				}
+			}
+		}
+		if kf, ok := root["keyFindings"].([]any); ok {
+			items := []any{}
+			for i, f := range kf {
+				if finding, ok := f.(map[string]any); ok {
+					items = append(items, map[string]any{
+						"id":       fmt.Sprintf("finding-%d", i),
+						"finding":  finding["finding"],
+						"why":      finding["whyItMatters"],
+						"action":   finding["action"],
+						"severity": "medium",
+					})
+				}
+			}
+			sections = append(sections, map[string]any{
+				"id":    "findings",
+				"role":  "findings",
+				"title": "Key Findings",
+				"items": items,
+			})
+		}
+		if diags, ok := root["diagrams"].([]any); ok {
+			for i, d := range diags {
+				if diag, ok := d.(map[string]any); ok {
+					sections = append(sections, map[string]any{
+						"id":    fmt.Sprintf("diagram-%d", i),
+						"role":  "diagram",
+						"title": diag["title"],
+						"diagram": map[string]any{
+							"type": diag["type"],
+							"code": diag["code"],
+						},
+					})
+				}
+			}
+		}
+		if findings, ok := root["findings"].([]any); ok {
+			items := []any{}
+			for _, f := range findings {
+				if finding, ok := f.(map[string]any); ok {
+					items = append(items, map[string]any{
+						"id":       finding["id"],
+						"finding":  finding["description"],
+						"severity": finding["severity"],
+					})
+				}
+			}
+			// Avoid collision with keyFindings
+			sections = append(sections, map[string]any{
+				"id":    "all-findings",
+				"role":  "findings",
+				"title": "Findings",
+				"items": items,
+			})
+		}
+		if evidence, ok := root["evidence"].([]any); ok {
+			items := []any{}
+			for _, e := range evidence {
+				if ev, ok := e.(map[string]any); ok {
+					items = append(items, ev)
+				}
+			}
+			sections = append(sections, map[string]any{
+				"id":    "evidence",
+				"role":  "evidence",
+				"title": "Evidence",
+				"items": items,
+			})
+		}
+		if tradeoffs, ok := root["tradeoffs"].([]any); ok {
+			items := []any{}
+			for _, t := range tradeoffs {
+				if to, ok := t.(map[string]any); ok {
+					items = append(items, to)
+				}
+			}
+			sections = append(sections, map[string]any{
+				"id":    "tradeoffs",
+				"role":  "tradeoffs",
+				"title": "Trade-offs",
+				"items": items,
+			})
+		}
+		if risks, ok := root["risks"].([]any); ok {
+			items := []any{}
+			for _, r := range risks {
+				if risk, ok := r.(map[string]any); ok {
+					items = append(items, map[string]any{
+						"risk":   risk["description"],
+						"impact": risk["impact"],
+					})
+				}
+			}
+			sections = append(sections, map[string]any{
+				"id":    "risks",
+				"role":  "risks",
+				"title": "Risks",
+				"items": items,
+			})
+		}
+		if plan, ok := root["actionPlan"].([]any); ok {
+			items := []any{}
+			for _, p := range plan {
+				if pl, ok := p.(map[string]any); ok {
+					items = append(items, pl)
+				}
+			}
+			sections = append(sections, map[string]any{
+				"id":    "action-plan",
+				"role":  "action_plan",
+				"title": "Action Plan",
+				"items": items,
+			})
+		}
+		if app, ok := root["appendix"].(string); ok {
+			sections = append(sections, map[string]any{
+				"id":    "appendix",
+				"role":  "appendix",
+				"title": "Appendix",
+				"body":  app,
+			})
+		}
+
+		content["sections"] = sections
+
+		if reportMigrateDryRun {
+			b, _ := yaml.Marshal(migrated)
+			fmt.Println(string(b))
+			return
+		}
+
+		if _, err := core.SaveArtifact(reportPath, migrated); err != nil {
+			fmt.Fprintf(os.Stderr, "error saving migrated report: %v\n", err)
+			os.Exit(1)
+		}
+
+		fmt.Printf("Migrated report: %s\n", reportPath)
+	},
+}
+
 func init() {
 	reportNewCmd.Flags().StringVarP(&reportNewOutput, "output", "o", "", "Scaffold the draft to this path (e.g. .tmp/<id>.yaml) instead of .ai/reports/")
+	reportNewCmd.Flags().StringVar(&reportNewKind, "kind", "", "Scaffold a specific kind of report (e.g. audit, refactor_plan)")
 	reportSaveCmd.Flags().StringVar(&reportSaveFile, "file", "", "Read the report YAML from a file instead of stdin")
 	reportSaveCmd.Flags().BoolVar(&reportSaveDryRun, "dry-run", false, "Validate the full write path (id, identity, schema) without persisting")
+	reportMigrateCmd.Flags().BoolVar(&reportMigrateDryRun, "dry-run", false, "Print the migrated YAML to stdout without writing")
 	reportCmd.AddCommand(reportNewCmd)
 	reportCmd.AddCommand(reportSaveCmd)
+	reportCmd.AddCommand(reportMigrateCmd)
 	rootCmd.AddCommand(reportCmd)
 }

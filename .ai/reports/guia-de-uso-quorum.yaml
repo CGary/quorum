@@ -1,64 +1,96 @@
-actionPlan:
-    - action: Ejecutar 'quorum init' para inicializar el scaffolding del framework (.agents/, .ai/, .quorumrc) en la raíz del repositorio.
-      owner: Desarrollador / Arquitecto
-      step: 1
-    - action: Crear y definir la especificación de la tarea (00-spec.yaml) mediante la habilidad /q-brief.
-      owner: Arquitecto Lógico / IA
-      step: 2
-    - action: Generar el mapa quirúrgico (01-blueprint.yaml) y el contrato de límites (02-contract.yaml) mediante /q-blueprint.
-      owner: Cartógrafo Quirúrgico / IA
-      step: 3
-    - action: Implementar quirúrgicamente el cambio dentro del worktree aislado de la tarea usando /q-implement.
-      owner: Ejecutor Quirúrgico / IA
-      step: 4
-    - action: Verificar de forma determinista mediante /q-verify y validar la conformidad global mediante /q-review.
-      owner: Verificador y Revisor / IA
-      step: 5
-    - action: Aceptar la tarea con /q-accept, realizar el merge a main manualmente y archivar/aprender la lección en SQLite persistente con /q-memory.
-      owner: Humano / IA de Aprendizaje
-      step: 6
-appendix: |
-    Estructura del Repositorio Quorum:
-    - .agents/schemas/: Esquemas JSON para validar todos los artefactos YAML/JSON del ciclo.
-    - .agents/policies/: Políticas de riesgo (risk.yaml), enrutamiento de modelos (routing.yaml) y división de tareas (decomposition.yaml).
-    - .ai/tasks/: Almacén central de tareas clasificadas en inbox, active, done y failed.
+content:
+    kicker: Migrated
+    sections:
+        - body:
+            bestNextAction: Inicializar el scaffolding en el proyecto destino con 'quorum init' y especificar la primera tarea con 'quorum task specify'.
+            confidence: alta
+            mainRisk: 'Eludir la disciplina del contrato (Rule #3) tocando archivos fuera del ámbito autorizado o eludir la validación automática (Rule #4).'
+            recommendation: Adoptar el ciclo SDC completo (desde q-brief hasta q-memory) para el desarrollo de características complejas donde la rigurosidad estructural compense la sobrecarga de planificación.
+            whenNotToFollow: No usar para correcciones triviales, refactorizaciones cosméticas de 5 líneas o scripts descartables donde el costo de planificar supera al de implementar.
+          id: surface
+          role: decision_surface
+          title: Decision Surface
+        - id: findings
+          items:
+            - action: Forzar el uso de q-brief y q-blueprint antes de autorizar cualquier línea de código.
+              finding: El ciclo Spec-Driven Contracts (SDC) garantiza determinismo analítico al separar el 'qué' (00-spec) del 'cómo' (01-blueprint).
+              id: finding-0
+              severity: medium
+              why: Reduce el desperdicio de tokens y la deriva de contexto al limitar las herramientas del agente a un sandbox aislado con contratos de alcance estricto (02-contract).
+            - action: Respetar las fronteras atómicas de cada comando /q-* y no encadenar habilidades de forma autónoma.
+              finding: 'Las habilidades de Quorum son estrictamente mono-fase (Rule #9), con un control de ejecución desacoplado.'
+              id: finding-1
+              severity: medium
+              why: Permite enrutar cada fase a un modelo con el nivel de costo adecuado (Tiers 0/1/2) y evita la auto-propagación de errores de planificación a la implementación.
+            - action: Diseñar baterías de pruebas rápidas (unitarias/linter) ejecutables por el agente en menos de 60 segundos.
+              finding: 'La validación es la autoridad de aceptación final (Rule #4) y Git es la verdad de código única (Rule #1).'
+              id: finding-2
+              severity: medium
+              why: Ningún diagnóstico o análisis sintáctico de la IA puede omitir o perdonar un fallo de 'verify.commands'; los cambios en main se integran manualmente por humanos.
+          role: findings
+          title: Key Findings
+        - id: tradeoffs
+          items:
+            - avoidWhen: Corrección de erratas, cambios cosméticos rápidos, tareas exploratorias o prototipos descartables.
+              downside: Sobrecarga de planificación inicial mediante múltiples artefactos YAML/JSON y mayor latencia de desarrollo.
+              option: Uso de Quorum (Ciclo SDC completo)
+              upside: Control total del costo de tokens, trazabilidad absoluta mediante 07-trace.json, prevención sistemática de regresiones y código quirúrgico libre de efectos colaterales.
+              useWhen: Características complejas, integraciones de alto riesgo, refactorizaciones estructurales y desarrollo asíncrono.
+            - avoidWhen: Funcionalidades core complejas, arquitecturas desacopladas que requieran contratos de interfaz estrictos.
+              downside: Pérdida de control de costos en bucles infinitos, cambios fuera de control (scope creep), ausencia de pruebas deterministas obligatorias y falta de historial de aprendizaje persistente.
+              option: Desarrollo interactivo directo (Aider/Copilot)
+              upside: Inmediatez absoluta, menor fricción cognitiva inicial y flujo rápido para tareas de baja complejidad.
+              useWhen: Corrección de pequeños errores sintácticos, cambios cosméticos, tareas exploratorias iniciales.
+          role: tradeoffs
+          title: Trade-offs
+        - id: action-plan
+          items:
+            - action: Ejecutar 'quorum init' para inicializar el scaffolding del framework (.agents/, .ai/, .quorumrc) en la raíz del repositorio.
+              owner: Desarrollador / Arquitecto
+              step: 1
+            - action: Crear y definir la especificación de la tarea (00-spec.yaml) mediante la habilidad /q-brief.
+              owner: Arquitecto Lógico / IA
+              step: 2
+            - action: Generar el mapa quirúrgico (01-blueprint.yaml) y el contrato de límites (02-contract.yaml) mediante /q-blueprint.
+              owner: Cartógrafo Quirúrgico / IA
+              step: 3
+            - action: Implementar quirúrgicamente el cambio dentro del worktree aislado de la tarea usando /q-implement.
+              owner: Ejecutor Quirúrgico / IA
+              step: 4
+            - action: Verificar de forma determinista mediante /q-verify y validar la conformidad global mediante /q-review.
+              owner: Verificador y Revisor / IA
+              step: 5
+            - action: Aceptar la tarea con /q-accept, realizar el merge a main manualmente y archivar/aprender la lección en SQLite persistente con /q-memory.
+              owner: Humano / IA de Aprendizaje
+              step: 6
+          role: action_plan
+          title: Action Plan
+        - body: |
+            Estructura del Repositorio Quorum:
+            - .agents/schemas/: Esquemas JSON para validar todos los artefactos YAML/JSON del ciclo.
+            - .agents/policies/: Políticas de riesgo (risk.yaml), enrutamiento de modelos (routing.yaml) y división de tareas (decomposition.yaml).
+            - .ai/tasks/: Almacén central de tareas clasificadas en inbox, active, done y failed.
 
-    Comandos Clave del CLI de Go:
-    - 'quorum task list': Muestra las tareas y sus estados.
-    - 'quorum task status <id>': Diagnóstico de avance del ciclo de vida.
-    - 'quorum task back <id>': Reversión humana del último estado forward del ciclo.
-    - 'quorum report save <id>': Valida desde la entrada estándar (stdin) y almacena el reporte.
-    - 'quorum serve': Levanta el servidor web para visualizar los reportes almacenados en .ai/reports/.
-decisionSurface:
-    bestNextAction: Inicializar el scaffolding en el proyecto destino con 'quorum init' y especificar la primera tarea con 'quorum task specify'.
-    confidence: alta
-    mainRisk: 'Eludir la disciplina del contrato (Rule #3) tocando archivos fuera del ámbito autorizado o eludir la validación automática (Rule #4).'
-    recommendation: Adoptar el ciclo SDC completo (desde q-brief hasta q-memory) para el desarrollo de características complejas donde la rigurosidad estructural compense la sobrecarga de planificación.
-    whenNotToFollow: No usar para correcciones triviales, refactorizaciones cosméticas de 5 líneas o scripts descartables donde el costo de planificar supera al de implementar.
-keyFindings:
-    - action: Forzar el uso de q-brief y q-blueprint antes de autorizar cualquier línea de código.
-      finding: El ciclo Spec-Driven Contracts (SDC) garantiza determinismo analítico al separar el 'qué' (00-spec) del 'cómo' (01-blueprint).
-      whyItMatters: Reduce el desperdicio de tokens y la deriva de contexto al limitar las herramientas del agente a un sandbox aislado con contratos de alcance estricto (02-contract).
-    - action: Respetar las fronteras atómicas de cada comando /q-* y no encadenar habilidades de forma autónoma.
-      finding: 'Las habilidades de Quorum son estrictamente mono-fase (Rule #9), con un control de ejecución desacoplado.'
-      whyItMatters: Permite enrutar cada fase a un modelo con el nivel de costo adecuado (Tiers 0/1/2) y evita la auto-propagación de errores de planificación a la implementación.
-    - action: Diseñar baterías de pruebas rápidas (unitarias/linter) ejecutables por el agente en menos de 60 segundos.
-      finding: 'La validación es la autoridad de aceptación final (Rule #4) y Git es la verdad de código única (Rule #1).'
-      whyItMatters: Ningún diagnóstico o análisis sintáctico de la IA puede omitir o perdonar un fallo de 'verify.commands'; los cambios en main se integran manualmente por humanos.
+            Comandos Clave del CLI de Go:
+            - 'quorum task list': Muestra las tareas y sus estados.
+            - 'quorum task status <id>': Diagnóstico de avance del ciclo de vida.
+            - 'quorum task back <id>': Reversión humana del último estado forward del ciclo.
+            - 'quorum report save <id>': Valida desde la entrada estándar (stdin) y almacena el reporte.
+            - 'quorum serve': Levanta el servidor web para visualizar los reportes almacenados en .ai/reports/.
+          id: appendix
+          role: appendix
+          title: Appendix
+    summary: Esta guía práctica detalla el flujo de trabajo del ciclo de vida Spec-Driven Contracts (SDC), los comandos del CLI de Go y las reglas constitutivas inmutables para operar Quorum con éxito en cualquier proyecto de software.
+    title: guia-de-uso-quorum
+    verdict:
+        text: Quorum es un motor de ejecución guiado por estados que organiza agentes de IA mediante contratos rigurosos y verificación determinista en Git, eliminando la ambigüedad de la prosa humana.
+kind: generic
 meta:
     date: "2026-06-01T22:18:00Z"
     id: guia-de-uso-quorum
-    schemaVersion: "1.0"
-summary: Esta guía práctica detalla el flujo de trabajo del ciclo de vida Spec-Driven Contracts (SDC), los comandos del CLI de Go y las reglas constitutivas inmutables para operar Quorum con éxito en cualquier proyecto de software.
-tradeoffs:
-    - avoidWhen: Corrección de erratas, cambios cosméticos rápidos, tareas exploratorias o prototipos descartables.
-      downside: Sobrecarga de planificación inicial mediante múltiples artefactos YAML/JSON y mayor latencia de desarrollo.
-      option: Uso de Quorum (Ciclo SDC completo)
-      upside: Control total del costo de tokens, trazabilidad absoluta mediante 07-trace.json, prevención sistemática de regresiones y código quirúrgico libre de efectos colaterales.
-      useWhen: Características complejas, integraciones de alto riesgo, refactorizaciones estructurales y desarrollo asíncrono.
-    - avoidWhen: Funcionalidades core complejas, arquitecturas desacopladas que requieran contratos de interfaz estrictos.
-      downside: Pérdida de control de costos en bucles infinitos, cambios fuera de control (scope creep), ausencia de pruebas deterministas obligatorias y falta de historial de aprendizaje persistente.
-      option: Desarrollo interactivo directo (Aider/Copilot)
-      upside: Inmediatez absoluta, menor fricción cognitiva inicial y flujo rápido para tareas de baja complejidad.
-      useWhen: Corrección de pequeños errores sintácticos, cambios cosméticos, tareas exploratorias iniciales.
-verdict: Quorum es un motor de ejecución guiado por estados que organiza agentes de IA mediante contratos rigurosos y verificación determinista en Git, eliminando la ambigüedad de la prosa humana.
+    schemaVersion: "1.1"
+presentation:
+    audience: engineer
+    density: medium
+    language: en
+    profile: cognitive

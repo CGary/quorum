@@ -43,36 +43,28 @@ func TestReportSchemaValidation(t *testing.T) {
 	validPayload := map[string]any{
 		"meta": map[string]any{
 			"id":            "test-1",
-			"schemaVersion": "1.0",
+			"schemaVersion": "1.1",
 			"date":          "2026-06-01T12:00:00Z",
 		},
-		"summary": "Valid summary",
-		"findings": []any{
-			map[string]any{
-				"id":          "F1",
-				"description": "desc",
-				"severity":    "high",
-			},
+		"kind": "generic",
+		"presentation": map[string]any{
+			"profile":  "cognitive",
+			"density":  "medium",
+			"audience": "engineer",
+			"language": "en",
 		},
-		"evidence": []any{
-			map[string]any{
-				"findingId": "F1",
-				"path":      "src/foo.go",
-				"details":   "details",
+		"content": map[string]any{
+			"title": "Valid Report",
+			"verdict": map[string]any{
+				"text": "Valid",
 			},
-		},
-		"risks": []any{
-			map[string]any{
-				"id":          "R1",
-				"description": "desc",
-				"impact":      "high",
-			},
-		},
-		"actionPlan": []any{
-			map[string]any{
-				"step":   1,
-				"action": "fix it",
-				"owner":  "gary",
+			"sections": []any{
+				map[string]any{
+					"id":    "sec-1",
+					"role":  "analysis",
+					"title": "Analysis Section",
+					"body":  "Some body text",
+				},
 			},
 		},
 	}
@@ -95,73 +87,7 @@ func TestReportSchemaValidation(t *testing.T) {
 	}
 }
 
-// TestReportPaletteComponentsAreOptional guards the core design shift: the
-// report body is a PALETTE, not a fixed form. Only `meta` is required, so a
-// report that selects a single component (here a usage guide using just
-// verdict + summary) must validate.
-func TestReportPaletteComponentsAreOptional(t *testing.T) {
-	payload := map[string]any{
-		"meta": map[string]any{
-			"id":            "usage-guide",
-			"schemaVersion": "1.0",
-			"date":          "2026-06-01T12:00:00Z",
-		},
-		"verdict": "Adopt the SDC lifecycle for all feature work.",
-		"summary": "Quorum converts intent into validated artifacts.",
-	}
-	if err := core.ValidateAgainstSchema("report.schema.json", "dummy-report.yaml", payload); err != nil {
-		t.Fatalf("palette report (meta + verdict + summary only) must validate, got: %v", err)
-	}
 
-	// meta alone is the floor: nothing else is mandatory.
-	metaOnly := map[string]any{
-		"meta": map[string]any{
-			"id":            "minimal",
-			"schemaVersion": "1.0",
-			"date":          "2026-06-01T12:00:00Z",
-		},
-	}
-	if err := core.ValidateAgainstSchema("report.schema.json", "dummy-report.yaml", metaOnly); err != nil {
-		t.Fatalf("meta-only report must validate, got: %v", err)
-	}
-}
-
-// TestReportCatalogIsClosed guards the other half of the design: the catalog of
-// components is CLOSED (additionalProperties:false), so authors cannot invent
-// new top-level components outside report.schema.json.
-func TestReportCatalogIsClosed(t *testing.T) {
-	payload := map[string]any{
-		"meta": map[string]any{
-			"id":            "invented",
-			"schemaVersion": "1.0",
-			"date":          "2026-06-01T12:00:00Z",
-		},
-		"diagram": "graph TD; A-->B",
-	}
-	if err := core.ValidateAgainstSchema("report.schema.json", "dummy-report.yaml", payload); err == nil {
-		t.Fatal("an invented component (diagram) must be rejected by the closed catalog")
-	}
-}
-
-func TestReportDiagramsComponentValidates(t *testing.T) {
-	payload := map[string]any{
-		"meta": map[string]any{
-			"id":            "diagram-report",
-			"schemaVersion": "1.0",
-			"date":          "2026-06-01T12:00:00Z",
-		},
-		"diagrams": []any{
-			map[string]any{
-				"title": "Target flow",
-				"type":  "mermaid",
-				"code":  "flowchart LR\n  A[Input] --> B[Report]\n",
-			},
-		},
-	}
-	if err := core.ValidateAgainstSchema("report.schema.json", "dummy-report.yaml", payload); err != nil {
-		t.Fatalf("diagrams component must validate, got: %v", err)
-	}
-}
 
 func TestReportIDPatternAcceptsAndRejects(t *testing.T) {
 	valid := []string{"report", "audit-01", "report_2026_05_21", "A", "x1"}

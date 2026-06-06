@@ -1,0 +1,30 @@
+meta:
+  id: "template-id"
+  # date: ""
+kind: "project_usage"
+presentation:
+  profile: "cognitive"
+  density: "medium"
+  audience: "user"
+  language: "en"
+content:
+  title: "Project Usage Guide"
+  kicker: "Documentation"
+  summary: "Overview of how to use the project."
+  verdict:
+    text: "This project is ready for use following these instructions."
+    confidence: "high"
+  sections:
+    - id: "surface"
+      role: "decision_surface"
+      title: "Quick Start"
+      body:
+        "Prerequisites": "None"
+        "Installation": "Run setup script"
+    - id: "plan"
+      role: "action_plan"
+      title: "Usage Steps"
+      items:
+        - step: 1
+          action: "Initialize"
+          owner: "User"

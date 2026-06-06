@@ -1,0 +1,26 @@
+meta:
+  id: "template-id"
+  # date: ""
+kind: "decision_brief"
+presentation:
+  profile: "executive"
+  density: "low"
+  audience: "manager"
+  language: "en"
+content:
+  title: "Decision Brief"
+  kicker: "Strategy"
+  summary: "Decision required for technical direction."
+  verdict:
+    text: "We should adopt the new architecture."
+    confidence: "high"
+  sections:
+    - id: "tradeoffs"
+      role: "tradeoffs"
+      title: "Architectural Options"
+      items:
+        - option: "Monolith"
+          upside: "Simple"
+          downside: "Hard to scale"
+          useWhen: "Small team"
+          avoidWhen: "High traffic"

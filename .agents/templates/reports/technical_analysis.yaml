@@ -1,0 +1,30 @@
+meta:
+  id: "template-id"
+  # date: ""
+kind: "technical_analysis"
+presentation:
+  profile: "teaching"
+  density: "high"
+  audience: "engineer"
+  language: "en"
+content:
+  title: "Technical Analysis"
+  kicker: "Deep Dive"
+  summary: "Analysis of the current technical implementation."
+  verdict:
+    text: "The current implementation has scaling bottlenecks."
+    confidence: "medium"
+  sections:
+    - id: "analysis"
+      role: "analysis"
+      title: "Detailed Analysis"
+      body: "The database queries are missing indexes leading to slow response times."
+      details:
+        label: "Query Explain Plan"
+        body: "Full table scan observed."
+    - id: "diagram"
+      role: "diagram"
+      title: "Architecture Diagram"
+      diagram:
+        type: "mermaid"
+        code: "graph TD;\n  A-->B;"

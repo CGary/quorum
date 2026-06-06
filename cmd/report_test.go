@@ -13,50 +13,52 @@ import (
 // invalid seed would fail at runtime.
 const validSeedTemplate = `meta:
   id: "template-id"
-  schemaVersion: "1.0"
+  schemaVersion: "1.1"
   date: "2026-06-01T00:00:00Z"
-summary: "Seed report."
-findings:
-  - id: "FINDING-01"
-    description: "A finding."
-    severity: "info"
-evidence:
-  - findingId: "FINDING-01"
-    path: "path/to/file"
-    details: "Evidence details."
-risks:
-  - id: "RISK-01"
-    description: "A risk."
-    impact: "low"
-actionPlan:
-  - step: 1
-    action: "First step."
-    owner: "unassigned"
+kind: "generic"
+presentation:
+  profile: "cognitive"
+  density: "medium"
+  audience: "engineer"
+  language: "en"
+content:
+  title: "Seed report"
+  kicker: ""
+  summary: "Seed report."
+  verdict:
+    text: "Seed."
+    confidence: "high"
+  sections:
+    - id: "surface"
+      role: "decision_surface"
+      title: "Decision Surface"
+      body:
+        "Status": "Seeded"
 `
 
 // validReportPayload returns a schema-valid report whose meta.id equals id.
 func validReportPayload(id string) string {
 	return `meta:
   id: "` + id + `"
-  schemaVersion: "1.0"
+  schemaVersion: "1.1"
   date: "2026-06-01T00:00:00Z"
-summary: "A saved report."
-findings:
-  - id: "FINDING-01"
-    description: "A finding."
-    severity: "high"
-evidence:
-  - findingId: "FINDING-01"
-    path: "internal/core/schema.go"
-    details: "Evidence details."
-risks:
-  - id: "RISK-01"
-    description: "A risk."
-    impact: "medium"
-actionPlan:
-  - step: 1
-    action: "First step."
-    owner: "unassigned"
+kind: "generic"
+presentation:
+  profile: "cognitive"
+  density: "medium"
+  audience: "engineer"
+  language: "en"
+content:
+  title: "Report Title"
+  verdict:
+    text: "Verdict."
+    confidence: "high"
+  sections:
+    - id: "surface"
+      role: "decision_surface"
+      title: "Decision Surface"
+      body:
+        "Status": "Saved"
 `
 }
 
@@ -158,7 +160,7 @@ func TestReportSaveSchemaInvalidRejected(t *testing.T) {
 	// The body is a palette (meta-only is valid), but the catalog is CLOSED:
 	// an invented top-level component must be rejected by schema validation
 	// (additionalProperties:false) at the write path.
-	payload := "meta:\n  id: \"audit-02\"\n  schemaVersion: \"1.0\"\n  date: \"2026-06-01T00:00:00Z\"\ndiagram: \"graph TD; A-->B\"\n"
+	payload := "meta:\n  id: \"audit-02\"\n  schemaVersion: \"1.1\"\n  date: \"2026-06-01T00:00:00Z\"\nkind: \"generic\"\npresentation:\n  profile: \"cognitive\"\n  density: \"medium\"\n  audience: \"engineer\"\n  language: \"en\"\ncontent:\n  title: \"T\"\n  verdict:\n    text: \"Bottom line.\"\n  sections:\n    - id: \"s\"\n      role: \"decision_surface\"\n      title: \"T\"\n      body:\n        \"S\": \"S\"\n      extraInvalidField: true\n"
 	out, err := runMemoryCmdErr(t, dir, bin, dbPath, payload, "report", "save", "audit-02")
 	if err == nil {
 		t.Fatalf("expected save to fail on schema-invalid payload, but it succeeded: %s", out)
@@ -276,7 +278,7 @@ func TestReportSaveFillsMetadata(t *testing.T) {
 
 	// Draft carries only meta.id (no schemaVersion, no date): save must fill them
 	// before validation so a hand-written draft does not fail on missing metadata.
-	payload := "meta:\n  id: \"fill-01\"\nverdict: \"Bottom line.\"\n"
+	payload := "meta:\n  id: \"fill-01\"\nkind: \"generic\"\npresentation:\n  profile: \"cognitive\"\n  density: \"medium\"\n  audience: \"engineer\"\n  language: \"en\"\ncontent:\n  title: \"T\"\n  verdict:\n    text: \"Bottom line.\"\n  sections:\n    - id: \"s\"\n      role: \"decision_surface\"\n      title: \"T\"\n      body:\n        \"S\": \"S\"\n"
 	out, err := runMemoryCmdErr(t, dir, bin, dbPath, payload, "report", "save", "fill-01")
 	if err != nil {
 		t.Fatalf("save should auto-fill missing meta and succeed: %v\n%s", err, out)

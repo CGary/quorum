@@ -54,20 +54,7 @@ The **Component catalog** in Phase 1 below is authoritative for this skill: it l
 - `metrics`: Numeric scalar tables or bars.
 - `callout`: Decision, warning, or note boxes.
 
-##### Legacy Model Properties (Compatibility Only)
-- `verdict`: Front-loaded bottom line.
-- `summary`: Short context paragraph.
-- `decisionSurface`: Key-value triage fields.
-- `callouts`: List of alert boxes.
-- `verify`: Places to inspect and check.
-- `keyFindings`: Scannable findings table.
-- `diagrams`: Mermaid diagram list.
-- `findings`: Audit findings table.
-- `evidence`: Supporting location table.
-- `tradeoffs`: Option comparison table.
-- `risks`: Risks table.
-- `actionPlan`: Action steps list.
-- `appendix`: Exhaustive detail string.
+
 
 #### Full example (cheat sheet — copy, then DELETE the components you don't need)
 
@@ -112,10 +99,10 @@ content:
 The goal is a `.tmp/<id>.yaml` draft. Pick whichever path is cheaper:
 
 - **Direct write (fewest tool calls)** — if you already know the catalog above, write the final YAML straight into `.tmp/<id>.yaml` with your file tool (copy the cheat sheet below and trim). Set `meta.id` = `<id>` (required); `meta.schemaVersion` and `meta.date` are OPTIONAL — `save` auto-fills them if omitted.
-- **Scaffold (when you want a guided skeleton)** — let the CLI stamp `meta` and emit the commented component menu, then fill only what fits:
+- **Scaffold (when you want a guided skeleton)** — let the CLI stamp `meta` and emit the commented component menu (specify the `--kind` if creating a specialized report), then fill only what fits:
 
 ```bash
-quorum report new <id> --output .tmp/<id>.yaml   # valid skeleton into .tmp/ (NOT .ai/reports/)
+quorum report new <id> --kind <kind> --output .tmp/<id>.yaml   # valid skeleton into .tmp/ (NOT .ai/reports/)
 ```
 
 Either way: select ONLY the components that fit the material (palette — omit the rest) and never hand-build `.ai/reports/`. The dry-run in Phase 3 is your safety net, so direct authoring is safe.
