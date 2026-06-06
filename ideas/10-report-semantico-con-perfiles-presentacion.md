@@ -1,5 +1,7 @@
 # Propuesta técnica: Reportes semánticos con perfiles de presentación
 
+> **Estado de implementación (2026-06-06):** Implementada en su forma SEMÁNTICA, con una desviación registrada en **`docs/adr/0005-modelo-de-reporte-semantico-puro.md`**: el modelo legacy fue ELIMINADO (no se mantuvo la coexistencia). Quedan **obsoletas** las secciones que asumen unión exclusiva legacy↔semantic: §4.2, §8 Fase 1.3 (coherencia modelo↔versión / autofill `1.0`) y las decisiones **K, Z, I (mitad legacy), A, F** de §15. El resto (modelo semántico, roles, perfiles, viewer, validación Go) sigue vigente. Ver ADR-0005 para el detalle.
+
 **Estado:** Idea implementable.
 **Prioridad:** Alta para cerrar la brecha con `cognitive-report` sin seguir agregando componentes top-level ad hoc.
 **Tipo:** Evolución de schema + viewer + skill protocol para `q-report`.
