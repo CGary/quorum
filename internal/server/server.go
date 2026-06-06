@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"quorum/internal/core"
@@ -94,7 +95,7 @@ func (s *Server) projectsHandler(w http.ResponseWriter, r *http.Request) {
 func (s *Server) projectSubRouteHandler(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/projects/")
 	parts := strings.Split(path, "/")
-	if len(parts) < 2 || parts[1] != "reports" {
+	if len(parts) < 2 || (parts[1] != "reports" && parts[1] != "memories") || parts[0] == "" {
 		http.NotFound(w, r)
 		return
 	}
@@ -115,14 +116,91 @@ func (s *Server) projectSubRouteHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if len(parts) == 2 {
-		s.reportsHandler(w, r, projectID, rootPath)
-	} else if len(parts) == 3 {
-		reportID := parts[2]
-		s.reportDetailHandler(w, r, projectID, rootPath, reportID)
-	} else {
-		http.NotFound(w, r)
+	if parts[1] == "reports" {
+		if len(parts) == 2 {
+			s.reportsHandler(w, r, projectID, rootPath)
+		} else if len(parts) == 3 {
+			reportID := parts[2]
+			s.reportDetailHandler(w, r, projectID, rootPath, reportID)
+		} else {
+			http.NotFound(w, r)
+		}
+		return
 	}
+
+	if len(parts) == 2 {
+		s.memoriesHandler(w, r, projectID)
+	} else if len(parts) == 3 {
+		s.memoryDetailHandler(w, r, projectID, parts[2])
+	} else {
+		http.Error(w, "Invalid memory path", http.StatusBadRequest)
+	}
+}
+
+func (s *Server) memoriesHandler(w http.ResponseWriter, r *http.Request, projectID string) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	limit, err := parseOptionalInt(r.URL.Query().Get("limit"), core.DefaultMemoryListLimit)
+	if err != nil {
+		http.Error(w, "Invalid limit", http.StatusBadRequest)
+		return
+	}
+	offset, err := parseOptionalInt(r.URL.Query().Get("offset"), 0)
+	if err != nil {
+		http.Error(w, "Invalid offset", http.StatusBadRequest)
+		return
+	}
+
+	result, err := core.ListProjectMemories(s.db, core.MemoryListOptions{
+		ProjectID: projectID,
+		Type:      r.URL.Query().Get("type"),
+		Query:     r.URL.Query().Get("q"),
+		Limit:     limit,
+		Offset:    offset,
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}
+
+func (s *Server) memoryDetailHandler(w http.ResponseWriter, r *http.Request, projectID, memoryID string) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if err := core.ValidateMemoryID(memoryID); err != nil {
+		http.Error(w, "Invalid memory ID", http.StatusBadRequest)
+		return
+	}
+	detail, err := core.GetProjectMemory(s.db, projectID, memoryID)
+	if err == sql.ErrNoRows {
+		http.Error(w, "Memory not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(detail)
+}
+
+func parseOptionalInt(raw string, defaultValue int) (int, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return defaultValue, nil
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, err
+	}
+	return value, nil
 }
 
 type ReportMeta struct {

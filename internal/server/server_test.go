@@ -131,7 +131,7 @@ func TestReportDetailHandler(t *testing.T) {
 
 	// We don't have a report.schema.json in the test environment (unless it's in the actual repo)
 	// But it uses core.ValidateAgainstSchema which will attempt to load "report.schema.json" from .agents/schemas
-	
+
 	req := httptest.NewRequest(http.MethodGet, "/api/projects/proj1/reports/test-report", nil)
 	w := httptest.NewRecorder()
 
@@ -140,7 +140,7 @@ func TestReportDetailHandler(t *testing.T) {
 	res := w.Result()
 	if res.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(res.Body)
-		// We might get an error if report.schema.json does not exist or fails validation, 
+		// We might get an error if report.schema.json does not exist or fails validation,
 		// but we want to make sure it doesn't fail on basic logic.
 		// If it's a 500 because schema fails, that means our code called validate successfully.
 		t.Logf("Got status %v: %s", res.StatusCode, string(b))
@@ -169,5 +169,142 @@ func TestPathTraversal(t *testing.T) {
 	res := w.Result()
 	if res.StatusCode != http.StatusBadRequest {
 		t.Errorf("Expected 400 Bad Request for path traversal, got %v", res.StatusCode)
+	}
+}
+
+func insertServerMemoryFixtures(t *testing.T, db *sql.DB) {
+	t.Helper()
+	entries := []struct{ project, id, typ, title, task, context, content, created string }{
+		{"proj1", "DEC-2026-06-01-1", "decision", "Decision memory", "FEAT-001", "Viewer", "Read-only memory browsing is allowed through serve.", "2026-06-03"},
+		{"proj1", "PAT-2026-06-01-1", "pattern", "Pattern memory", "FEAT-002", "Queries", "Use normalized query tables for memory presentation.", "2026-06-02"},
+		{"proj1", "LES-2026-06-01-1", "lesson", "Lesson memory", "FEAT-003", "Safety", "Do not write SQLite rows from serve handlers.", "2026-06-01"},
+		{"proj2", "DEC-2026-06-01-1", "decision", "Hidden memory", "FEAT-999", "No root", "This project has no root path and subroutes must 404.", "2026-06-04"},
+	}
+	for _, e := range entries {
+		_, err := db.Exec(`INSERT INTO memory_entries (project_id, id, type, source_task, title, context, content, created_at, supersedes, content_hash, raw_json)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}')`, e.project, e.id, e.typ, e.task, e.title, e.context, e.content, e.created, nil, e.project+e.id)
+		if err != nil {
+			t.Fatalf("insert memory fixture: %v", err)
+		}
+	}
+	_, err := db.Exec(`UPDATE memory_entries SET supersedes = ? WHERE project_id = ? AND id = ?`, "PAT-2026-06-01-1", "proj1", "LES-2026-06-01-1")
+	if err != nil {
+		t.Fatalf("update supersedes: %v", err)
+	}
+	_, err = db.Exec(`INSERT INTO memory_related (project_id, memory_id, related_ref) VALUES ('proj1', 'DEC-2026-06-01-1', 'PAT-2026-06-01-1')`)
+	if err != nil {
+		t.Fatalf("insert related: %v", err)
+	}
+	_, err = db.Exec(`INSERT INTO memory_anti_patterns (project_id, memory_id, ordinal, content) VALUES ('proj1', 'DEC-2026-06-01-1', 0, 'Do not mutate memory from handlers.')`)
+	if err != nil {
+		t.Fatalf("insert anti pattern: %v", err)
+	}
+	_, err = db.Exec(`INSERT INTO memory_supersession_edges (project_id, from_id, to_id) VALUES ('proj1', 'LES-2026-06-01-1', 'PAT-2026-06-01-1')`)
+	if err != nil {
+		t.Fatalf("insert supersession edge: %v", err)
+	}
+}
+
+func TestProjectSubRouteMemoriesList(t *testing.T) {
+	db, _ := setupTestDB(t)
+	defer db.Close()
+	insertServerMemoryFixtures(t, db)
+	srv := &Server{db: db}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/projects/proj1/memories?type=decision&q=viewer", nil)
+	w := httptest.NewRecorder()
+	srv.projectSubRouteHandler(w, req)
+
+	res := w.Result()
+	if res.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(res.Body)
+		t.Fatalf("expected 200 OK, got %v: %s", res.StatusCode, string(b))
+	}
+	var payload core.MemoryListResponse
+	if err := json.NewDecoder(res.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode memories list: %v", err)
+	}
+	if payload.ProjectID != "proj1" || len(payload.Items) != 1 || payload.Items[0].ID != "DEC-2026-06-01-1" {
+		t.Fatalf("unexpected payload: %+v", payload)
+	}
+	if payload.Counts.Decision != 1 || payload.Counts.Pattern != 1 || payload.Counts.Lesson != 1 {
+		t.Fatalf("counts should be project-wide, got %+v", payload.Counts)
+	}
+}
+
+func TestProjectSubRouteMemoriesEmptyAndInvalid(t *testing.T) {
+	db, _ := setupTestDB(t)
+	defer db.Close()
+	srv := &Server{db: db}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/projects/proj1/memories", nil)
+	w := httptest.NewRecorder()
+	srv.projectSubRouteHandler(w, req)
+	if w.Result().StatusCode != http.StatusOK {
+		t.Fatalf("expected empty memories 200, got %v", w.Result().StatusCode)
+	}
+	var empty core.MemoryListResponse
+	if err := json.NewDecoder(w.Result().Body).Decode(&empty); err != nil {
+		t.Fatalf("decode empty memories: %v", err)
+	}
+	if len(empty.Items) != 0 {
+		t.Fatalf("expected no memories, got %+v", empty.Items)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/projects/proj1/memories?type=bad", nil)
+	w = httptest.NewRecorder()
+	srv.projectSubRouteHandler(w, req)
+	if w.Result().StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected invalid type 400, got %v", w.Result().StatusCode)
+	}
+}
+
+func TestProjectSubRouteMemoryDetailAndInvalidID(t *testing.T) {
+	db, _ := setupTestDB(t)
+	defer db.Close()
+	insertServerMemoryFixtures(t, db)
+	srv := &Server{db: db}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/projects/proj1/memories/DEC-2026-06-01-1", nil)
+	w := httptest.NewRecorder()
+	srv.projectSubRouteHandler(w, req)
+	if w.Result().StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(w.Result().Body)
+		t.Fatalf("expected detail 200, got %v: %s", w.Result().StatusCode, string(b))
+	}
+	var detail core.MemoryDetail
+	if err := json.NewDecoder(w.Result().Body).Decode(&detail); err != nil {
+		t.Fatalf("decode detail: %v", err)
+	}
+	if detail.ID != "DEC-2026-06-01-1" || len(detail.Related) != 1 || len(detail.AntiPatterns) != 1 {
+		t.Fatalf("unexpected detail: %+v", detail)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/projects/proj1/memories/..%2FDEC-2026-06-01-1", nil)
+	w = httptest.NewRecorder()
+	srv.projectSubRouteHandler(w, req)
+	if w.Result().StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected invalid memory id 400, got %v", w.Result().StatusCode)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/projects/proj1/memories/DEC-2026-06-01-404", nil)
+	w = httptest.NewRecorder()
+	srv.projectSubRouteHandler(w, req)
+	if w.Result().StatusCode != http.StatusNotFound {
+		t.Fatalf("expected missing memory 404, got %v", w.Result().StatusCode)
+	}
+}
+
+func TestProjectWithoutRootMemorySubroute404(t *testing.T) {
+	db, _ := setupTestDB(t)
+	defer db.Close()
+	insertServerMemoryFixtures(t, db)
+	srv := &Server{db: db}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/projects/proj2/memories", nil)
+	w := httptest.NewRecorder()
+	srv.projectSubRouteHandler(w, req)
+	if w.Result().StatusCode != http.StatusNotFound {
+		t.Fatalf("expected project without root subroute 404, got %v", w.Result().StatusCode)
 	}
 }

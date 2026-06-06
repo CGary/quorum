@@ -1,11 +1,26 @@
 document.addEventListener('DOMContentLoaded', () => {
     const projectSelect = document.getElementById('project-select');
     const reportList = document.getElementById('report-list');
+    const memoryList = document.getElementById('memory-list');
+    const reportsTab = document.getElementById('reports-tab');
+    const memoriesTab = document.getElementById('memories-tab');
+    const memoryControls = document.getElementById('memory-controls');
+    const memoryType = document.getElementById('memory-type');
+    const memorySearch = document.getElementById('memory-search');
     const reportTitle = document.getElementById('report-title');
     const reportDate = document.getElementById('report-date');
     const reportContent = document.getElementById('report-content');
 
     let currentProject = '';
+    let activeView = 'reports';
+    let memorySearchTimer = null;
+
+    const makeEl = (tag, className, text) => {
+        const element = document.createElement(tag);
+        if (className) element.className = className;
+        if (text !== undefined) element.textContent = text;
+        return element;
+    };
 
     // Fetch projects on load
     fetch('/api/projects')
@@ -30,8 +45,46 @@ document.addEventListener('DOMContentLoaded', () => {
 
     projectSelect.addEventListener('change', (e) => {
         currentProject = e.target.value;
-        loadReports(currentProject);
+        clearContent(activeView === 'reports' ? 'No Report Selected' : 'No Memory Selected');
+        if (activeView === 'reports') {
+            loadReports(currentProject);
+        } else {
+            loadMemories(currentProject);
+        }
     });
+
+    reportsTab.addEventListener('click', () => switchView('reports'));
+    memoriesTab.addEventListener('click', () => switchView('memories'));
+    memoryType.addEventListener('change', () => currentProject && loadMemories(currentProject));
+    memorySearch.addEventListener('input', () => {
+        clearTimeout(memorySearchTimer);
+        memorySearchTimer = setTimeout(() => currentProject && loadMemories(currentProject), 200);
+    });
+
+    function switchView(view) {
+        activeView = view;
+        const reportsActive = view === 'reports';
+        reportsTab.classList.toggle('active', reportsActive);
+        memoriesTab.classList.toggle('active', !reportsActive);
+        reportsTab.setAttribute('aria-selected', reportsActive ? 'true' : 'false');
+        memoriesTab.setAttribute('aria-selected', reportsActive ? 'false' : 'true');
+        reportList.classList.toggle('hidden', !reportsActive);
+        memoryList.classList.toggle('hidden', reportsActive);
+        memoryControls.classList.toggle('hidden', reportsActive);
+        clearContent(reportsActive ? 'No Report Selected' : 'No Memory Selected');
+        if (!currentProject) return;
+        if (reportsActive) {
+            loadReports(currentProject);
+        } else {
+            loadMemories(currentProject);
+        }
+    }
+
+    function clearContent(title) {
+        reportTitle.textContent = title;
+        reportDate.textContent = '';
+        reportContent.innerHTML = `<div class="empty-state"><p>Select a ${activeView === 'reports' ? 'report' : 'memory'} from the sidebar to view its contents.</p></div>`;
+    }
 
     function loadReports(projectId) {
         reportList.innerHTML = '<div class="empty-state">Loading reports...</div>';
@@ -93,6 +146,104 @@ document.addEventListener('DOMContentLoaded', () => {
                 reportContent.innerHTML = '<div class="empty-state">Failed to load report details.</div>';
             });
     }
+
+    function loadMemories(projectId) {
+        memoryList.innerHTML = '<div class="empty-state">Loading memories...</div>';
+        const params = new URLSearchParams();
+        if (memoryType.value) params.set('type', memoryType.value);
+        const q = memorySearch.value.trim();
+        if (q) params.set('q', q);
+        const suffix = params.toString() ? `?${params.toString()}` : '';
+        fetch(`/api/projects/${projectId}/memories${suffix}`)
+            .then(res => {
+                if (!res.ok) throw new Error('Failed to load memories');
+                return res.json();
+            })
+            .then(data => {
+                memoryList.innerHTML = '';
+                const counts = data.counts || {};
+                const summary = makeEl('div', 'memory-counts', `Decisions ${counts.decision || 0} · Patterns ${counts.pattern || 0} · Lessons ${counts.lesson || 0}`);
+                memoryList.appendChild(summary);
+                const items = data.items || [];
+                if (items.length === 0) {
+                    memoryList.appendChild(makeEl('div', 'empty-state', 'No memories found'));
+                    return;
+                }
+                items.forEach(m => {
+                    const item = makeEl('div', 'report-item memory-item');
+                    const title = makeEl('div', 'report-item-title', m.title || m.id);
+                    const meta = makeEl('div', 'report-item-date', `${m.type} · ${m.source_task || 'no task'} · ${m.created_at || ''}`);
+                    const excerpt = makeEl('div', 'memory-excerpt', m.content_excerpt || '');
+                    item.appendChild(title);
+                    item.appendChild(meta);
+                    item.appendChild(excerpt);
+                    item.addEventListener('click', () => {
+                        document.querySelectorAll('.report-item').forEach(el => el.classList.remove('active'));
+                        item.classList.add('active');
+                        loadMemoryDetail(projectId, m.id);
+                    });
+                    memoryList.appendChild(item);
+                });
+            })
+            .catch(err => {
+                console.error('Error fetching memories:', err);
+                memoryList.innerHTML = '<div class="empty-state">Error loading memories</div>';
+            });
+    }
+
+    function loadMemoryDetail(projectId, memoryId) {
+        reportContent.innerHTML = '<div class="empty-state">Loading memory...</div>';
+        reportTitle.textContent = `Loading ${memoryId}...`;
+        reportDate.textContent = '';
+        fetch(`/api/projects/${projectId}/memories/${memoryId}`)
+            .then(res => {
+                if (!res.ok) throw new Error('Failed to load memory');
+                return res.json();
+            })
+            .then(renderMemory)
+            .catch(err => {
+                console.error('Error fetching memory detail:', err);
+                reportTitle.textContent = 'Error';
+                reportContent.innerHTML = '<div class="empty-state">Failed to load memory details.</div>';
+            });
+    }
+
+    function renderMemory(memory) {
+        reportTitle.textContent = memory.title || memory.id;
+        reportDate.textContent = memory.created_at || '';
+        reportContent.innerHTML = '';
+
+        const header = makeEl('div', 'memory-header-wrap');
+        header.appendChild(makeEl('div', `pill ${memory.type}`, memory.type || 'memory'));
+        header.appendChild(makeEl('h1', 'report-main-title', memory.title || memory.id));
+        header.appendChild(makeEl('div', 'report-kicker', `${memory.id} · ${memory.source_task || 'no source task'}`));
+        if (memory.context) header.appendChild(makeEl('div', 'report-summary-prosa', memory.context));
+        reportContent.appendChild(header);
+
+        const contentSection = makeEl('section', 'section section-memory');
+        contentSection.appendChild(makeEl('div', 'section-header', 'Curated Content'));
+        const contentBody = makeEl('div', 'section-body');
+        contentBody.appendChild(makeEl('div', 'text-block', memory.content || ''));
+        contentSection.appendChild(contentBody);
+        reportContent.appendChild(contentSection);
+
+        const refs = makeEl('section', 'section section-memory');
+        refs.appendChild(makeEl('div', 'section-header', 'References'));
+        const body = makeEl('div', 'section-body');
+        const kv = makeEl('div', 'key-value-list');
+        const appendKV = (key, value) => {
+            kv.appendChild(makeEl('div', 'key-value-key', key));
+            kv.appendChild(makeEl('div', 'key-value-value', value || 'None'));
+        };
+        appendKV('Supersedes', memory.supersedes);
+        appendKV('Superseded by', (memory.superseded_by || []).join(', '));
+        appendKV('Related', (memory.related || []).join(', '));
+        appendKV('Anti-patterns', (memory.anti_patterns || []).join('\n'));
+        body.appendChild(kv);
+        refs.appendChild(body);
+        reportContent.appendChild(refs);
+    }
+
 
     function renderReport(reportId, data) {
         reportTitle.textContent = data.meta?.id || reportId;

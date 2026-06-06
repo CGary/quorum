@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quorum Cognitive Reports</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="app-container">
@@ -21,10 +22,25 @@
                 </select>
             </div>
 
-            <div class="nav-section">
-                <h2>Reports</h2>
+            <div class="nav-section nav-section-flex">
+                <div class="view-tabs" role="tablist" aria-label="Project data">
+                    <button id="reports-tab" class="view-tab active" type="button" role="tab" aria-selected="true">Reports</button>
+                    <button id="memories-tab" class="view-tab" type="button" role="tab" aria-selected="false">Memories</button>
+                </div>
+                <div id="memory-controls" class="memory-controls hidden">
+                    <select id="memory-type" aria-label="Filter memory type">
+                        <option value="">All types</option>
+                        <option value="decision">Decision</option>
+                        <option value="pattern">Pattern</option>
+                        <option value="lesson">Lesson</option>
+                    </select>
+                    <input id="memory-search" type="search" placeholder="Search curated memory..." aria-label="Search memories">
+                </div>
                 <div id="report-list" class="report-list">
                     <div class="empty-state">Select a project to view reports</div>
+                </div>
+                <div id="memory-list" class="report-list hidden">
+                    <div class="empty-state">Select a project to view memories</div>
                 </div>
             </div>
         </aside>

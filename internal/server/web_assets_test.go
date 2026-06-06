@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -103,5 +104,34 @@ func TestViewerProfileOrderCoversSchema(t *testing.T) {
 		if !found {
 			t.Errorf("PROFILE_ORDER in app.js has no entry for schema profile %q (viewer/schema drift)", profile)
 		}
+	}
+}
+
+func TestViewerLoadsSplitStylesheetsAndMemoryUI(t *testing.T) {
+	root := repoRoot(t)
+	index, err := os.ReadFile(filepath.Join(root, "internal", "server", "web", "index.html"))
+	if err != nil {
+		t.Fatalf("read index.html: %v", err)
+	}
+	app := readAppJS(t)
+	idx := string(index)
+	for _, want := range []string{`href="styles.css"`, `href="style.css"`, `id="memories-tab"`, `id="memory-list"`} {
+		if !strings.Contains(idx, want) {
+			t.Errorf("index.html missing %s", want)
+		}
+	}
+	for _, want := range []string{"/memories", "renderMemory", "memoryType"} {
+		if !strings.Contains(app, want) {
+			t.Errorf("app.js missing memory UI marker %q", want)
+		}
+	}
+}
+
+func TestViewerAppJSSyntax(t *testing.T) {
+	appPath := filepath.Join(repoRoot(t), "internal", "server", "web", "app.js")
+	cmd := exec.Command("node", "--check", appPath)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("app.js syntax check failed: %v\n%s", err, string(out))
 	}
 }
