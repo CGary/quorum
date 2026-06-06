@@ -13,6 +13,9 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"golang.org/x/text/language"
+	"golang.org/x/text/message"
 )
 
 type ArtifactValidationError struct{ Message string }
@@ -287,6 +290,8 @@ func pythonReason(e *jsonschema.ValidationError, payload any) string {
 			return "[] should be non-empty"
 		}
 		return fmt.Sprintf("%s is too short", pyRepr(value))
+	case *kind.MaxItems:
+		return fmt.Sprintf("%s is too long", pyRepr(value))
 	case *kind.MinLength:
 		if k.Want == 1 && k.Got == 0 {
 			return "'' should be non-empty"
@@ -307,7 +312,9 @@ func pythonReason(e *jsonschema.ValidationError, payload any) string {
 	case *kind.Type:
 		return fmt.Sprintf("%s is not of type %s", pyRepr(value), quotedJoin(k.Want))
 	default:
-		return e.ErrorKind.LocalizedString(nil)
+		// LocalizedString panics on a nil printer (e.g. kind.MaxItems), so hand it
+		// a real one as the safe fallback for any kind not rendered explicitly above.
+		return e.ErrorKind.LocalizedString(message.NewPrinter(language.English))
 	}
 }
 
