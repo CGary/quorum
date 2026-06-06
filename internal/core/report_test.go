@@ -151,6 +151,240 @@ func TestSeedTemplateValidAgainstSchema(t *testing.T) {
 	}
 }
 
+// baseSemantic returns a fresh, fully valid semantic report on every call so a
+// table case can mutate one field in isolation without leaking into siblings.
+func baseSemantic() map[string]any {
+	return map[string]any{
+		"meta": map[string]any{
+			"id":            "semantic-01",
+			"schemaVersion": "1.1",
+			"date":          "2026-06-01T12:00:00Z",
+		},
+		"kind": "generic",
+		"presentation": map[string]any{
+			"profile":  "cognitive",
+			"density":  "medium",
+			"audience": "engineer",
+			"language": "en",
+		},
+		"content": map[string]any{
+			"title":   "A Semantic Report",
+			"verdict": map[string]any{"text": "Bottom line."},
+			"sections": []any{
+				map[string]any{
+					"id":    "sec-1",
+					"role":  "analysis",
+					"title": "Analysis Section",
+					"body":  "Some body text",
+				},
+			},
+		},
+	}
+}
+
+func semContent(m map[string]any) map[string]any { return m["content"].(map[string]any) }
+
+func semSetSections(m map[string]any, sections ...any) { semContent(m)["sections"] = sections }
+
+// TestReportSchemaSemanticCases is the regression net for proposal §11.1: the
+// schema and the Go post-schema hook already enforce these rules; this locks the
+// behavior so a future schema edit cannot silently loosen it. Cases #1, #11,
+// #16(legacy half), #19, #31 from §11.1 are intentionally absent: they assume a
+// legacy model / root if-then discriminator removed in fbb5b27 (semantic-pure
+// v1.1), so they are impossible by construction. #11 (mix legacy+semantic) is
+// still covered by TestReportSemanticModelValidation via additionalProperties.
+func TestReportSchemaSemanticCases(t *testing.T) {
+	cases := []struct {
+		name        string // §11.1 case number in parentheses
+		mutate      func(m map[string]any)
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:   "minimal valid (positive)",
+			mutate: func(m map[string]any) {},
+		},
+		{
+			name: "unknown role rejected by enum (#4/#33)",
+			mutate: func(m map[string]any) {
+				semSetSections(m, map[string]any{"id": "x", "role": "foobar", "title": "T"})
+			},
+			wantErr:     true,
+			errContains: "is not one of",
+		},
+		{
+			name: "verification without check (#5)",
+			mutate: func(m map[string]any) {
+				semSetSections(m, map[string]any{
+					"id": "v", "role": "verification", "title": "V",
+					"items": []any{map[string]any{"what": "X", "why": "Y"}},
+				})
+			},
+			wantErr: true,
+		},
+		{
+			name: "analysis without body (#6)",
+			mutate: func(m map[string]any) {
+				semSetSections(m, map[string]any{"id": "a", "role": "analysis", "title": "A"})
+			},
+			wantErr: true,
+		},
+		{
+			name:    "unknown presentation.profile (#8)",
+			mutate:  func(m map[string]any) { m["presentation"].(map[string]any)["profile"] = "fancy" },
+			wantErr: true,
+		},
+		{
+			name:    "unknown kind (#9)",
+			mutate:  func(m map[string]any) { m["kind"] = "novel" },
+			wantErr: true,
+		},
+		{
+			name:        "missing content.sections (#14)",
+			mutate:      func(m map[string]any) { delete(semContent(m), "sections") },
+			wantErr:     true,
+			errContains: "sections",
+		},
+		{
+			name: "callout.kind out of enum (#15)",
+			mutate: func(m map[string]any) {
+				semSetSections(m, map[string]any{
+					"id": "c", "role": "callout", "title": "C", "body": "B", "kind": "urgent",
+				})
+			},
+			wantErr: true,
+		},
+		{
+			name: "findings severity out of enum (#17)",
+			mutate: func(m map[string]any) {
+				semSetSections(m, map[string]any{
+					"id": "f", "role": "findings", "title": "F",
+					"items": []any{map[string]any{"id": "f1", "finding": "x", "severity": "blocker"}},
+				})
+			},
+			wantErr: true,
+		},
+		{
+			name: "risks impact out of enum (#17)",
+			mutate: func(m map[string]any) {
+				semSetSections(m, map[string]any{
+					"id": "r", "role": "risks", "title": "R",
+					"items": []any{map[string]any{"risk": "x", "impact": "catastrophic"}},
+				})
+			},
+			wantErr: true,
+		},
+		{
+			name:        "schemaVersion not 1.1 (#18)",
+			mutate:      func(m map[string]any) { m["meta"].(map[string]any)["schemaVersion"] = "2.0" },
+			wantErr:     true,
+			errContains: "schemaVersion",
+		},
+		{
+			name:        "missing kind (#21)",
+			mutate:      func(m map[string]any) { delete(m, "kind") },
+			wantErr:     true,
+			errContains: "kind",
+		},
+		{
+			name:        "missing presentation (#22)",
+			mutate:      func(m map[string]any) { delete(m, "presentation") },
+			wantErr:     true,
+			errContains: "presentation",
+		},
+		{
+			name:        "missing content.verdict (#23)",
+			mutate:      func(m map[string]any) { delete(semContent(m), "verdict") },
+			wantErr:     true,
+			errContains: "verdict",
+		},
+		{
+			name: "diagram.type not mermaid (#24)",
+			mutate: func(m map[string]any) {
+				semSetSections(m, map[string]any{
+					"id": "d", "role": "diagram", "title": "D",
+					"diagram": map[string]any{"type": "graphviz", "code": "x"},
+				})
+			},
+			wantErr: true,
+		},
+		{
+			name: "decision_surface.body non-string value (#25)",
+			mutate: func(m map[string]any) {
+				semSetSections(m, map[string]any{
+					"id": "s", "role": "decision_surface", "title": "S",
+					"body": map[string]any{"k": 42},
+				})
+			},
+			wantErr: true,
+		},
+		{
+			name: "metrics value non-numeric (#26)",
+			mutate: func(m map[string]any) {
+				semSetSections(m, map[string]any{
+					"id": "mx", "role": "metrics", "title": "M",
+					"items": []any{map[string]any{"label": "L", "value": "lots"}},
+				})
+			},
+			wantErr: true,
+		},
+		{
+			name: "autonomous evidence without findingId (#28, positive)",
+			mutate: func(m map[string]any) {
+				semSetSections(m, map[string]any{
+					"id": "ev", "role": "evidence", "title": "E",
+					"items": []any{map[string]any{"path": "main.go", "details": "line 1"}},
+				})
+			},
+		},
+		{
+			name:    "presentation missing language (#30)",
+			mutate:  func(m map[string]any) { delete(m["presentation"].(map[string]any), "language") },
+			wantErr: true,
+		},
+		{
+			name: "verification zero items (#32 minItems)",
+			mutate: func(m map[string]any) {
+				semSetSections(m, map[string]any{
+					"id": "v", "role": "verification", "title": "V", "items": []any{},
+				})
+			},
+			wantErr: true,
+		},
+		{
+			name: "verification five items (#32 maxItems)",
+			mutate: func(m map[string]any) {
+				item := map[string]any{"what": "w", "why": "y", "check": "c"}
+				semSetSections(m, map[string]any{
+					"id": "v", "role": "verification", "title": "V",
+					"items": []any{item, item, item, item, item},
+				})
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			payload := baseSemantic()
+			tc.mutate(payload)
+			err := core.ValidateAgainstSchema("report.schema.json", "reports/semantic.yaml", payload)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("expected validation error, got nil")
+				}
+				if tc.errContains != "" && !strings.Contains(err.Error(), tc.errContains) {
+					t.Errorf("expected error containing %q, got: %v", tc.errContains, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("expected payload to validate, got: %v", err)
+			}
+		})
+	}
+}
+
 func TestReportSemanticModelValidation(t *testing.T) {
 	// 1. Semantic report minimo valida
 	validSemantic := map[string]any{
