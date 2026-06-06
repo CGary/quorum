@@ -157,6 +157,7 @@ The rest of `internal/core` is small, pure, single-purpose logic exposed through
 ### Memory is curated, never automatic
 
 The centralized SQLite memory is a knowledge library, NOT an activity log (the activity log is `07-trace.json`). Entries are typed (`pattern` / `decision` / `lesson`), not graded. The schema field `supersedes` records causal corrections — superseded entries are kept, never deleted. `q-memory` is the only ingestion path via `quorum memory save`; there is no auto-capture, and proposals to add one are rejected by the manifesto.
+`q-session` acts as a second human-invoked route on top of `quorum memory save`, using `source_task=SESSION-*`. It is not auto-capture.
 
 Quorum is user-sovereign, not local-first: local operational data belongs to the user and may be explicitly exported, deleted, reset, or rebuilt by user-approved tooling. External semantic stores (HSME, vector DBs) may integrate with exported/restored data when they remain subordinate to Git, lifecycle artifacts, validation, and curated `q-memory`; they must never become code truth or erase append-only evidence.
 
