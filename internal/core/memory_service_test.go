@@ -176,3 +176,43 @@ func assertCount(t *testing.T, db *sql.DB, query string, want int, args ...any) 
 		t.Fatalf("count for %q = %d, want %d", query, got, want)
 	}
 }
+
+func TestSaveMemoryEntrySessionSentinelIdempotency(t *testing.T) {
+	setupMemoryServiceTest(t)
+	payload := validMemoryJSON("LES-2026-06-06-300000003")
+	
+	var m map[string]any
+	json.Unmarshal(payload, &m)
+	m["source_task"] = "SESSION-2026-06-06"
+	newPayload, _ := json.Marshal(m)
+
+	first, err := SaveMemoryEntry(newPayload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Status != "inserted" {
+		t.Fatalf("expected inserted, got %s", first.Status)
+	}
+
+	second, err := SaveMemoryEntry(newPayload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.Status != "unchanged" {
+		t.Fatalf("expected unchanged, got %s", second.Status)
+	}
+
+	db, err := OpenMemoryDB("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	
+	var sourceTask string
+	if err := db.QueryRow(`SELECT source_task FROM memory_entries WHERE project_id = ? AND id = ?`, "quorum", "LES-2026-06-06-300000003").Scan(&sourceTask); err != nil {
+		t.Fatal(err)
+	}
+	if sourceTask != "SESSION-2026-06-06" {
+		t.Fatalf("expected source_task = SESSION-2026-06-06, got %q", sourceTask)
+	}
+}
