@@ -1,6 +1,7 @@
 meta:
   id: "template-id"
-  # date: ""
+  schemaVersion: "1.1"
+  date: "2026-06-01T00:00:00Z"
 kind: "technical_analysis"
 presentation:
   profile: "teaching"

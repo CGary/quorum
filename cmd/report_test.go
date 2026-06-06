@@ -250,6 +250,67 @@ func TestReportNewUsesEmbeddedTemplateFallback(t *testing.T) {
 	}
 }
 
+// TestReportNewKindOutputScaffoldsValid guards the documented q-report flow
+// `report new <id> --kind <k> --output .tmp/<id>.yaml`. The kind templates are
+// served from the binary-embedded bundle here (setupReportTestEnv only places the
+// generic template on disk), so this also exercises the embedded fallback. Every
+// kind must scaffold a draft that passes report.schema.json — including the
+// machine-set meta fields (schemaVersion/date) the scaffolder must supply.
+func TestReportNewKindOutputScaffoldsValid(t *testing.T) {
+	kinds := []string{
+		"", // generic (no --kind flag)
+		"generic",
+		"audit",
+		"decision_brief",
+		"project_usage",
+		"refactor_plan",
+		"refactor_result",
+		"technical_analysis",
+	}
+
+	for _, kind := range kinds {
+		name := kind
+		if name == "" {
+			name = "no-flag"
+		}
+		t.Run(name, func(t *testing.T) {
+			bin, dir := setupReportTestEnv(t)
+			dbPath := filepath.Join(t.TempDir(), "memory.db")
+
+			id := "draft-" + name
+			outPath := ".tmp/" + id + ".yaml"
+
+			args := []string{"report", "new", id, "--output", outPath}
+			if kind != "" {
+				args = append(args, "--kind", kind)
+			}
+			out, err := runMemoryCmdErr(t, dir, bin, dbPath, "", args...)
+			if err != nil {
+				t.Fatalf("report new --kind %q --output failed: %v\n%s", kind, err, out)
+			}
+
+			scaffoldPath := filepath.Join(dir, ".tmp", id+".yaml")
+			data, err := os.ReadFile(scaffoldPath)
+			if err != nil {
+				t.Fatalf("expected scaffold at %s: %v", scaffoldPath, err)
+			}
+			if !strings.Contains(string(data), `id: "`+id+`"`) {
+				t.Errorf("scaffold must stamp the id; got:\n%s", data)
+			}
+			if strings.Contains(string(data), "template-id") {
+				t.Errorf("scaffold must replace the template placeholder id; got:\n%s", data)
+			}
+
+			// The written scaffold itself must be schema-valid (proves fix A:
+			// the template carries schemaVersion). validate --schema report uses
+			// the same engine as report save.
+			if out, err := runMemoryCmdErr(t, dir, bin, dbPath, "", "validate", "--schema", "report", outPath); err != nil {
+				t.Fatalf("scaffold for kind %q must validate against report.schema.json: %v\n%s", kind, err, out)
+			}
+		})
+	}
+}
+
 func TestReportSaveDryRun(t *testing.T) {
 	bin, dir := setupReportTestEnv(t)
 	dbPath := filepath.Join(t.TempDir(), "memory.db")

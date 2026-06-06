@@ -160,6 +160,9 @@ var reportNewCmd = &cobra.Command{
 				fmt.Fprintf(os.Stderr, "error parsing scaffolded template: %v\n", err)
 				os.Exit(1)
 			}
+			// Mirror `report save`: stamp machine-set metadata before validation so a
+			// kind template that omits schemaVersion/date still scaffolds a valid draft.
+			fillReportMetadata(payload)
 			if err := core.ValidateAgainstSchema("report.schema.json", reportNewOutput, payload); err != nil {
 				fmt.Fprintf(os.Stderr, "error: %v\n", err)
 				os.Exit(1)
