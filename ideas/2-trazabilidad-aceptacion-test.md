@@ -1,8 +1,8 @@
 # 🔗 Propuesta Técnica: Trazabilidad Verificable Aceptación ↔ Test
 
-**Estado:** Propuesta — eslabón 2 de 3 de la cadena ([11] estructura → este → [13] anti-vacuidad).
-**Contexto:** Evolución de Quorum v1.2+. **Depende del doc [11]** (criterios con `id` estable).
-**Origen:** Destilado del flujo de R.C. Martin (el Codificador deriva tests del spec). Se conserva el CONCEPTO de derivación trazable; no se adopta generación automática de tests (eso es el doc [13], decisión abierta).
+**Estado:** Propuesta — eslabón 2 de 3 de la cadena ([1] estructura → este → [5] anti-vacuidad).
+**Contexto:** Evolución de Quorum v1.2+. **Depende del doc [1]** (criterios con `id` estable).
+**Origen:** Destilado del flujo de R.C. Martin (el Codificador deriva tests del spec). Se conserva el CONCEPTO de derivación trazable; no se adopta generación automática de tests (eso es el doc [5], decisión abierta).
 **Veredicto:** Quorum YA intenta este cruce, pero como juicio blando del agente sin respaldo estructural ni CLI. Endurecerlo de "opinión" a "cobertura verificable" reutiliza un patrón que ya existe en el código (`coverageForItems`). Alto valor, bajo costo.
 
 ---
@@ -38,7 +38,7 @@ test_scenarios:
 
 | Aspecto | Decisión propuesta |
 |---|---|
-| Forma del item | `oneOf: [ string, object{statement, covers:[id]} ]`. Retrocompatible igual que el doc [11]. |
+| Forma del item | `oneOf: [ string, object{statement, covers:[id]} ]`. Retrocompatible igual que el doc [1]. |
 | Referencia | `covers[]` referencia `^AC-[0-9]+$` del `00-spec.yaml`. Match por **ID explícito**, NO léxico — más fuerte que el `coversItem()` actual. |
 | Validación de integridad | Un `covers` que apunta a un `id` inexistente es un finding `high` de `q-analyze`. |
 
@@ -50,12 +50,18 @@ test_scenarios:
 
 | Pieza nueva | Espejo existente |
 |---|---|
-| `internal/core/acceptance_coverage.go` | `internal/core/decomposition_analysis.go` (reutiliza `CoverageRow{Item, CoveredBy}`, `Finding`) |
+| `internal/core/acceptance_coverage.go` | `internal/core/decomposition_analysis.go` (espeja el patrón con un struct propio `{item_id, statement, covered_by}` — `CoverageRow.Item` es un string plano y NO se reutiliza tal cual; `Finding` sí se reutiliza) |
 | `cmd/analyze_acceptance_coverage.go` (shim stdin→JSON) | `cmd/analyze_decomposition_coverage.go` (copia casi 1:1) |
 | Request: `{ "spec_path": "...", "blueprint_path": "..." }` | `AnalyzeDecompositionCoverageRequest` |
 | Salida: `coverage[]{item_id, statement, covered_by[]}`, `gaps[]`, `status: pass\|issues_found\|blocked` | `DecompositionAnalysisResult` |
 
 Lógica núcleo (pura, sin efectos, como todo `internal/core` analítico): para cada `acceptance.id`, buscar qué `test_scenarios[].covers` lo nombran; `covered_by == []` → gap `high`.
+
+**Casos borde resueltos (no dejarlos a interpretación del implementador):**
+
+- **Criterios `string` legacy (sin `id`):** se reportan con estado explícito `legacy_untracked`, NUNCA como `gap`. Un gap exige un `id` no cubierto; reportar legacy como gap genera ruido permanente, y excluirlo en silencio crea un punto ciego. El estado explícito deja la decisión visible al humano.
+- **`id` duplicado en `acceptance[]`:** con duplicados la cobertura es indefinida. La unicidad la garantiza el finding `high` del doc [1] (JSON Schema no puede exigirla); si este comando los encuentra de todos modos, responde `status: blocked` en lugar de computar cobertura ambigua.
+- **Blueprints de tareas hijo:** `covers[]` referencia SIEMPRE los `acceptance.id` del `00-spec.yaml` de la propia tarea. Tras `split` no hay ambigüedad entre hermanos porque el doc [1] (§2.2.1) obliga a `split` a despojar la forma objeto a `statement` plano: ningún hijo hereda ids del padre.
 
 ### 2.3 Endurecer `q-analyze` pass #5
 
@@ -72,22 +78,22 @@ Lógica núcleo (pura, sin efectos, como todo `internal/core` analítico): para 
 | Componente rechazado | Razón |
 |---|---|
 | Ejecutar tests dentro de `acceptance-coverage` | Es analítico y read-only, como todo `quorum analyze`. Ejecutar tests es de `q-verify`. |
-| Bloquear el merge por cobertura incompleta | `q-analyze` es advisory; la finalidad la da `verify.commands` (Regla #4) y el gate humano (Regla #6). Convertirlo en gate duro es decisión de [13], no de aquí. |
-| Generación automática de tests desde el criterio | Es el corazón de la decisión abierta del doc [13]. No se asume aquí. |
+| Bloquear el merge por cobertura incompleta | `q-analyze` es advisory; la finalidad la da `verify.commands` (Regla #4) y el gate humano (Regla #6). Convertirlo en gate duro es decisión de [5], no de aquí. |
+| Generación automática de tests desde el criterio | Es el corazón de la decisión abierta del doc [5]. No se asume aquí. |
 | Nuevo artefacto numerado para la matriz de cobertura | Prohibido por el manifiesto (sin ADR). El cruce se computa on-demand, no se persiste. La traza vive en `feedback.json` si hay findings. |
-| Match léxico como mecanismo primario | Teniendo `id` estable (doc 11), el ID explícito es superior. El léxico queda solo como fallback opcional para items `string` legacy. |
+| Match léxico como mecanismo primario | Teniendo `id` estable (doc 1), el ID explícito es superior. El léxico queda solo como fallback opcional para items `string` legacy. |
 
 ---
 
 ## 4. Dependencias y Orden
 
 ```text
-[11] aceptación estructurada  →  [12] ESTE: trazabilidad a tests  →  [13] anti-vacuidad
+[1] aceptación estructurada  →  [2] ESTE: trazabilidad a tests  →  [5] anti-vacuidad
      (provee los AC-id)            (provee el cruce id↔test)          (lo consume)
 ```
 
-- **Bloqueado por [11]:** sin `acceptance.id` no hay a qué apuntar `covers[]`.
-- **Habilita [13]:** la anti-vacuidad necesita saber qué test corresponde a qué criterio para poder mutar/verificar la relación.
+- **Bloqueado por [1]:** sin `acceptance.id` no hay a qué apuntar `covers[]`.
+- **Habilita [5]:** la anti-vacuidad necesita saber qué test corresponde a qué criterio para poder mutar/verificar la relación.
 
 ---
 
@@ -110,4 +116,4 @@ Ingesta para `/q-brief`. Tarea Quorum sugerida `FEAT-COV-1`:
 - **Concepto conservado:** trazabilidad criterio→test (el Codificador de R.C. Martin deriva tests del spec; aquí lo hacemos auditable sin generarlos automáticamente).
 - **Hallazgo clave:** el 70% de la infraestructura ya existe (`coverageForItems`, `CoverageRow`, el shim de `decomposition-coverage`, el pass #6 de `q-analyze`). Esto es **endurecer + espejar**, no construir de cero.
 - **Rechazado:** ejecución de tests, gate de bloqueo, generación automática, artefacto persistido — todos fuera del alcance read-only/advisory de este eslabón.
-- **Habilita:** doc [13], donde se decide si la cobertura se vuelve gate y si se introduce mutación.
+- **Habilita:** doc [5], donde se decide si la cobertura se vuelve gate y si se introduce mutación.

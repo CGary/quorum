@@ -64,8 +64,14 @@ Ejemplos conceptuales:
 | `blueprint` | `inbox` | `active` | task existe en inbox |
 | `start` | `active/inbox` | `active` | existe `02-contract.yaml` válido |
 | `clean` | `active` | `done` | worktree limpio o `--force/--stash`; children done si es parent |
-| `back` | variable | estado anterior | solo comando humano, no skill |
+| `auto-archive-parent` | `active` | `done` | parent con todos los children en `done/`; **única transición iniciada por el sistema** (la dispara el `clean` del último hijo — `AutoArchiveParentIfComplete`) |
 | `retry-prepare` | `failed` | `active` | solo child con `parent_task` y `07-trace.json` válido |
+
+### 2.1 `back` queda FUERA de la tabla: es un dispatcher inverso
+
+`BackTask()` (`task_manager.go:843`) no es una transición declarable: no tiene `From`/`To` fijos. Infiere qué revertir observando el estado actual — si existe `worktrees/<ID>/` revierte `start`; si la tarea está en `done/` o `failed/` revierte `clean`. Forzarlo dentro de `TaskTransition{From []string, To string}` exigiría enumerar combinaciones de estado o degradar el struct hasta vaciarlo de significado.
+
+Decisión: `back` se modela como **operación de reversión** aparte, que consulta la tabla de transiciones para localizar la última transición aplicable y ejecutar su inverso. Sigue siendo humano-only (la tabla no lo expone a skills) y conserva su semántica actual de inspección de estado.
 
 ---
 

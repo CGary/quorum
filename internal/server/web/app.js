@@ -722,6 +722,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         item.appendChild(titleWrap);
                         item.appendChild(summary);
 
+                        const arts = t.artifacts || {};
+                        const total = Object.keys(arts).length;
+                        if (total > 0) {
+                            const present = Object.values(arts).filter(Boolean).length;
+                            const meta = document.createElement('div');
+                            meta.className = 'task-item-meta';
+                            meta.textContent = `${present}/${total} artifacts${t.worktree_present ? ' · worktree' : ''}`;
+                            item.appendChild(meta);
+                        }
+
                         item.addEventListener('click', () => {
                             document.querySelectorAll('.report-item').forEach(el => el.classList.remove('active'));
                             item.classList.add('active');
@@ -760,205 +770,316 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     }
 
+    // Task artifact rendering: structured display layer over lifecycle artifacts.
+    // Preserves 100% of the payload (raw JSON appendix per artifact) while the
+    // primary path is scannable: lifecycle pipeline, verdict pills, shape-based
+    // tables/key-value grids, and progressive disclosure for dense detail.
+
+    const TASK_LIFECYCLE_STEPS = [
+        ['00-spec.yaml', 'Spec'],
+        ['01-blueprint.yaml', 'Blueprint'],
+        ['02-contract.yaml', 'Contract'],
+        ['04-implementation-log.yaml', 'Implement'],
+        ['05-validation.json', 'Validate'],
+        ['06-review.json', 'Review'],
+        ['07-trace.json', 'Trace']
+    ];
+
+    const TASK_PILL_KEYS = [
+        'risk', 'severity', 'verdict', 'overall_result', 'error_category',
+        'functional_risk', 'location', 'impact', 'kind', 'status', 'result',
+        'parent_state'
+    ];
+
+    function taskPillClass(value) {
+        const map = {
+            passed: 'done', approve: 'done', approved: 'done', done: 'done', completed: 'done',
+            failed: 'failed', reject: 'failed', rejected: 'failed', blocked: 'failed',
+            revise: 'medium', medium: 'medium', partial: 'medium', pending: 'warning',
+            high: 'high', critical: 'critical', low: 'low',
+            inbox: 'inbox', active: 'active'
+        };
+        return map[String(value).toLowerCase()] || 'info';
+    }
+
+    function taskTitleize(key) {
+        return String(key)
+            .replace(/[_-]+/g, ' ')
+            .replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    function appendTaskScalar(parent, key, val) {
+        if (val === null || val === undefined || val === '') {
+            parent.appendChild(makeEl('span', 'task-muted', 'None'));
+            return;
+        }
+        if (typeof val === 'boolean') {
+            parent.textContent = val ? 'Yes' : 'No';
+            return;
+        }
+        if (TASK_PILL_KEYS.includes(String(key).toLowerCase())) {
+            parent.appendChild(makeEl('span', `pill ${taskPillClass(val)}`, String(val)));
+            return;
+        }
+        parent.textContent = String(val);
+    }
+
+    function renderTaskTable(rows, parent) {
+        const columns = [...new Set(rows.flatMap(r => Object.keys(r || {})))];
+        const wrap = makeEl('div', 'table-wrap');
+        const table = makeEl('table', 'data-table task-table');
+        const thead = document.createElement('thead');
+        const trHead = document.createElement('tr');
+        columns.forEach(c => trHead.appendChild(makeEl('th', '', taskTitleize(c))));
+        thead.appendChild(trHead);
+        const tbody = document.createElement('tbody');
+
+        rows.forEach(row => {
+            const tr = document.createElement('tr');
+            columns.forEach(c => {
+                const td = document.createElement('td');
+                const v = row ? row[c] : undefined;
+                if (v === null || v === undefined) {
+                    // leave empty: blank cells scan faster than placeholder noise
+                } else if (Array.isArray(v)) {
+                    if (v.length > 0 && typeof v[0] === 'object' && v[0] !== null) {
+                        renderTaskTable(v, td);
+                    } else {
+                        const ul = makeEl('ul', 'cell-list');
+                        v.forEach(item => ul.appendChild(makeEl('li', '', String(item))));
+                        td.appendChild(ul);
+                    }
+                } else if (typeof v === 'object') {
+                    renderTaskShape(v, td);
+                } else if (c === 'exit_code') {
+                    td.appendChild(makeEl('span', `pill ${Number(v) === 0 ? 'done' : 'failed'}`, String(v)));
+                } else if (typeof v === 'string' && (v.length > 160 || v.includes('\n'))) {
+                    const excerpt = makeEl('details', 'cell-excerpt');
+                    excerpt.appendChild(makeEl('summary', '', v.split('\n')[0].slice(0, 80) + '…'));
+                    excerpt.appendChild(makeEl('pre', '', v));
+                    td.appendChild(excerpt);
+                } else {
+                    appendTaskScalar(td, c, v);
+                }
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        });
+
+        table.appendChild(thead);
+        table.appendChild(tbody);
+        wrap.appendChild(table);
+        parent.appendChild(wrap);
+    }
+
+    function renderTaskShape(value, parent) {
+        if (value === null || value === undefined) return;
+
+        if (Array.isArray(value)) {
+            if (value.length === 0) {
+                parent.appendChild(makeEl('div', 'task-muted', 'None'));
+            } else if (typeof value[0] === 'object' && value[0] !== null) {
+                renderTaskTable(value, parent);
+            } else {
+                const ul = makeEl('ul', 'scalar-list');
+                value.forEach(item => ul.appendChild(makeEl('li', '', String(item))));
+                parent.appendChild(ul);
+            }
+            return;
+        }
+
+        if (typeof value === 'object') {
+            // Front-load prose: summary and goal read as lead text, not grid rows.
+            const leadKeys = ['summary', 'goal'].filter(k => typeof value[k] === 'string' && value[k]);
+            leadKeys.forEach(k => {
+                const lead = makeEl('div', 'artifact-lead');
+                lead.appendChild(makeEl('div', 'artifact-lead-label', taskTitleize(k)));
+                lead.appendChild(makeEl('div', 'artifact-lead-text', value[k]));
+                parent.appendChild(lead);
+            });
+
+            const scalarKeys = [];
+            const complexKeys = [];
+            Object.keys(value).forEach(k => {
+                if (leadKeys.includes(k)) return;
+                const v = value[k];
+                if (v !== null && typeof v === 'object') complexKeys.push(k);
+                else scalarKeys.push(k);
+            });
+
+            if (scalarKeys.length > 0) {
+                const kv = makeEl('div', 'key-value-list');
+                scalarKeys.forEach(k => {
+                    kv.appendChild(makeEl('div', 'key-value-key', taskTitleize(k)));
+                    const vEl = makeEl('div', 'key-value-value');
+                    appendTaskScalar(vEl, k, value[k]);
+                    kv.appendChild(vEl);
+                });
+                parent.appendChild(kv);
+            }
+
+            complexKeys.forEach(k => {
+                const block = makeEl('div', 'artifact-subsection');
+                block.appendChild(makeEl('div', 'artifact-subheading', taskTitleize(k)));
+                renderTaskShape(value[k], block);
+                parent.appendChild(block);
+            });
+            return;
+        }
+
+        parent.appendChild(makeEl('div', 'text-block', String(value)));
+    }
+
+    function renderTaskLifecycle(task) {
+        const wrap = makeEl('div', 'lifecycle-stepper');
+        TASK_LIFECYCLE_STEPS.forEach(([file, label], i) => {
+            if (i > 0) wrap.appendChild(makeEl('div', 'lifecycle-connector'));
+            const present = !!(task.artifacts && task.artifacts[file]);
+            const step = makeEl('div', `lifecycle-step ${present ? 'present' : 'missing'}`);
+            step.title = `${file}: ${present ? 'present' : 'missing'}`;
+            step.appendChild(makeEl('div', 'lifecycle-dot', present ? '✓' : ''));
+            step.appendChild(makeEl('div', 'lifecycle-label', label));
+            wrap.appendChild(step);
+        });
+        return wrap;
+    }
+
+    function renderTaskArtifact(name, role, data, opts = {}) {
+        if (!data) return;
+        const details = makeEl('details', 'artifact-details');
+        if (opts.open) details.open = true;
+
+        const summary = makeEl('summary', 'artifact-summary');
+        summary.appendChild(makeEl('span', 'artifact-name', name));
+        summary.appendChild(makeEl('span', 'artifact-role', role));
+        if (opts.status) {
+            summary.appendChild(makeEl('span', `pill ${taskPillClass(opts.status)}`, String(opts.status)));
+        }
+        if (opts.meta) {
+            summary.appendChild(makeEl('span', 'artifact-meta', opts.meta));
+        }
+        details.appendChild(summary);
+
+        const body = makeEl('div', 'artifact-body');
+        renderTaskShape(data, body);
+
+        // Appendix layer: the exact payload stays available, never deleted.
+        const raw = makeEl('details', 'raw-json');
+        raw.appendChild(makeEl('summary', '', 'Raw JSON'));
+        const pre = document.createElement('pre');
+        pre.appendChild(makeEl('code', '', JSON.stringify(data, null, 2)));
+        raw.appendChild(pre);
+        body.appendChild(raw);
+
+        details.appendChild(body);
+        reportContent.appendChild(details);
+    }
+
     function renderTask(task) {
         reportTitle.textContent = task.id;
         const d = new Date(task.updated_at);
         reportDate.textContent = isNaN(d.getTime()) ? task.updated_at : d.toLocaleString();
         reportContent.innerHTML = '';
 
-        // Header
-        const header = makeEl('div', 'report-header-wrap');
-        const topRow = document.createElement('div');
-        topRow.style.display = 'flex';
-        topRow.style.alignItems = 'center';
-        topRow.style.gap = '1rem';
+        const artifacts = task.artifacts || {};
+        const valResult = task.validation && task.validation.overall_result;
+        const verdict = task.review && task.review.verdict;
+        const hasTrace = artifacts['07-trace.json'] && task.trace;
+        const hasContract = artifacts['02-contract.yaml'] && task.contract;
 
-        topRow.appendChild(makeEl('div', `pill ${task.location}`, task.location));
-        if (task.risk) {
-            topRow.appendChild(makeEl('div', `pill ${task.risk}`, `Risk: ${task.risk}`));
-        }
+        // Decision surface: every verdict that matters, before any detail.
+        const header = makeEl('div', 'report-header-wrap');
+        const topRow = makeEl('div', 'task-pill-row');
+        topRow.appendChild(makeEl('span', `pill ${task.location}`, task.location));
+        if (task.risk) topRow.appendChild(makeEl('span', `pill ${taskPillClass(task.risk)}`, `risk: ${task.risk}`));
+        if (valResult) topRow.appendChild(makeEl('span', `pill ${taskPillClass(valResult)}`, `validation: ${valResult}`));
+        if (verdict) topRow.appendChild(makeEl('span', `pill ${taskPillClass(verdict)}`, `review: ${verdict}`));
+        if (task.parent_state) topRow.appendChild(makeEl('span', `pill ${taskPillClass(task.parent_state)}`, `children: ${task.parent_state}`));
+        if (task.feedback) topRow.appendChild(makeEl('span', 'pill warning', 'feedback pending'));
         header.appendChild(topRow);
 
         header.appendChild(makeEl('h1', 'report-main-title', task.id));
         header.appendChild(makeEl('div', 'report-kicker', `Directory: ${task.directory}`));
-
         if (task.summary) {
             header.appendChild(makeEl('div', 'report-summary-prosa', task.summary));
         }
         reportContent.appendChild(header);
 
-        // Metadata section
-        const metaSection = makeEl('section', 'section');
-        metaSection.appendChild(makeEl('div', 'section-header', 'Task Metadata'));
-        const metaBody = makeEl('div', 'section-body');
-        const metaKV = makeEl('div', 'key-value-list');
-        const appendMetaKV = (key, value) => {
-            metaKV.appendChild(makeEl('div', 'key-value-key', key));
-            metaKV.appendChild(makeEl('div', 'key-value-value', value || 'None'));
+        // Lifecycle pipeline: spatial state beats a presence/absence table.
+        reportContent.appendChild(renderTaskLifecycle(task));
+
+        // Status facts: worktree, lineage, attempts, cost, manual CLI paths.
+        const statusSection = makeEl('section', 'section');
+        statusSection.appendChild(makeEl('div', 'section-header', 'Task Status'));
+        const statusBody = makeEl('div', 'section-body');
+
+        const kv = makeEl('div', 'key-value-list');
+        const appendKV = (key, build) => {
+            kv.appendChild(makeEl('div', 'key-value-key', key));
+            const vEl = makeEl('div', 'key-value-value');
+            build(vEl);
+            kv.appendChild(vEl);
         };
-
-        appendMetaKV('Worktree Present', task.worktree_present ? 'Yes' : 'No');
-        if (task.parent_task) {
-            appendMetaKV('Parent Task', task.parent_task);
+        appendKV('Worktree', el => { el.textContent = task.worktree_present ? 'Present' : 'Missing'; });
+        if (task.goal) appendKV('Goal', el => { el.textContent = task.goal; });
+        if (task.parent_task) appendKV('Parent Task', el => { el.textContent = task.parent_task; });
+        if (hasTrace) {
+            appendKV('Attempts', el => { el.textContent = String(task.trace.attempts_count); });
+            if (task.trace.total_cost_usd !== undefined) {
+                appendKV('Total Cost', el => { el.textContent = `$${task.trace.total_cost_usd.toFixed(4)}`; });
+            }
         }
-        if (task.parent_state) {
-            appendMetaKV('Parent State', task.parent_state);
-        }
-        metaBody.appendChild(metaKV);
-        metaSection.appendChild(metaBody);
-        reportContent.appendChild(metaSection);
+        statusBody.appendChild(kv);
 
-        // Children tasks section if applicable
         if (task.children && task.children.length > 0) {
-            const childrenSection = makeEl('section', 'section');
-            childrenSection.appendChild(makeEl('div', 'section-header', 'Decomposition Children'));
-            const childrenBody = makeEl('div', 'section-body');
-            const ul = document.createElement('ul');
-            ul.className = 'bullet-list';
-            task.children.forEach(c => {
-                const li = document.createElement('li');
-                li.innerHTML = `<strong>${c.id}</strong> [${c.location}]: ${c.summary || 'No summary'}`;
-                ul.appendChild(li);
+            const block = makeEl('div', 'artifact-subsection');
+            block.appendChild(makeEl('div', 'artifact-subheading', 'Decomposition Children'));
+            renderTaskTable(task.children, block);
+            statusBody.appendChild(block);
+        }
+
+        const cli = makeEl('div', 'task-cli-hint');
+        cli.appendChild(makeEl('div', 'artifact-subheading', 'Manual CLI'));
+        cli.appendChild(makeEl('pre', '', `quorum task status ${task.id}\nquorum task back ${task.id}`));
+        statusBody.appendChild(cli);
+
+        statusSection.appendChild(statusBody);
+        reportContent.appendChild(statusSection);
+
+        // Artifact sections: collapsed but self-describing; problem-bearing
+        // artifacts (failed validation, non-approve review, feedback) open.
+        renderTaskArtifact('00-spec.yaml', 'Intent', task.spec, {
+            status: task.spec && task.spec.risk ? task.spec.risk : '',
+            meta: task.spec && Array.isArray(task.spec.acceptance) ? `${task.spec.acceptance.length} acceptance criteria` : ''
+        });
+        renderTaskArtifact('01-blueprint.yaml', 'Strategy', task.blueprint, {
+            meta: task.blueprint && Array.isArray(task.blueprint.affected_files) ? `${task.blueprint.affected_files.length} files` : ''
+        });
+        if (hasContract) {
+            renderTaskArtifact('02-contract.yaml', 'Boundaries (summarized)', task.contract, {
+                meta: Array.isArray(task.contract.touch) ? `${task.contract.touch.length} touch paths` : ''
             });
-            childrenBody.appendChild(ul);
-            childrenSection.appendChild(childrenBody);
-            reportContent.appendChild(childrenSection);
         }
-
-        // Artifacts checklist section
-        const artifactsSection = makeEl('section', 'section');
-        artifactsSection.appendChild(makeEl('div', 'section-header', 'Lifecycle Artifacts Status'));
-        const artifactsBody = makeEl('div', 'section-body');
-
-        const artTableWrap = makeEl('div', 'table-wrap');
-        const artTable = makeEl('table', 'data-table');
-        artTable.innerHTML = `
-            <thead>
-                <tr>
-                    <th>Artifact</th>
-                    <th>Status</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${Object.entries(task.artifacts).map(([name, present]) => `
-                    <tr>
-                        <td><strong>${name}</strong></td>
-                        <td>
-                            <span class="pill ${present ? 'done' : 'info'}">
-                                ${present ? 'Present ✓' : 'Missing ✗'}
-                            </span>
-                        </td>
-                    </tr>
-                `).join('')}
-            </tbody>
-        `;
-        artTableWrap.appendChild(artTable);
-        artifactsBody.appendChild(artTableWrap);
-        artifactsSection.appendChild(artifactsBody);
-        reportContent.appendChild(artifactsSection);
-
-        // Suggestions / Manual Actions section
-        const suggSection = makeEl('section', 'section');
-        suggSection.appendChild(makeEl('div', 'section-header', 'Suggested Actions'));
-        const suggBody = makeEl('div', 'section-body');
-        suggBody.innerHTML = `
-            <div class="verdict-box">
-                <div class="verdict-text">Manual CLI Commands</div>
-                <div class="verdict-confidence">
-                    <pre style="margin: 0.5rem 0 0 0; font-family: monospace; color: #cbd5e1; background: transparent; border: none; padding: 0;">quorum task status ${task.id}\nquorum task back ${task.id}</pre>
-                </div>
-            </div>
-        `;
-        suggSection.appendChild(suggBody);
-        reportContent.appendChild(suggSection);
-
-        // Render detailed/summarized artifacts
-        if (task.spec) {
-            renderCollapsibleArtifact('00-spec.yaml', task.spec);
+        renderTaskArtifact('04-implementation-log.yaml', 'Changes', task.implementation_log, {
+            meta: task.implementation_log && Array.isArray(task.implementation_log.entries) ? `${task.implementation_log.entries.length} entries` : ''
+        });
+        renderTaskArtifact('05-validation.json', 'Evidence', task.validation, {
+            status: valResult || '',
+            meta: task.validation && Array.isArray(task.validation.commands) ? `${task.validation.commands.length} commands` : '',
+            open: !!valResult && valResult !== 'passed'
+        });
+        renderTaskArtifact('06-review.json', 'Verdict', task.review, {
+            status: verdict || '',
+            open: !!verdict && verdict !== 'approve'
+        });
+        if (hasTrace) {
+            renderTaskArtifact('07-trace.json', 'History (summarized)', task.trace, {
+                meta: `${task.trace.attempts_count} attempts`
+            });
         }
-        if (task.blueprint) {
-            renderCollapsibleArtifact('01-blueprint.yaml', task.blueprint);
-        }
-        if (task.contract) {
-            renderCollapsibleContract(task.contract);
-        }
-        if (task.implementation_log) {
-            renderCollapsibleArtifact('04-implementation-log.yaml', task.implementation_log);
-        }
-        if (task.validation) {
-            renderCollapsibleArtifact('05-validation.json', task.validation);
-        }
-        if (task.review) {
-            renderCollapsibleArtifact('06-review.json', task.review);
-        }
-        if (task.trace) {
-            renderCollapsibleTrace(task.trace);
-        }
-        if (task.feedback) {
-            renderCollapsibleArtifact('feedback.json', task.feedback);
-        }
-    }
-
-    function renderCollapsibleArtifact(name, data) {
-        const details = makeEl('details', 'artifact-details');
-        const summary = makeEl('summary', '', name);
-        const pre = document.createElement('pre');
-        const code = document.createElement('code');
-
-        code.textContent = JSON.stringify(data, null, 2);
-
-        pre.appendChild(code);
-        details.appendChild(summary);
-        details.appendChild(pre);
-        reportContent.appendChild(details);
-    }
-
-    function renderCollapsibleContract(contract) {
-        const details = makeEl('details', 'artifact-details');
-        const summary = makeEl('summary', '', '02-contract.yaml (summarized)');
-        const content = makeEl('div', 'section-body');
-        content.style.padding = '1rem';
-
-        const kv = makeEl('div', 'key-value-list');
-        const appendKV = (key, value) => {
-            kv.appendChild(makeEl('div', 'key-value-key', key));
-            kv.appendChild(makeEl('div', 'key-value-value', value || 'None'));
-        };
-
-        appendKV('Contract Summary', contract.summary);
-        appendKV('Contract Goal', contract.goal);
-        appendKV('Touch Paths', contract.touch && contract.touch.length > 0 ? contract.touch.join('\n') : 'None');
-        appendKV('Verify Commands', contract.verify_commands && contract.verify_commands.length > 0 ? contract.verify_commands.join('\n') : 'None');
-
-        content.appendChild(kv);
-        details.appendChild(summary);
-        details.appendChild(content);
-        reportContent.appendChild(details);
-    }
-
-    function renderCollapsibleTrace(trace) {
-        const details = makeEl('details', 'artifact-details');
-        const summary = makeEl('summary', '', '07-trace.json (summarized)');
-        const content = makeEl('div', 'section-body');
-        content.style.padding = '1rem';
-
-        const kv = makeEl('div', 'key-value-list');
-        const appendKV = (key, value) => {
-            kv.appendChild(makeEl('div', 'key-value-key', key));
-            kv.appendChild(makeEl('div', 'key-value-value', value || 'None'));
-        };
-
-        appendKV('Trace Summary', trace.summary);
-        appendKV('Attempts Count', String(trace.attempts_count));
-        appendKV('Total Cost USD', trace.total_cost_usd !== undefined ? `$${trace.total_cost_usd.toFixed(4)}` : '$0.0000');
-
-        if (trace.last_attempt) {
-            appendKV('Last Attempt', JSON.stringify(trace.last_attempt, null, 2));
-        }
-
-        content.appendChild(kv);
-        details.appendChild(summary);
-        details.appendChild(content);
-        reportContent.appendChild(details);
+        renderTaskArtifact('feedback.json', 'Pending Findings', task.feedback, {
+            status: task.feedback ? 'pending' : '',
+            open: true
+        });
     }
 });

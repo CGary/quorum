@@ -39,13 +39,25 @@ Crear puertos pequeños para las operaciones repetidas. Por ejemplo:
 type GitRunner interface {
     BaseBranch() string
     BranchExists(branch string) bool
-    WorktreeAdd(path, branch, base string) error
+    WorktreeAdd(path, branch, base string) error  // crea branch nuevo: worktree add -b (StartTask)
+    WorktreeAttach(path, branch string) error     // re-adjunta branch existente, sin -b (PrepareFailedChildRetry)
     WorktreeRemove(path string, force bool) error
     DirtyPaths(worktreePath string) ([]string, error)
     SavePatch(worktreePath, taskID string) (string, error)
-    DeleteBranchIfMerged(branch, base string) bool
+    DeleteBranchIfMerged(branch, base string) bool     // merge-base --is-ancestor + branch -d (CleanTask)
+    ForceDeleteBranchIfEmpty(branch, base string) bool // rev-list --count == 0 + branch -D (BackTask)
 }
 ```
+
+### 2.1 Operaciones reales que la interfaz DEBE distinguir
+
+Verificado contra las ~20 llamadas a `exec.Command("git", ...)` de `task_manager.go`; colapsarlas en menos métodos ocultaría decisiones de seguridad:
+
+- **Dos modos de worktree add.** `StartTask` crea branch nuevo (`worktree add -b`, línea 526); `PrepareFailedChildRetry` re-adjunta uno existente sin `-b` (líneas 1385-1388). Una sola firma `WorktreeAdd(path, branch, base)` no puede expresar ambos: de ahí `WorktreeAttach`.
+- **Dos semánticas de borrado de branch.** `CleanTask` borra solo si está mergeado (`merge-base --is-ancestor` + `branch -d`, líneas 669-671); `BackTask` fuerza el borrado solo si la branch no tiene commits propios (`rev-list --count` + `branch -D`, líneas 903-906). Son políticas distintas con riesgos distintos; cada una merece su método explícito.
+- **`SavePatch` debe preservar el intent-to-add.** La implementación actual hace `git add -N .` antes de `diff --binary HEAD` (líneas 627-628); sin eso, los archivos nuevos sin trackear desaparecen del patch. Es comportamiento, no estilo: el adapter lo conserva y un test lo fija.
+
+**Fuera del alcance del puerto** (se quedan como llamadas directas): `ProjectRoot()` (`rev-parse --show-toplevel`, es bootstrap previo a cualquier inyección de dependencias) y la lectura de `remote.origin.url` en `quorum_config.go`.
 
 Y, si hace falta, un filesystem port mínimo:
 

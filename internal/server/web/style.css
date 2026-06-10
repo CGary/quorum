@@ -105,3 +105,204 @@
     color: #e2e8f0;
     background-color: #0f172a;
 }
+
+/* Task viewer: cognitive display layer (lifecycle pipeline, decision pills,
+   shape-based rendering, progressive disclosure) */
+.task-pill-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.task-item-meta {
+    margin-top: 4px;
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+}
+
+.task-muted {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+.lifecycle-stepper {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 24px;
+    padding: 16px;
+    overflow-x: auto;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+}
+
+.lifecycle-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    min-width: 76px;
+}
+
+.lifecycle-dot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.lifecycle-step.present .lifecycle-dot {
+    border-color: #10b981;
+    background: rgba(16, 185, 129, 0.12);
+    color: #10b981;
+}
+
+.lifecycle-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.lifecycle-step.missing .lifecycle-label {
+    color: var(--text-secondary);
+}
+
+.lifecycle-connector {
+    flex: 1;
+    min-width: 14px;
+    height: 2px;
+    margin-top: 13px;
+    background: var(--border);
+}
+
+.artifact-summary {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.artifact-name {
+    font-family: monospace;
+    font-size: 0.85rem;
+}
+
+.artifact-role {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.artifact-meta {
+    margin-left: auto;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.artifact-body {
+    display: grid;
+    gap: 16px;
+    padding: 1rem;
+}
+
+.artifact-lead-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+
+.artifact-lead-text {
+    max-width: var(--measure);
+    font-size: 0.95rem;
+    line-height: 1.6;
+}
+
+.artifact-subheading {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.artifact-subsection .key-value-list {
+    margin-bottom: 8px;
+}
+
+.task-table.data-table .data-table {
+    min-width: 0;
+}
+
+.cell-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-family: monospace;
+    font-size: 0.8rem;
+    line-height: 1.6;
+}
+
+.cell-excerpt summary {
+    cursor: pointer;
+    font-family: monospace;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.cell-excerpt summary:hover {
+    color: var(--text-primary);
+}
+
+.cell-excerpt pre {
+    margin: 8px 0 0;
+    padding: 10px;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    font-size: 0.8rem;
+    background-color: #0f172a;
+    border-radius: var(--radius-sm);
+}
+
+.raw-json summary {
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.raw-json summary:hover {
+    color: var(--text-primary);
+}
+
+.raw-json pre {
+    margin-top: 8px;
+    border-radius: var(--radius-sm);
+}
+
+.task-cli-hint {
+    margin-top: 16px;
+}
+
+.task-cli-hint pre {
+    margin: 0;
+    padding: 10px 14px;
+    font-family: monospace;
+    font-size: 0.8rem;
+    color: #cbd5e1;
+    background-color: #0f172a;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+}
