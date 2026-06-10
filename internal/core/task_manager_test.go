@@ -296,6 +296,63 @@ func TestValidateSpecAcceptanceOneOf(t *testing.T) {
 	}
 }
 
+func TestValidateBlueprintTestScenariosOneOf(t *testing.T) {
+	useSchemas(t)
+	base := func(scenarios []any) map[string]any {
+		return map[string]any{
+			"task_id":        "FEAT-001",
+			"summary":        "Blueprint with structured test scenarios",
+			"affected_files": []any{"src/a.go"},
+			"symbols":        []any{},
+			"dependencies":   []any{},
+			"test_scenarios": scenarios,
+		}
+	}
+
+	valid := []struct {
+		name      string
+		scenarios []any
+	}{
+		{"string only (backward compat)", []any{"Fast lint pass over the changed module."}},
+		{"object with statement and covers", []any{map[string]any{"statement": "Unit test for CASH.", "covers": []any{"AC-1"}}}},
+		{"object with statement only", []any{map[string]any{"statement": "Unit test for CASH."}}},
+		{"mixed strings and objects", []any{"Fast lint pass.", map[string]any{"statement": "Unit test for QR.", "covers": []any{"AC-2"}}}},
+	}
+	for _, tc := range valid {
+		if err := ValidateArtifact("01-blueprint.yaml", base(tc.scenarios)); err != nil {
+			t.Fatalf("%s: unexpected error: %v", tc.name, err)
+		}
+	}
+
+	invalid := []struct {
+		name      string
+		scenarios []any
+		want      string
+	}{
+		{
+			"object missing statement",
+			[]any{map[string]any{"covers": []any{"AC-1"}}},
+			"artifact=01-blueprint.yaml; field=$.test_scenarios[0]; reason='statement' is a required property",
+		},
+		{
+			"object with unknown key",
+			[]any{map[string]any{"statement": "ok", "foo": "bar"}},
+			"artifact=01-blueprint.yaml; field=$.test_scenarios[0]; reason=Additional properties are not allowed ('foo' was unexpected)",
+		},
+		{
+			"object with bad covers pattern",
+			[]any{map[string]any{"statement": "ok", "covers": []any{"X-1"}}},
+			"artifact=01-blueprint.yaml; field=$.test_scenarios[0].covers[0]; reason='X-1' does not match '^AC-[0-9]+$'",
+		},
+	}
+	for _, tc := range invalid {
+		err := ValidateArtifact("01-blueprint.yaml", base(tc.scenarios))
+		if err == nil || err.Error() != tc.want {
+			t.Fatalf("%s: error = %v, want %s", tc.name, err, tc.want)
+		}
+	}
+}
+
 func TestSplitTaskStripsAcceptanceObjects(t *testing.T) {
 	useSchemas(t)
 	root := initGitRepo(t)

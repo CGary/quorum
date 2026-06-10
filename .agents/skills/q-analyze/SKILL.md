@@ -72,9 +72,23 @@ Check that `02-contract.yaml`:
 
 ### 5. Cross-Artifact Consistency
 
-Flag:
+Run a read-only acceptance-to-test coverage pass with `quorum analyze acceptance-coverage` instead of judging test alignment by eye. It cross-checks `00-spec.yaml.acceptance[]` ids against `01-blueprint.yaml.test_scenarios[].covers[]`:
 
-- acceptance criteria without test scenarios
+```bash
+echo '{"spec_path": ".ai/tasks/active/<TASK>-<slug>/00-spec.yaml", "blueprint_path": ".ai/tasks/active/<TASK>-<slug>/01-blueprint.yaml"}' | quorum analyze acceptance-coverage
+```
+
+Report its deterministic result as structured findings, mirroring pass 6:
+
+- `gaps`: structured acceptance ids (`AC-*`) named by no `covers` entry — each is a `high` finding.
+- `findings`: a `covers` entry referencing an id absent from the spec is a `high` dangling-reference finding.
+- Coverage rows with `state: legacy_untracked` are plain-string criteria without an `id`; report them as informational, never as gaps.
+- `status: blocked` means duplicate acceptance ids made coverage ambiguous; surface it and defer to the duplicate-id finding in pass 1.
+
+This pass is strictly read-only and advisory: do not persist a coverage matrix, do not edit artifacts, and do not block the merge (finality stays with `verify.commands` and the human gate).
+
+Also flag:
+
 - blueprint affected files missing from contract `touch`
 - contract `touch` files not justified by blueprint
 - invariants not protected by tests or forbidden behaviors

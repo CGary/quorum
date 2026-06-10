@@ -76,6 +76,7 @@ quorum analyze blueprint-context      # stdin: draft blueprint -> retriever neig
 quorum analyze feedback-partition     # stdin: findings JSON -> {mechanical, semantic} split (internal/core/feedback.go)
 quorum analyze decomposition-coverage # stdin: parent_spec_path -> parent<->child coverage report (internal/core/decomposition_analysis.go)
 quorum analyze decomposition-render   # stdin: decomposition -> deterministic ASCII DAG (internal/core/decomposition_render.go)
+quorum analyze acceptance-coverage    # stdin: spec_path + blueprint_path -> acceptance-id<->test_scenario coverage report (internal/core/acceptance_coverage.go)
 ```
 
 If examples inside older skill documents disagree with this section, the Go CLI contract wins: inspect `cmd/analyze_*.go` or run `quorum analyze <command> --help`, then send the documented JSON request through stdin.
