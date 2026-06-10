@@ -12,9 +12,9 @@ import (
 	"github.com/hsme/core/src/storage/sqlite"
 )
 
-func TestFeatures(t *testing.T) {
+func TestRollupCatchupFeatures(t *testing.T) {
 	suite := godog.TestSuite{
-		ScenarioInitializer: InitializeScenario,
+		ScenarioInitializer: InitializeRollupCatchupScenario,
 		Options: &godog.Options{
 			Format:   "pretty",
 			Paths:    []string{"rollup_catchup.feature"},
@@ -182,7 +182,7 @@ func (c *rollupTestContext) checkpointIsUpdatedToTheOldestBucketWithinRetentionW
 	return c.lastCompletedBucketStartUtcIsUpdatedToCurrentBucket()
 }
 
-func InitializeScenario(sc *godog.ScenarioContext) {
+func InitializeRollupCatchupScenario(sc *godog.ScenarioContext) {
 	c := &rollupTestContext{}
 
 	sc.Step(`^the hsme-ops service is running with rollup configured$`, c.theHsmeOpsServiceIsRunningWithRollupConfigured)

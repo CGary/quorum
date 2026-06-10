@@ -13,9 +13,9 @@ import (
 	"github.com/hsme/core/src/storage/sqlite"
 )
 
-func TestFeatures(t *testing.T) {
+func TestObservabilityEnvFeatures(t *testing.T) {
 	suite := godog.TestSuite{
-		ScenarioInitializer: InitializeScenario,
+		ScenarioInitializer: InitializeObservabilityEnvScenario,
 		Options: &godog.Options{
 			Format:   "pretty",
 			Paths:    []string{"observability_env.feature"},
@@ -131,7 +131,7 @@ func (c *obsTestContext) tableHasMoreThanRows(tableName string, count int) error
 	return c.tableHasRows(tableName, ">", count)
 }
 
-func InitializeScenario(sc *godog.ScenarioContext) {
+func InitializeObservabilityEnvScenario(sc *godog.ScenarioContext) {
 	c := &obsTestContext{}
 
 	sc.Step(`^the hsme process is started with env ([^ ]*)=([^ ]*)$`, c.theHsmeProcessIsStartedWithEnv)

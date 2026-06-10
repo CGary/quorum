@@ -13,9 +13,9 @@ import (
 	"github.com/hsme/core/src/storage/sqlite"
 )
 
-func TestFeatures(t *testing.T) {
+func TestSearchFuzzyProjectFeatures(t *testing.T) {
 	suite := godog.TestSuite{
-		ScenarioInitializer: InitializeScenario,
+		ScenarioInitializer: InitializeSearchFuzzyProjectScenario,
 		Options: &godog.Options{
 			Format:   "pretty",
 			Paths:    []string{"search_fuzzy_project.feature"},
@@ -183,7 +183,7 @@ func (s *searchTestContext) rrfFusionIsAppliedCorrectly() error {
 	return nil
 }
 
-func InitializeScenario(sc *godog.ScenarioContext) {
+func InitializeSearchFuzzyProjectScenario(sc *godog.ScenarioContext) {
 	s := &searchTestContext{}
 
 	sc.Step(`^a test database with vec0 support and project "([^"]*)" with embedded chunks$`, s.aTestDatabaseWithVec0SupportAndProjectWithEmbeddedChunks)
