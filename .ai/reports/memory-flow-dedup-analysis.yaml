@@ -1,0 +1,158 @@
+content:
+    kicker: ¿Puede la misma decisión guardarse dos veces, redactada distinto, sin que el sistema lo detecte?
+    sections:
+        - body:
+            Aislamiento: q-session no sabe qué guardó q-memory; cada skill opera sobre su propia fuente.
+            Barrera-en-skills: 'Ninguna: ni q-memory ni q-session buscan el corpus existente antes de proponer.'
+            Búsqueda-disponible: 'Solo léxica: FTS5/BM25 (tokens) + LIKE (substring). No conceptual.'
+            Embeddings-semántica: Inexistentes. Fuera de scope explícito (ADR 0003).
+            Es-un-bug: No. Es un no-objetivo deliberado (memoria curada por humano, no log automático).
+            Pregunta: ¿Detecta Quorum que 'usar SQLite centralizado' (q-memory) y 'la memoria vive en una base global única' (q-session) son la MISMA decisión?
+            Respuesta: No. Quedan como dos filas independientes sin relación.
+            Única-defensa: Disciplina humana + búsqueda léxica manual + enlaces opcionales related/supersedes.
+          id: decision-surface
+          role: decision_surface
+          title: Triage rápido
+        - body: 'Sesión 1, q-memory tras q-accept: DEC-2026-06-09-123456789, title ''Usar SQLite centralizado en ~/.quorum'', content describiendo la decisión. Sesión 2, q-session sobre el diálogo: DEC-2026-06-09-987654321, title ''Ubicación de memoria global'', content equivalente con otras palabras. El id difiere porque incorpora el reloj local en ms (HHmmssSSS), de modo que la idempotencia por id exacto nunca dispara. El content_hash (SHA256 del JSON canónico) tampoco coincide porque el texto es distinto. No hay ningún otro chequeo: ambas se insertan como filas válidas e independientes. El sistema nunca compara significado, solo identidad textual exacta por id.'
+          details:
+            body: La idempotencia es por (project_id, id) exacto comparando content_hash (memory_service.go:89-95). Solo colapsa re-guardados del MISMO id con texto idéntico. Distinto id + distinto texto = dos filas, siempre.
+            label: Por qué la idempotencia existente NO ayuda
+          id: escenario
+          role: analysis
+          title: El escenario y por qué se cuela
+        - diagram:
+            code: |
+                flowchart TD
+                  A[q-memory: decisión X] --> S[quorum memory save]
+                  B[q-session: decisión X, otras palabras] --> S
+                  S --> V[validar schema]
+                  V --> H[content_hash exacto]
+                  H --> ID{mismo id?}
+                  ID -- no --> INS[INSERT como fila nueva]
+                  ID -- si + hash igual --> U[unchanged]
+                  INS --> DB[(memory_entries)]
+                  NOTE[NO existe: comparación semántica,<br/>embeddings, ni búsqueda previa del corpus] -.faltante.-> S
+            type: mermaid
+          id: flujo-deteccion
+          role: diagram
+          title: Dónde NO hay un punto de detección semántica
+        - id: hallazgos
+          items:
+            - action: No esperar que 'misma decisión, otras palabras' sea detectable por el sistema.
+              finding: No existen embeddings, vectores ni similitud coseno en todo el repo. La búsqueda es puramente léxica.
+              id: f-sin-embeddings
+              severity: high
+              why: memory_search.go usa FTS5 'MATCH ? ORDER BY rank' (BM25, token-based) con fallback a LIKE substring. ADR 0003 declara RAG/embeddings/semantic vector search explícitamente fuera de scope.
+            - action: Si se quiere prevención, añadir un paso de 'quorum memory search' al protocolo.
+              finding: Ni q-memory ni q-session instruyen buscar memorias existentes ANTES de proponer una entrada nueva.
+              id: f-skills-sin-busqueda
+              severity: high
+              why: 'Workflow de q-memory (SKILL.md:129-138): leer artefactos, elegir hasta 3, generar id, persistir — sin paso de búsqueda. Workflow de q-session (SKILL.md:116-122): revisar diálogo, proponer hasta 5 candidatos, persistir — sin cotejo contra el corpus.'
+            - action: El riesgo de re-captura cruzada es estructural, no accidental.
+              finding: q-session no consulta lo que q-memory ya guardó; cada skill opera aislado sobre su propia fuente (artefactos vs diálogo).
+              id: f-aislamiento
+              severity: medium
+              why: No hay carga del corpus existente en ninguno de los dos flujos; ambos son 'proponer + guardar'.
+            - action: Usar related/supersedes a mano si se nota el duplicado; no es automático.
+              finding: supersedes/related solo enlazan si el humano detecta manualmente la equivalencia y decide enlazar; no deduplican.
+              id: f-supersedes-manual
+              severity: low
+              why: supersedes es para reemplazo CONSCIENTE de algo invalidado/erróneo (SKILL.md:113-127), no para colapsar redacciones equivalentes. El edge se inserta con OR IGNORE (memory_service.go:118-122); ambos campos son opcionales.
+            - action: La consolidación es manual o requeriría nueva herramienta (decisión de diseño/ADR).
+              finding: No existe ningún subcomando de deduplicación, merge o consolidación en 'quorum memory'.
+              id: f-sin-subcomando
+              severity: medium
+              why: 'Subcomandos disponibles: save, status, search. No hay dedup/merge/consolidate/detect-duplicates.'
+          role: findings
+          title: Hallazgos sobre prevención semántica
+        - body: 'No es un descuido, es una postura constitucional. CLAUDE.md define la memoria como ''a knowledge library, NOT an activity log'', curada por humano, con ''q-memory'' como única ruta de ingestión y SIN auto-captura. ADR 0003 deja RAG/embeddings/búsqueda vectorial explícitamente fuera del scope inicial. El manifiesto (quorum.md) admite stores semánticos externos (HSME, vector DBs) como integración FUTURA y subordinada a Git/artefactos, que pueden consumir el SQLite exportado para enriquecer recuperación, pero NUNCA convertirse en code truth ni reemplazar silenciosamente la curación de q-memory. Es decir: la deduplicación semántica está delegada deliberadamente al humano (y, eventualmente, a un store externo opt-in), no al core.'
+          id: por-que-asi
+          role: analysis
+          title: 'Por qué es así: postura de diseño'
+        - id: verificacion
+          items:
+            - check: 'Revisar internal/core/memory_search.go: confirmar ''memory_fts MATCH ? ORDER BY rank'' y fallback LIKE; ausencia de embeddings/cosine.'
+              what: Confirmar que la búsqueda es solo léxica.
+              why: Es la base del veredicto; si hubiera ranking semántico, el resultado cambia.
+            - check: 'Guardar dos DEC con id e content distintos pero equivalentes y ejecutar ''quorum memory list'' / consultar memory_entries: deben aparecer ambas, sin relación.'
+              what: Reproducir el escenario cruzado.
+              why: Validar empíricamente que dos decisiones equivalentes con id distinto coexisten sin alerta.
+            - check: quorum memory --help  (esperar solo save/status/search).
+              what: Confirmar ausencia de subcomando dedup.
+              why: Determina si hay herramienta de consolidación.
+          role: verification
+          title: Verificaciones recomendadas (análisis basado en lectura de código)
+        - id: opciones
+          items:
+            - avoidWhen: Se espera detección semántica real.
+              downside: Solo léxico; no atrapa sinónimos/paráfrasis reales. Depende de que el agente elija buenos términos.
+              option: 'Skill-level: buscar antes de proponer'
+              upside: Barato, sin tocar core ni schema; respeta 'humano cura'. Añade 'quorum memory search' al workflow de q-memory/q-session antes de proponer.
+              useWhen: Se quiere una red de seguridad inmediata y de bajo riesgo.
+            - avoidWhen: Se prioriza simplicidad y soberanía local.
+              downside: Complejidad e infraestructura; debe permanecer opt-in y subordinado a Git/artefactos; nunca code truth ni auto-captura.
+              option: Store semántico externo (HSME / vector DB)
+              upside: Detección por significado real (embeddings). Alineado con el manifiesto como integración subordinada que consume el SQLite exportado.
+              useWhen: La duplicación semántica se vuelve un problema medible.
+            - avoidWhen: El corpus crece y nadie audita duplicados.
+              downside: Depende de disciplina; el corpus puede acumular paráfrasis de la misma decisión.
+              option: 'Status quo: curación humana'
+              upside: Cero complejidad; consistente con la filosofía 'knowledge library curada'. related/supersedes disponibles a mano.
+              useWhen: El volumen de memoria es bajo y el humano revisa.
+          role: tradeoffs
+          title: Opciones si se decide prevenir duplicación semántica
+        - id: plan
+          items:
+            - action: Decidir si la duplicación semántica es un problema a resolver o un costo aceptado. Es una decisión de diseño; si se actúa, registrarla en un ADR.
+              owner: humano
+              step: 1
+            - action: 'Mitigación de bajo riesgo: añadir un paso ''consultar quorum memory search por título/tema'' al workflow de q-memory y q-session ANTES de proponer, y sugerir related/supersedes si hay solapamiento.'
+              owner: autor-de-skill
+              step: 2
+            - action: 'Si se requiere detección por significado: diseñar integración con store semántico externo (HSME/vector DB) opt-in, subordinado a Git/artefactos, alimentado por export de SQLite — nunca como ruta de escritura ni code truth.'
+              owner: arquitecto
+              step: 3
+          role: action_plan
+          title: Pasos sugeridos
+        - body: |
+            Búsqueda léxica (sin semántica):
+            - internal/core/memory_search.go:61 (memory_fts MATCH ? ORDER BY rank — BM25 léxico)
+            - internal/core/memory_search.go:78-85 (fallback LIKE substring case-insensitive)
+            - docs/adr/0003-memoria-centralizada-sqlite.md:5 (RAG/embeddings/semantic vector search OUT OF SCOPE)
+
+            Skills sin búsqueda preventiva:
+            - .agents/skills/q-memory/SKILL.md:129-138 (workflow: leer artefactos -> elegir -> id -> persistir; sin búsqueda)
+            - .agents/skills/q-memory/SKILL.md:113-127 (supersedes = reemplazo consciente, no dedup)
+            - .agents/skills/q-session/SKILL.md:116-122 (workflow: revisar diálogo -> proponer -> persistir; sin cotejo del corpus)
+
+            Idempotencia / persistencia:
+            - internal/core/memory_service.go:89-95 (idempotencia por (project_id,id) exacto comparando content_hash)
+            - internal/core/memory_service.go:118-122 (supersession edge con OR IGNORE)
+            - internal/core/memory_sqlite.go:97-114 (memory_entries: PK (project_id,id); content_hash NO UNIQUE)
+            - .agents/schemas/memory.schema.json:34-37 (supersedes opcional)
+
+            Subcomandos disponibles:
+            - cmd/memory.go, cmd/memory_search.go (save / status / search; sin dedup/merge/consolidate)
+
+            Postura de diseño:
+            - CLAUDE.md ("knowledge library, NOT an activity log"; única ruta quorum memory save; sin auto-captura)
+            - quorum.md (manifiesto: stores semánticos externos permitidos como integración subordinada, nunca code truth ni reemplazo silencioso de q-memory)
+            - docs/adr/0007-captura-de-memoria-por-sesion.md (SESSION-* es valor de source_task; misma ruta, sin tipos/tablas nuevos)
+          id: apendice
+          role: appendix
+          title: 'Apéndice: evidencia archivo:línea'
+    summary: 'El escenario real: un humano guarda una decisión vía q-memory tras aceptar una tarea, y más tarde, en otra sesión, guarda vía q-session esa MISMA decisión con otras palabras. El content es semánticamente equivalente pero textualmente distinto y los id difieren (llevan timestamp). Investigado a fondo: Quorum NO tiene ningún mecanismo para detectar, prevenir o señalar esta equivalencia. La búsqueda es puramente léxica (FTS5/BM25 + LIKE), sin embeddings ni similitud semántica (out of scope explícito en ADR 0003). Ningún skill instruye buscar el corpus existente antes de proponer una entrada nueva, y q-session no consulta lo que q-memory ya guardó. Resultado: dos filas independientes, sin relación ni alerta. La única defensa es la disciplina humana y la búsqueda léxica manual. Esto es un no-objetivo deliberado: la memoria es ''a knowledge library'' curada por humano.'
+    title: Duplicación SEMÁNTICA de memorias en Quorum (q-memory vs q-session)
+    verdict:
+        confidence: high
+        text: Las dos entradas quedan como filas independientes SIN relación ni alerta. No existe deduplicación semántica (ni automática ni asistida) a nivel código, CLI o protocolo de skill; la consolidación es responsabilidad 100% humana, por diseño.
+kind: technical_analysis
+meta:
+    date: "2026-06-09T20:14:44Z"
+    id: memory-flow-dedup-analysis
+    schemaVersion: "1.1"
+presentation:
+    audience: engineer
+    density: high
+    language: es
+    profile: cognitive
