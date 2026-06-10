@@ -137,7 +137,7 @@ content:
             Postura de diseño:
             - CLAUDE.md ("knowledge library, NOT an activity log"; única ruta quorum memory save; sin auto-captura)
             - quorum.md (manifiesto: stores semánticos externos permitidos como integración subordinada, nunca code truth ni reemplazo silencioso de q-memory)
-            - docs/adr/0007-captura-de-memoria-por-sesion.md (SESSION-* es valor de source_task; misma ruta, sin tipos/tablas nuevos)
+            - docs/adr/0009-captura-de-memoria-por-sesion.md (SESSION-* es valor de source_task; misma ruta, sin tipos/tablas nuevos)
           id: apendice
           role: appendix
           title: 'Apéndice: evidencia archivo:línea'

@@ -452,8 +452,9 @@ go test ./...
 ## 📂 Estructura del sistema
 
 ```bash
-project/
+project/                   # módulo Go `quorum` (raíz, CGO-free)
 ├── quorum                 # binario compilado
+├── go.work                # workspace de dos módulos (core + semantic)
 ├── cmd/                   # subcomandos CLI (Go)
 ├── internal/core/         # lógica core (Go)
 ├── .agents/
@@ -470,8 +471,38 @@ project/
 │   ├── done/
 │   └── failed/
 ├── docs/adr/              # decisiones arquitectónicas
-└── worktrees/             # worktrees gitignored por tarea
+├── worktrees/             # worktrees gitignored por tarea
+└── semantic/              # módulo Go `github.com/hsme/core` (HSME, CGO + Ollama)
+    ├── cmd/{hsme,worker,ops,cli}  # binarios: hsme, hsme-worker, hsme-ops, hsme-cli
+    ├── src/               # core de HSME (búsqueda híbrida, embeddings, grafo)
+    ├── justfile           # build/install/serve de HSME (no se compila desde la raíz)
+    └── data/              # engram.db (gitignored)
 ```
+
+---
+
+## 🧠 Monorepo: dos módulos, una constitución
+
+Quorum es un monorepo de **dos módulos Go independientes** unidos por `go.work` (ver `docs/adr/0008-fusion-monorepo-capa-semantica-hsme.md`):
+
+| Módulo | Ruta | Build | Rol |
+|---|---|---|---|
+| `quorum` (core) | raíz | Go puro, `CGO_ENABLED=0`, `modernc.org/sqlite` | El orquestador SDC. Es la autoridad. |
+| `github.com/hsme/core` (HSME) | `semantic/` | CGO + tags `sqlite_fts5 sqlite_vec` + Ollama | Capa de memoria semántica **opt-in y subordinada**. |
+
+**Las tres fronteras (ADR 0008):**
+
+1. **Compilación: ninguna.** Los módulos nunca se importan entre sí. El core compila y testea sin compilador C ni `semantic/` presente — es la prueba ácida del CI.
+2. **Datos: unidireccional.** HSME puede leer la memoria curada de Quorum (read-only); nunca escribe en ella.
+3. **Consulta: vía MCP, consumida por skills.** El binario `quorum` no sabe que HSME existe. Si HSME u Ollama no están, Quorum funciona igual.
+
+Regla: **HSME informa; Git, los artefactos y `q-memory` deciden.** HSME jamás es code truth ni una compuerta de validación.
+
+> **Build de cada módulo:**
+> - Core: `go build -o quorum .` desde la raíz (sin cambios respecto a antes de la fusión).
+> - HSME: `cd semantic && just install` (requiere CGO + Ollama con `nomic-embed-text` y `phi3.5`).
+>
+> Reinstalar un módulo nunca obliga a recompilar el otro.
 
 ---
 

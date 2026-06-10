@@ -6,6 +6,20 @@ Quorum is a Go framework that orchestrates AI agents through a **Spec-Driven Con
 
 The canonical authority is `quorum.md` (the manifesto v1.1). When the manifesto and the code disagree, the manifesto wins and the code is wrong.
 
+## Monorepo layout (two Go modules)
+
+This repository is a `go.work` workspace with **two independent Go modules** (see `docs/adr/0008-fusion-monorepo-capa-semantica-hsme.md`):
+
+- **`quorum` (root module)** — the SDC orchestrator. Pure Go, `CGO_ENABLED=0`, `modernc.org/sqlite`. Everything in this document refers to this module unless stated otherwise. Build: `go build -o quorum .`; test: `go test ./...`.
+- **`github.com/hsme/core` under `semantic/`** — HSME, the opt-in semantic memory engine (formerly the standalone `mcp-semantic-memory` repo, merged with full history). Requires **CGO + build tags `sqlite_fts5 sqlite_vec` + a running Ollama** (`nomic-embed-text`, `phi3.5`). It is built/tested only from `semantic/` via its own `just` recipes (`cd semantic && just install` / `just test`), never from the root.
+
+**Hard rules for working across the two modules:**
+
+1. **No cross-module imports.** The core module must never import `semantic/` packages, and vice versa. The integration contract is *data and protocol* (`memory.schema.json`, the `~/.quorum/memory.db` SQLite schema, the HSME MCP tool surface) — not Go code. The CI acid test: the core builds and passes `go test ./...` with `CGO_ENABLED=0`, no C compiler, and `semantic/` absent.
+2. **HSME is subordinate.** HSME informs; Git, lifecycle artifacts, and curated `q-memory` decide. HSME is never code truth, never a validation gate, never an ingestion path into curated memory, and data flow is unidirectional (HSME may read Quorum's memory DB read-only; never the reverse).
+3. **Do not drag CGO/Ollama into the core.** Any change that makes `quorum` require a C compiler or a runtime daemon violates ADR 0008.
+4. **When editing inside `semantic/`**, follow HSME's own conventions and `semantic/CLAUDE.md`; the `/q-*` lifecycle and the rest of this document govern the core module, not HSME's internals.
+
 ## Commands
 
 ```bash

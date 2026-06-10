@@ -1,7 +1,12 @@
 # 0008: Monorepo Merge of HSME as Quorum's Opt-in Semantic Layer
 
 **Date:** 2026-06-09
-**Status:** Proposed
+**Status:** Accepted
+
+> **Execution status (2026-06-09):** Step 1 (repository merge) is **done** — HSME history is merged
+> under `semantic/` as the `github.com/hsme/core` module, joined to the root module via `go.work`.
+> Steps 2–4 (delta importer, semantic-duplicate advisor, native near-dup) and the CI two-lane setup
+> remain **pending**. The module path has not yet been renamed and `src/`→`pkg/` is not yet done.
 
 ## Context
 
