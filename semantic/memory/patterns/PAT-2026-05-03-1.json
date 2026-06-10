@@ -1,0 +1,10 @@
+{
+  "id": "PAT-2026-05-03-1",
+  "source_task": "FEAT-001",
+  "type": "pattern",
+  "title": "Fallback Graph Extractor wrapper",
+  "context": "Requirement to prioritize fast cloud LLM extraction while maintaining local Ollama as a reliable fallback",
+  "content": "Implement a FallbackExtractor that satisfies the worker.GraphExtractor interface. It holds two implementations (primary and secondary). The ExtractEntities method attempts the primary implementation first; if it is unconfigured (nil) or fails with an error, it silently falls back to the secondary implementation, logging only to stderr for diagnostics.",
+  "related": ["FEAT-001"],
+  "created_at": "2026-05-03"
+}

@@ -1,0 +1,19 @@
+{
+  "mission_id": "01KQ2SJK44AP2YDKXSBKPZCB8Q",
+  "mission_slug": "engram-legacy-cutover-and-corpus-restoration-01KQ2SJK",
+  "target_branch": "main",
+  "wp_order": [
+    "WP01",
+    "WP02",
+    "WP03",
+    "WP04",
+    "WP05"
+  ],
+  "completed_wps": [],
+  "current_wp": null,
+  "has_pending_conflicts": false,
+  "strategy": "merge",
+  "workspace_path": null,
+  "started_at": "2026-04-26T04:00:31.028816+00:00",
+  "updated_at": "2026-04-26T04:00:31.028837+00:00"
+}

@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "contract.schema.json",
+  "title": "Quorum Execution Contract",
+  "type": "object",
+  "required": [
+    "task_id",
+    "summary",
+    "goal",
+    "read",
+    "touch",
+    "forbid",
+    "verify",
+    "limits",
+    "execution",
+    "retry_policy"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "pattern": "^[A-Z]+-[0-9]+"
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1
+    },
+    "goal": {
+      "type": "string",
+      "minLength": 10
+    },
+    "read": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "touch": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "forbid": {
+      "type": "object",
+      "required": [
+        "files",
+        "behaviors"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "behaviors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "verify": {
+      "type": "object",
+      "required": [
+        "commands"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "commands": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "target_s": {
+          "type": "integer",
+          "maximum": 60
+        }
+      }
+    },
+    "acceptance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "bdd_suite": {
+          "type": "string",
+          "minLength": 1
+        },
+        "human_gate": {
+          "type": "boolean"
+        }
+      }
+    },
+    "limits": {
+      "type": "object",
+      "required": [
+        "max_files_changed",
+        "max_diff_lines"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "max_files_changed": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_diff_lines": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_cost_usd": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "required": [
+        "mode"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "patch_only",
+            "worktree_edit"
+          ]
+        },
+        "branch": {
+          "type": "string"
+        }
+      }
+    },
+    "retry_policy": {
+      "type": "object",
+      "required": [
+        "max_attempts"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "max_attempts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5
+        },
+        "escalate_after": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5
+        }
+      }
+    }
+  }
+}

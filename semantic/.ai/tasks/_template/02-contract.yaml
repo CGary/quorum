@@ -1,0 +1,31 @@
+task_id: FEAT-000
+summary: One dense factual sentence, max 200 chars, describing allowed work and verify scope.
+goal: >
+  One sentence describing what the agent must accomplish.
+read:
+  - src/path/to/relevant/file.py
+touch:
+  - src/path/to/file.py
+forbid:
+  files:
+    - package.json
+    - "*.lock"
+  behaviors:
+    - Do not introduce new runtime dependencies.
+    - Do not refactor unrelated code.
+verify:
+  commands:
+    - pytest tests/unit
+  target_s: 60
+acceptance:
+  bdd_suite: pytest tests/bdd
+  human_gate: true
+limits:
+  max_files_changed: 6
+  max_diff_lines: 500
+  max_cost_usd: 1.0
+execution:
+  mode: patch_only
+retry_policy:
+  max_attempts: 2
+  escalate_after: 2

@@ -1,0 +1,14 @@
+{
+  "created_at": "2026-04-23T03:17:31.096268+00:00",
+  "friendly_name": "HSME V1 Remediation",
+  "mission_id": "01KPW5FEZJV2Z46CT8Q2AEB50V",
+  "mission_number": 2,
+  "mission_slug": "hsme-v1-remediation-01KPW5FE",
+  "mission_type": "software-dev",
+  "purpose_context": "Address the missing Worker, Search, and MCP layers, remove SQLite FTS5 triggers as per spec, and ensure module tests compile.",
+  "purpose_tldr": "Fix critical drift and missing implementation from V1 Core",
+  "slug": "hsme-v1-remediation-01KPW5FE",
+  "target_branch": "master",
+  "vcs": "git",
+  "vcs_locked_at": "2026-04-23T03:24:37.918648+00:00"
+}

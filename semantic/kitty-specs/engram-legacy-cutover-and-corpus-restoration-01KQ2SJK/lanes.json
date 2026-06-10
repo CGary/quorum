@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "mission_slug": "engram-legacy-cutover-and-corpus-restoration-01KQ2SJK",
+  "mission_id": "01KQ2SJK44AP2YDKXSBKPZCB8Q",
+  "mission_branch": "kitty/mission-engram-legacy-cutover-and-corpus-restoration-01KQ2SJK",
+  "target_branch": "main",
+  "lanes": [
+    {
+      "lane_id": "lane-a",
+      "wp_ids": [
+        "WP01",
+        "WP02",
+        "WP03",
+        "WP04",
+        "WP05"
+      ],
+      "write_scope": [
+        ".gitignore",
+        "README.md",
+        "cmd/hsme/main.go",
+        "cmd/migrate-legacy/backup.go",
+        "cmd/migrate-legacy/cleanup.go",
+        "cmd/migrate-legacy/delta.go",
+        "cmd/migrate-legacy/main.go",
+        "cmd/migrate-legacy/matcher.go",
+        "cmd/migrate-legacy/orphans.go",
+        "cmd/migrate-legacy/preflight.go",
+        "cmd/migrate-legacy/report.go",
+        "cmd/migrate-legacy/restore.go",
+        "docs/legacy-cutover-checklist.md",
+        "justfile",
+        "scripts/verify_cutover.sh",
+        "src/core/search/fuzzy.go",
+        "src/mcp/handler.go",
+        "src/storage/sqlite/db.go",
+        "tests/modules/migrate_legacy_foundation_test.go",
+        "tests/modules/migrate_legacy_orphans_test.go",
+        "tests/modules/migrate_legacy_restore_test.go",
+        "tests/modules/search_project_filter_test.go"
+      ],
+      "predicted_surfaces": [
+        "api",
+        "artifact-rendering",
+        "legacy-cleanup",
+        "tracker-integration"
+      ],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    }
+  ],
+  "computed_at": "2026-04-26T02:57:28.004553+00:00",
+  "computed_from": "dependency_graph+ownership",
+  "planning_artifact_wps": [],
+  "collapse_report": {
+    "events": [
+      {
+        "wp_a": "WP02",
+        "wp_b": "WP01",
+        "rule": "dependency",
+        "evidence": "WP02 depends on WP01"
+      },
+      {
+        "wp_a": "WP03",
+        "wp_b": "WP01",
+        "rule": "dependency",
+        "evidence": "WP03 depends on WP01"
+      },
+      {
+        "wp_a": "WP04",
+        "wp_b": "WP01",
+        "rule": "dependency",
+        "evidence": "WP04 depends on WP01"
+      },
+      {
+        "wp_a": "WP05",
+        "wp_b": "WP03",
+        "rule": "dependency",
+        "evidence": "WP05 depends on WP03"
+      }
+    ],
+    "total_merges": 4,
+    "independent_wps_collapsed": 0,
+    "by_rule": {
+      "dependency": 4
+    }
+  }
+}

@@ -1,0 +1,17 @@
+task_id: FEAT-000
+summary: One dense factual sentence, max 200 chars, describing the implementation route.
+affected_files:
+  - src/path/to/file.py
+symbols:
+  - Module.symbol
+dependencies:
+  - tests/path/test_file.py
+test_scenarios:
+  - Fast unit or lint scenario the agent loop can run.
+strategy:
+  - step: 1
+    action: Make the smallest required code change.
+    files:
+      - src/path/to/file.py
+risks:
+  - Risk to watch during review.

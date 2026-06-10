@@ -1,0 +1,14 @@
+{
+  "created_at": "2026-04-26T22:16:51.648708+00:00",
+  "friendly_name": "HSME audit fixes — observability env, vector search, rollup catch-up",
+  "mission_id": "01KQ5XVTB2ES2NRR38D5AYMHJ3",
+  "mission_number": 9,
+  "mission_slug": "hsme-audit-fixes-01KQ5XVT",
+  "mission_type": "software-dev",
+  "purpose_context": "Una auditoria con DB y binarios aislados detecto que search_fuzzy con filtro de proyecto cae a solo lexical por restriccion de vec0 violada en JOIN+LIMIT; que el README documenta OBS_LEVEL pero el codigo solo lee HSME_OBS_LEVEL apagando toda la observabilidad; y que el rollup procesa unicamente el bucket actual descartando buckets pasados. Cada fix se considera done solo cuando un escenario BDD reproduce el comportamiento defectuoso falla previo al fix y pasa despues.",
+  "purpose_tldr": "Reparar tres regresiones halladas en auditoria con escenarios BDD que fallen antes y pasen despues del fix.",
+  "slug": "hsme-audit-fixes-01KQ5XVT",
+  "target_branch": "main",
+  "vcs": "git",
+  "vcs_locked_at": "2026-04-27T11:24:10.577612+00:00"
+}

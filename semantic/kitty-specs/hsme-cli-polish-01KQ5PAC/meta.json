@@ -1,0 +1,14 @@
+{
+  "created_at": "2026-04-26T20:05:00.840463+00:00",
+  "friendly_name": "HSME CLI Polish — Fix 6 Bugs",
+  "mission_id": "01KQ5PACY0K8RA6HN1ZGB9TPBD",
+  "mission_number": 8,
+  "mission_slug": "hsme-cli-polish-01KQ5PAC",
+  "mission_type": "software-dev",
+  "purpose_context": "After the initial hsme-unified-cli mission landed, an audit identified 6 bugs ranging from critical UX failures (wrong output format) to data-safety issues (restore order). This mission fixes them all so the CLI is production-grade.",
+  "purpose_tldr": "Fix 6 bugs in hsme-cli: flag parsing, FormatText, backup naming, restore order, graph stats, and --interval.",
+  "slug": "hsme-cli-polish-01KQ5PAC",
+  "source_description": "Post-audit of hsme-unified-cli-01KQ59MV. Audit log at log/partial.txt lists 6 bugs confirmed: #1 flag parsing after positional, #2 FormatText broken, #3 backup naming format, #4 restore order, #5 missing graph stats, #6 missing --interval flag.",
+  "target_branch": "main",
+  "vcs": "git"
+}

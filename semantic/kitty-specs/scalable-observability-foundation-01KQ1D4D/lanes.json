@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "mission_slug": "scalable-observability-foundation-01KQ1D4D",
+  "mission_id": "01KQ1D4DQCH70WDD1D9HQ7KST6",
+  "mission_branch": "kitty/mission-scalable-observability-foundation-01KQ1D4D",
+  "target_branch": "main",
+  "lanes": [
+    {
+      "lane_id": "lane-a",
+      "wp_ids": [
+        "WP01",
+        "WP02",
+        "WP03",
+        "WP04",
+        "WP05"
+      ],
+      "write_scope": [
+        "README.md",
+        "cmd/hsme/main.go",
+        "cmd/hsme/main_test.go",
+        "cmd/ops/**",
+        "cmd/worker/main.go",
+        "justfile",
+        "kitty-specs/scalable-observability-foundation-01KQ1D4D/quickstart.md",
+        "src/core/worker/**",
+        "src/mcp/**",
+        "src/observability/**",
+        "src/storage/sqlite/**",
+        "tests/modules/observability_test.go",
+        "tests/modules/storage_test.go",
+        "tests/modules/worker_test.go"
+      ],
+      "predicted_surfaces": [
+        "api",
+        "legacy-cleanup",
+        "tracker-integration"
+      ],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    }
+  ],
+  "computed_at": "2026-04-25T04:50:05.370746+00:00",
+  "computed_from": "dependency_graph+ownership",
+  "planning_artifact_wps": [],
+  "collapse_report": {
+    "events": [
+      {
+        "wp_a": "WP02",
+        "wp_b": "WP01",
+        "rule": "dependency",
+        "evidence": "WP02 depends on WP01"
+      },
+      {
+        "wp_a": "WP03",
+        "wp_b": "WP01",
+        "rule": "dependency",
+        "evidence": "WP03 depends on WP01"
+      },
+      {
+        "wp_a": "WP04",
+        "wp_b": "WP01",
+        "rule": "dependency",
+        "evidence": "WP04 depends on WP01"
+      },
+      {
+        "wp_a": "WP05",
+        "wp_b": "WP01",
+        "rule": "dependency",
+        "evidence": "WP05 depends on WP01"
+      }
+    ],
+    "total_merges": 4,
+    "independent_wps_collapsed": 0,
+    "by_rule": {
+      "dependency": 4
+    }
+  }
+}

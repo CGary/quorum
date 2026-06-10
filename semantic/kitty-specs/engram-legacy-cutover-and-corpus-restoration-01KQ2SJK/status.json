@@ -1,0 +1,56 @@
+{
+  "event_count": 35,
+  "last_event_id": "01KQ3XV417D2JVQ3EHX1V0QAX1",
+  "materialized_at": "2026-04-26T03:37:59.591510+00:00",
+  "mission_number": "4",
+  "mission_slug": "engram-legacy-cutover-and-corpus-restoration-01KQ2SJK",
+  "mission_type": "software-dev",
+  "summary": {
+    "approved": 0,
+    "blocked": 0,
+    "canceled": 0,
+    "claimed": 0,
+    "done": 5,
+    "for_review": 0,
+    "in_progress": 0,
+    "in_review": 0,
+    "planned": 0
+  },
+  "work_packages": {
+    "WP01": {
+      "actor": "merge",
+      "force_count": 1,
+      "lane": "done",
+      "last_event_id": "01KQ3XV3Z7QAB9PXWGB42MYMBP",
+      "last_transition_at": "2026-04-26T03:37:59.527529+00:00"
+    },
+    "WP02": {
+      "actor": "merge",
+      "force_count": 1,
+      "lane": "done",
+      "last_event_id": "01KQ3XV40AZ1BBYV7HXBZF2VXZ",
+      "last_transition_at": "2026-04-26T03:37:59.562634+00:00"
+    },
+    "WP03": {
+      "actor": "merge",
+      "force_count": 1,
+      "lane": "done",
+      "last_event_id": "01KQ3XV40KSJMSBQBMNCWNG6Y1",
+      "last_transition_at": "2026-04-26T03:37:59.571470+00:00"
+    },
+    "WP04": {
+      "actor": "merge",
+      "force_count": 1,
+      "lane": "done",
+      "last_event_id": "01KQ3XV40XP222PJ7TF38AR30H",
+      "last_transition_at": "2026-04-26T03:37:59.581555+00:00"
+    },
+    "WP05": {
+      "actor": "merge",
+      "force_count": 1,
+      "lane": "done",
+      "last_event_id": "01KQ3XV417D2JVQ3EHX1V0QAX1",
+      "last_transition_at": "2026-04-26T03:37:59.591510+00:00"
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "wp_id": "WP02",
+  "mission_slug": "hsme-v1-remediation-01KPW5FE",
+  "worktree_path": ".worktrees/hsme-v1-remediation-01KPW5FE-lane-b",
+  "branch_name": "kitty/mission-hsme-v1-remediation-01KPW5FE-lane-b",
+  "base_branch": "kitty/mission-hsme-v1-remediation-01KPW5FE",
+  "base_commit": "1a9cf590d320e1fdd2ae2798f22910a183b4f7ff",
+  "dependencies": [],
+  "created_at": "2026-04-23T03:24:37.930101+00:00",
+  "created_by": "implement-command-lane",
+  "vcs_backend": "git",
+  "lane_id": "lane-b",
+  "lane_wp_ids": [
+    "WP02",
+    "WP03"
+  ],
+  "current_wp": "WP02"
+}

@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "trace.schema.json",
+  "title": "Quorum Task Trace",
+  "type": "object",
+  "required": [
+    "task_id",
+    "summary",
+    "started_at",
+    "attempts",
+    "total_cost_usd",
+    "violations",
+    "context_overflows"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "pattern": "^[A-Z]+-[0-9]+"
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "completed_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "outcome": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "committed",
+        "failed",
+        "aborted",
+        null
+      ]
+    },
+    "execution_mode": {
+      "type": "string",
+      "enum": [
+        "patch_only",
+        "worktree_edit"
+      ]
+    },
+    "attempts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "phase",
+          "result",
+          "duration_s"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "phase": {
+            "type": "string",
+            "enum": [
+              "specify",
+              "blueprint",
+              "contract",
+              "execute",
+              "verify",
+              "review",
+              "merge_gate",
+              "escalate"
+            ]
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "passed",
+              "failed",
+              "blocked",
+              "skipped"
+            ]
+          },
+          "model": {
+            "type": "string"
+          },
+          "tokens_in": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "tokens_out": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "cost_usd": {
+            "type": "number",
+            "minimum": 0
+          },
+          "duration_s": {
+            "type": "number",
+            "minimum": 0
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "total_cost_usd": {
+      "type": "number",
+      "minimum": 0
+    },
+    "human_minutes": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "violations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "context_overflows": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

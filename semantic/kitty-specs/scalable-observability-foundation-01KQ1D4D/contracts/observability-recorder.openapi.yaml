@@ -1,0 +1,262 @@
+openapi: 3.0.3
+info:
+  title: HSME Internal Observability Recorder Contract
+  version: 1.0.0
+  description: |
+    Internal design contract for the observability recorder and operations runner.
+    This is not a public HTTP API; it documents payload shapes and command boundaries
+    for implementation consistency.
+paths:
+  /internal/observability/traces:
+    post:
+      summary: Start and persist a trace
+      operationId: startTrace
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartTraceArgs'
+      responses:
+        '200':
+          description: Trace context created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TraceContext'
+  /internal/observability/traces/{traceId}/finish:
+    post:
+      summary: Finish and persist a trace result
+      operationId: finishTrace
+      parameters:
+        - in: path
+          name: traceId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TraceResult'
+      responses:
+        '204':
+          description: Trace finished
+  /internal/observability/spans:
+    post:
+      summary: Start and persist a span
+      operationId: startSpan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartSpanArgs'
+      responses:
+        '200':
+          description: Span context created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpanContext'
+  /internal/observability/spans/{spanId}/finish:
+    post:
+      summary: Finish and persist a span result
+      operationId: finishSpan
+      parameters:
+        - in: path
+          name: spanId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SpanResult'
+      responses:
+        '204':
+          description: Span finished
+  /internal/observability/events/error:
+    post:
+      summary: Persist an error event
+      operationId: recordError
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ErrorEvent'
+      responses:
+        '204':
+          description: Error recorded
+  /internal/observability/events/slow:
+    post:
+      summary: Persist a slow-operation event
+      operationId: recordSlowOperation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SlowOperationEvent'
+      responses:
+        '204':
+          description: Slow operation recorded
+  /internal/observability/events/diagnostic:
+    post:
+      summary: Persist a diagnostic event
+      operationId: recordDiagnostic
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiagnosticEvent'
+      responses:
+        '204':
+          description: Diagnostic event recorded
+  /internal/observability/maintenance/flush-rollups:
+    post:
+      summary: Trigger rollup flush/checkpoint progression
+      operationId: flushRollups
+      responses:
+        '204':
+          description: Rollup flush completed
+  /internal/observability/maintenance/run-retention:
+    post:
+      summary: Trigger retention cleanup according to active policy
+      operationId: runRetention
+      responses:
+        '204':
+          description: Retention cleanup completed
+components:
+  schemas:
+    TraceContext:
+      type: object
+      required: [traceId, traceKind, component, operation, sampled, startedAtUtc]
+      properties:
+        traceId: { type: string }
+        traceKind: { type: string, enum: [mcp_request, worker_task, maintenance] }
+        component: { type: string }
+        operation: { type: string }
+        requestId: { type: string }
+        toolName: { type: string }
+        taskId: { type: integer, format: int64 }
+        taskType: { type: string }
+        memoryId: { type: integer, format: int64 }
+        sampled: { type: boolean }
+        startedAtUtc: { type: string, format: date-time }
+    StartTraceArgs:
+      type: object
+      required: [traceKind, component, operation]
+      properties:
+        traceKind: { type: string, enum: [mcp_request, worker_task, maintenance] }
+        component: { type: string }
+        operation: { type: string }
+        requestId: { type: string }
+        toolName: { type: string }
+        taskId: { type: integer, format: int64 }
+        taskType: { type: string }
+        memoryId: { type: integer, format: int64 }
+        parentTraceId: { type: string }
+        meta:
+          type: object
+          additionalProperties: true
+    TraceResult:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [ok, error, cancelled, timeout] }
+        errorCode: { type: string }
+        errorMessage: { type: string }
+        meta:
+          type: object
+          additionalProperties: true
+    SpanContext:
+      type: object
+      required: [traceId, spanId, component, operation, stageName, startedAtUtc]
+      properties:
+        traceId: { type: string }
+        spanId: { type: string }
+        parentSpanId: { type: string }
+        component: { type: string }
+        operation: { type: string }
+        stageName: { type: string }
+        startedAtUtc: { type: string, format: date-time }
+    StartSpanArgs:
+      type: object
+      required: [traceId, component, operation, stageName]
+      properties:
+        traceId: { type: string }
+        parentSpanId: { type: string }
+        component: { type: string }
+        operation: { type: string }
+        stageName: { type: string }
+        meta:
+          type: object
+          additionalProperties: true
+    SpanResult:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [ok, error, cancelled, timeout] }
+        queueDelayUs: { type: integer, format: int64 }
+        rowsRead: { type: integer, format: int64 }
+        rowsWritten: { type: integer, format: int64 }
+        bytesIn: { type: integer, format: int64 }
+        bytesOut: { type: integer, format: int64 }
+        errorCode: { type: string }
+        errorMessage: { type: string }
+        meta:
+          type: object
+          additionalProperties: true
+    ErrorEvent:
+      type: object
+      required: [component, operation, severity, message]
+      properties:
+        traceId: { type: string }
+        spanId: { type: string }
+        component: { type: string }
+        operation: { type: string }
+        toolName: { type: string }
+        taskId: { type: integer, format: int64 }
+        taskType: { type: string }
+        memoryId: { type: integer, format: int64 }
+        severity: { type: string, enum: [debug, info, warn, error] }
+        message: { type: string }
+        details:
+          type: object
+          additionalProperties: true
+    SlowOperationEvent:
+      type: object
+      required: [component, operation, thresholdUs, observedUs, message]
+      properties:
+        traceId: { type: string }
+        spanId: { type: string }
+        component: { type: string }
+        operation: { type: string }
+        toolName: { type: string }
+        taskId: { type: integer, format: int64 }
+        taskType: { type: string }
+        memoryId: { type: integer, format: int64 }
+        thresholdUs: { type: integer, format: int64 }
+        observedUs: { type: integer, format: int64 }
+        message: { type: string }
+        details:
+          type: object
+          additionalProperties: true
+    DiagnosticEvent:
+      type: object
+      required: [component, operation, message]
+      properties:
+        traceId: { type: string }
+        spanId: { type: string }
+        component: { type: string }
+        operation: { type: string }
+        message: { type: string }
+        details:
+          type: object
+          additionalProperties: true

@@ -1,0 +1,63 @@
+{
+  "fuzzy": [
+    {
+      "memory_id": 1,
+      "score": 0.01639344262295082,
+      "is_superseded": false,
+      "vector_coverage": "none",
+      "highlights": [
+        {
+          "chunk_id": 1,
+          "chunk_index": 0,
+          "text": "Common collision term here. Very old document."
+        }
+      ]
+    },
+    {
+      "memory_id": 2,
+      "score": 0.016129032258064516,
+      "is_superseded": false,
+      "vector_coverage": "none",
+      "highlights": [
+        {
+          "chunk_id": 2,
+          "chunk_index": 0,
+          "text": "Common collision term here. Mid-aged document."
+        }
+      ]
+    },
+    {
+      "memory_id": 3,
+      "score": 0.015873015873015872,
+      "is_superseded": false,
+      "vector_coverage": "none",
+      "highlights": [
+        {
+          "chunk_id": 3,
+          "chunk_index": 0,
+          "text": "Common collision term here. Brand new document."
+        }
+      ]
+    }
+  ],
+  "exact": [
+    {
+      "memory_id": 1,
+      "chunk_id": 1,
+      "chunk_index": 0,
+      "text": "Common collision term here. Very old document."
+    },
+    {
+      "memory_id": 2,
+      "chunk_id": 2,
+      "chunk_index": 0,
+      "text": "Common collision term here. Mid-aged document."
+    },
+    {
+      "memory_id": 3,
+      "chunk_id": 3,
+      "chunk_index": 0,
+      "text": "Common collision term here. Brand new document."
+    }
+  ]
+}

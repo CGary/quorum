@@ -1,0 +1,14 @@
+{
+  "created_at": "2026-04-25T17:04:11.747928+00:00",
+  "friendly_name": "Engram Legacy Cutover & Corpus Restoration",
+  "mission_id": "01KQ2SJK44AP2YDKXSBKPZCB8Q",
+  "mission_number": 4,
+  "mission_slug": "engram-legacy-cutover-and-corpus-restoration-01KQ2SJK",
+  "mission_type": "software-dev",
+  "purpose_context": "When legacy Engram memories were migrated to HSME via an LLM-driven prompt, the wrapper format preserved content but flattened every created_at to the migration moment and dropped project, title, and type metadata into a generic source_type='engram_migration'. Verification confirmed 842 of the 905 migrated rows still match the legacy source byte-for-byte, 62 are fabricated session summaries born during the migration session, and 1 is a malformed empty row. Meanwhile the legacy Engram database keeps receiving writes from Claude Code (30 new observations on the day this mission was scoped), so the gap widens by the hour. This mission recovers the missing metadata in place, brings the 59 post-migration writes into HSME, deletes the garbage row, re-tags the fabricated summaries, adds a project column to memories so per-project search becomes possible, and reconfigures the Claude Code MCP so engram is removed and hsme is the only memory backend. Without this work, every recency-aware feature planned downstream is built on broken timestamps.",
+  "purpose_tldr": "Restore lost chronology and project metadata for migrated memories, ingest the 59 post-migration writes still living in legacy Engram, normalize the corpus, and cut Claude Code's dual-write so HSME becomes the single source of truth.",
+  "slug": "engram-legacy-cutover-and-corpus-restoration-01KQ2SJK",
+  "target_branch": "main",
+  "vcs": "git",
+  "vcs_locked_at": "2026-04-26T03:19:07.829099+00:00"
+}

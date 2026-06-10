@@ -1,0 +1,42 @@
+# Binarios y ejecutables
+hsme
+hsme-worker
+hsme-ops
+migrate-legacy
+bin/
+*.exe
+*.so
+*.dll
+
+# BASES DE DATOS (PROTECCIÓN TOTAL)
+*.db
+*.db-shm
+*.db-wal
+data/
+**/data/*.db
+engram.db*
+
+# Scripts de prueba con datos sensibles
+scripts/diag_db.go
+scripts/ingest_spec.go
+scripts/massive_ingest.go
+scripts/test_search.go
+
+# Temporales y logs
+.worktrees/
+tmp/
+*.log
+.DS_Store
+
+backups/
+.aider*
+
+# Quorum
+.ai/tasks/active/*
+.ai/tasks/done/*
+.ai/tasks/failed/*
+.ai/tasks/inbox/*
+!.ai/tasks/active/.gitkeep
+!.ai/tasks/done/.gitkeep
+!.ai/tasks/failed/.gitkeep
+!.ai/tasks/inbox/.gitkeep

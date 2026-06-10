@@ -1,0 +1,10 @@
+{
+  "id": "LES-2026-05-03-2",
+  "source_task": "FEAT-001",
+  "type": "lesson",
+  "title": "Global BDD function collisions in tests/bdd",
+  "context": "The tests/bdd package was unbuildable due to multiple files declaring TestFeatures and InitializeScenario",
+  "content": "BDD tests using github.com/cucumber/godog within the same package must use unique names for their entry point functions (e.g., TestFeaturesObservability) and scenario initializers (e.g., InitializeScenarioObservability) to avoid 'redeclared in this block' errors.",
+  "related": ["FEAT-001"],
+  "created_at": "2026-05-03"
+}

@@ -1,0 +1,10 @@
+{
+  "id": "LES-2026-05-03-1",
+  "source_task": "FEAT-001",
+  "type": "lesson",
+  "title": "sqlite-vec requires explicit go-sqlite3 import for linking",
+  "context": "src/core/inference/llm unit tests failed with extensive linker errors (undefined reference to sqlite3_*)",
+  "content": "When using github.com/asg017/sqlite-vec-go-bindings/cgo, the package must also import github.com/mattn/go-sqlite3 (even as a blank import) to ensure SQLite C symbols are available to the linker. Without this, sqlite-vec cannot find the underlying SQLite functions it depends on.",
+  "related": ["FEAT-001"],
+  "created_at": "2026-05-03"
+}

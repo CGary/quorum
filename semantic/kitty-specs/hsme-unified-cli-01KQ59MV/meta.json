@@ -1,0 +1,14 @@
+{
+  "created_at": "2026-04-26T16:23:31.821879+00:00",
+  "friendly_name": "HSME Unified CLI",
+  "mission_id": "01KQ59MVCJZ7EPETGSGG04VR54",
+  "mission_number": 7,
+  "mission_slug": "hsme-unified-cli-01KQ59MV",
+  "mission_type": "software-dev",
+  "purpose_context": "Today the HSME ecosystem is fragmented: agents access memory via MCP while operators rely on bash scripts (scripts/status.sh, justfile backup/restore/retry-failed) for diagnostics and maintenance, with no terminal interface for ad-hoc memory inspection or scripting. This mission unifies all those operations into a single typed Go binary backed by a shared bootstrap package, eliminating shell-script fragility, gaining portability and testability, and giving operators a single tool for both querying memory and managing the underlying database.",
+  "purpose_tldr": "Unified hsme-cli binary that exposes MCP tools, status inspection, and admin operations from the terminal.",
+  "slug": "hsme-unified-cli-01KQ59MV",
+  "source_description": "Promoted from ideas/cli-tool.md with expanded scope: bootstrap refactor, status migration from scripts/status.sh, and admin subcommands (retry-failed, backup, restore) migrated from the justfile.",
+  "target_branch": "main",
+  "vcs": "git"
+}

@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "mission_slug": "hsme-cli-polish-01KQ5PAC",
+  "mission_id": "01KQ5PACY0K8RA6HN1ZGB9TPBD",
+  "mission_branch": "kitty/mission-hsme-cli-polish-01KQ5PAC",
+  "target_branch": "main",
+  "lanes": [
+    {
+      "lane_id": "lane-a",
+      "wp_ids": [
+        "WP01"
+      ],
+      "write_scope": [
+        "cmd/cli/output.go"
+      ],
+      "predicted_surfaces": [
+        "api"
+      ],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    },
+    {
+      "lane_id": "lane-b",
+      "wp_ids": [
+        "WP02"
+      ],
+      "write_scope": [
+        "cmd/cli/admin.go",
+        "cmd/cli/main.go",
+        "cmd/cli/status.go",
+        "src/core/admin/restore.go"
+      ],
+      "predicted_surfaces": [
+        "api",
+        "legacy-cleanup"
+      ],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    }
+  ],
+  "computed_at": "2026-04-26T20:20:55.520228+00:00",
+  "computed_from": "dependency_graph+ownership",
+  "planning_artifact_wps": []
+}

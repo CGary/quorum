@@ -1,0 +1,14 @@
+{
+  "created_at": "2026-04-26T06:02:07.996228+00:00",
+  "friendly_name": "Universal Time-Decay for Search Results",
+  "mission_id": "01KQ4631CA66WB1HCKH3MRDPKZ",
+  "mission_number": 6,
+  "mission_slug": "universal-time-decay-for-search-results-01KQ4631",
+  "mission_type": "software-dev",
+  "purpose_context": "Baseline measurement on the current corpus shows search_fuzzy hits the chronologically newest memory 0% of the time on pure-recency queries (top-3) — Mission 2 covered that case via recall_recent_session, but mixed and relevance-blended queries still surface stale results. At the same time, the adversarial baseline shows old-but-vital memories remain reachable at 80% top-3, which is the line we must not cross. This mission introduces a multiplicative exponential time-decay factor applied to the score function of BOTH search_fuzzy (RRF score) and search_exact (FTS5 BM25 score). search_exact is included by explicit user direction: exact search does not guarantee unique winners (duplicate ticket titles, project names), and recency must arbitrate those collisions. A single shared RRF_TIME_DECAY=on|off flag and a single RRF_HALF_LIFE_DAYS knob configure both tools to avoid configuration fragmentation. The default ships RRF_TIME_DECAY=off so existing behavior is unchanged until the operator opts in. The A/B harness uses the frozen eval set in docs/future-missions/mission-3-eval-set.yaml and adds search_exact samples to catch any anomaly before release. Adversarial preservation thresholds are derived from the existing baseline (≥80% top-3) so universal decay does not silently erode reachability of architectural-historic memories.",
+  "purpose_tldr": "Make recency a universal dimension of search ranking by applying time-decay to both search_fuzzy and search_exact under a single shared RRF_TIME_DECAY flag and RRF_HALF_LIFE_DAYS knob, so fresh memories outrank obsolete ones across every search interface without burying ancient high-signal records.",
+  "slug": "universal-time-decay-for-search-results-01KQ4631",
+  "target_branch": "main",
+  "vcs": "git",
+  "vcs_locked_at": "2026-04-26T06:28:29.897096+00:00"
+}

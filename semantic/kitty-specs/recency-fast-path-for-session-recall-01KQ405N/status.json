@@ -1,0 +1,42 @@
+{
+  "event_count": 21,
+  "last_event_id": "01KQ43FS0RPCDHY53DZB2V8S9T",
+  "materialized_at": "2026-04-26T05:16:39.320920+00:00",
+  "mission_number": "5",
+  "mission_slug": "recency-fast-path-for-session-recall-01KQ405N",
+  "mission_type": "software-dev",
+  "summary": {
+    "approved": 0,
+    "blocked": 0,
+    "canceled": 0,
+    "claimed": 0,
+    "done": 3,
+    "for_review": 0,
+    "in_progress": 0,
+    "in_review": 0,
+    "planned": 0
+  },
+  "work_packages": {
+    "WP01": {
+      "actor": "merge",
+      "force_count": 1,
+      "lane": "done",
+      "last_event_id": "01KQ43FRZCSZC8C6SKHHBZ0KK6",
+      "last_transition_at": "2026-04-26T05:16:39.276608+00:00"
+    },
+    "WP02": {
+      "actor": "merge",
+      "force_count": 1,
+      "lane": "done",
+      "last_event_id": "01KQ43FS0FWQK2NFMFMG3T2CDV",
+      "last_transition_at": "2026-04-26T05:16:39.311202+00:00"
+    },
+    "WP03": {
+      "actor": "merge",
+      "force_count": 1,
+      "lane": "done",
+      "last_event_id": "01KQ43FS0RPCDHY53DZB2V8S9T",
+      "last_transition_at": "2026-04-26T05:16:39.320920+00:00"
+    }
+  }
+}

@@ -1,0 +1,121 @@
+{
+  "version": 1,
+  "mission_slug": "hsme-unified-cli-01KQ59MV",
+  "mission_id": "01KQ59MVCJZ7EPETGSGG04VR54",
+  "mission_branch": "kitty/mission-hsme-unified-cli-01KQ59MV",
+  "target_branch": "main",
+  "lanes": [
+    {
+      "lane_id": "lane-a",
+      "wp_ids": [
+        "WP01",
+        "WP02",
+        "WP03",
+        "WP04",
+        "WP05",
+        "WP06"
+      ],
+      "write_scope": [
+        "cmd/cli/admin.go",
+        "cmd/cli/admin_test.go",
+        "cmd/cli/explore.go",
+        "cmd/cli/explore_test.go",
+        "cmd/cli/flags.go",
+        "cmd/cli/help.go",
+        "cmd/cli/main.go",
+        "cmd/cli/main_test.go",
+        "cmd/cli/output.go",
+        "cmd/cli/output_test.go",
+        "cmd/cli/search.go",
+        "cmd/cli/search_test.go",
+        "cmd/cli/status.go",
+        "cmd/cli/status_test.go",
+        "cmd/cli/store.go",
+        "cmd/cli/store_test.go",
+        "cmd/hsme/main.go",
+        "cmd/ops/main.go",
+        "cmd/worker/main.go",
+        "justfile",
+        "log/...",
+        "src/bootstrap/bootstrap.go",
+        "src/bootstrap/bootstrap_test.go",
+        "src/bootstrap/config.go",
+        "src/core/admin/admin_test.go",
+        "src/core/admin/backup.go",
+        "src/core/admin/restore.go",
+        "src/core/admin/retry.go",
+        "tests/modules/...",
+        "tests/modules/cli_test.go"
+      ],
+      "predicted_surfaces": [
+        "api",
+        "legacy-cleanup",
+        "tests",
+        "tracker-integration",
+        "workspace"
+      ],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    },
+    {
+      "lane_id": "lane-planning",
+      "wp_ids": [
+        "WP07"
+      ],
+      "write_scope": [
+        "kitty-specs/hsme-unified-cli-01KQ59MV/meta.json",
+        "kitty-specs/hsme-unified-cli-01KQ59MV/status.events.jsonl",
+        "kitty-specs/hsme-unified-cli-01KQ59MV/status.json"
+      ],
+      "predicted_surfaces": [
+        "planning"
+      ],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    }
+  ],
+  "computed_at": "2026-04-26T17:32:37.223183+00:00",
+  "computed_from": "dependency_graph+ownership",
+  "planning_artifact_wps": [
+    "WP07"
+  ],
+  "collapse_report": {
+    "events": [
+      {
+        "wp_a": "WP03",
+        "wp_b": "WP02",
+        "rule": "dependency",
+        "evidence": "WP03 depends on WP02"
+      },
+      {
+        "wp_a": "WP04",
+        "wp_b": "WP01",
+        "rule": "dependency",
+        "evidence": "WP04 depends on WP01"
+      },
+      {
+        "wp_a": "WP05",
+        "wp_b": "WP02",
+        "rule": "dependency",
+        "evidence": "WP05 depends on WP02"
+      },
+      {
+        "wp_a": "WP06",
+        "wp_b": "WP04",
+        "rule": "dependency",
+        "evidence": "WP06 depends on WP04"
+      },
+      {
+        "wp_a": "WP06",
+        "wp_b": "WP05",
+        "rule": "dependency",
+        "evidence": "WP06 depends on WP05"
+      }
+    ],
+    "total_merges": 5,
+    "independent_wps_collapsed": 0,
+    "by_rule": {
+      "dependency": 5
+    }
+  }
+}

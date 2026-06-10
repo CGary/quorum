@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hsme.local/contracts/observability-config.schema.json",
+  "title": "HSME Observability Config",
+  "type": "object",
+  "required": [
+    "level",
+    "default_sample_rate",
+    "raw_retention_days",
+    "minute_retention_days",
+    "hour_retention_days",
+    "day_retention_days",
+    "flush_interval_seconds"
+  ],
+  "properties": {
+    "level": {
+      "type": "string",
+      "enum": ["off", "basic", "debug", "trace"]
+    },
+    "default_sample_rate": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "slow_thresholds": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0,
+        "description": "Threshold in microseconds"
+      }
+    },
+    "raw_retention_days": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "minute_retention_days": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "hour_retention_days": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "day_retention_days": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "flush_interval_seconds": {
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "additionalProperties": false
+}

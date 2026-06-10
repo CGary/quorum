@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "hsme": {
+      "type": "stdio",
+      "command": "/home/gary/go/bin/hsme",
+      "args": [],
+      "env": {
+        "SQLITE_DB_PATH": "/home/gary/dev/hsme/data/engram.db",
+        "OLLAMA_HOST": "http://localhost:11434",
+        "EMBEDDING_MODEL": "nomic-embed-text",
+        "EXTRACTION_MODEL": "phi3.5"
+      }
+    }
+  }
+}

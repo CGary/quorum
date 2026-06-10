@@ -1,0 +1,13 @@
+task_id: FEAT-000
+summary: One dense factual sentence, max 200 chars, describing the feature and risk.
+goal: >
+  One paragraph defining the feature outcome.
+invariants:
+  - Existing behavior that must remain true.
+acceptance:
+  - Measurable outcome that proves success.
+risk: medium
+non_goals:
+  - Explicitly excluded outcome.
+constraints:
+  - Operational constraint or dependency limit.

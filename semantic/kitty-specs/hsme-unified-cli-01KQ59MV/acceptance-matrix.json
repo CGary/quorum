@@ -1,0 +1,28 @@
+{
+  "mission_slug": "hsme-unified-cli-01KQ59MV",
+  "acceptance_date": "2026-04-26",
+  "checklist": [
+    {
+      "id": "AC01",
+      "description": "Shared bootstrap package implemented and consumed by all binaries",
+      "status": "passed"
+    },
+    {
+      "id": "AC02",
+      "description": "Unified CLI with 9 subcommands implemented",
+      "status": "passed"
+    },
+    {
+      "id": "AC03",
+      "description": "Admin operations (backup, restore, retry) implemented",
+      "status": "passed"
+    },
+    {
+      "id": "AC04",
+      "description": "Full test suite passes with zero regressions",
+      "status": "passed"
+    }
+  ],
+  "verdict": "approved",
+  "reviewer": "gemini"
+}

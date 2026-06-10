@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "mission_slug": "hsme-audit-fixes-01KQ5XVT",
+  "mission_id": "01KQ5XVTB2ES2NRR38D5AYMHJ3",
+  "mission_branch": "kitty/mission-hsme-audit-fixes-01KQ5XVT",
+  "target_branch": "main",
+  "lanes": [
+    {
+      "lane_id": "lane-a",
+      "wp_ids": [
+        "WP01"
+      ],
+      "write_scope": [
+        "src/core/search/fuzzy.go",
+        "tests/bdd/search_fuzzy_project.feature"
+      ],
+      "predicted_surfaces": [
+        "api",
+        "tests"
+      ],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    },
+    {
+      "lane_id": "lane-b",
+      "wp_ids": [
+        "WP02"
+      ],
+      "write_scope": [
+        "README.md",
+        "tests/bdd/observability_env.feature"
+      ],
+      "predicted_surfaces": [
+        "api",
+        "tests"
+      ],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    },
+    {
+      "lane_id": "lane-c",
+      "wp_ids": [
+        "WP03"
+      ],
+      "write_scope": [
+        "cmd/ops/main.go",
+        "src/observability/maintenance.go",
+        "src/storage/sqlite/observability.go",
+        "tests/bdd/rollup_catchup.feature"
+      ],
+      "predicted_surfaces": [
+        "api",
+        "tests"
+      ],
+      "depends_on_lanes": [],
+      "parallel_group": 0
+    }
+  ],
+  "computed_at": "2026-04-27T11:23:56.571524+00:00",
+  "computed_from": "dependency_graph+ownership",
+  "planning_artifact_wps": []
+}

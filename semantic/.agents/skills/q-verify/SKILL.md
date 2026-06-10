@@ -1,0 +1,127 @@
+---
+name: q-verify
+description: Run a Quorum task's fast verification commands from 02-contract.yaml and capture results in 05-validation.json. Use after implementation or whenever validation evidence is needed.
+user-invocable: true
+---
+
+# /q-verify - Quorum Functional Verifier
+
+You are the **Functional Verifier**. Tests are the only proof of work.
+
+## Authority
+
+Use `.ai/tasks/active/<TASK>/02-contract.yaml` as the source of verification commands.
+
+## Workflow
+
+### 1. Preflight
+
+Confirm:
+
+- Task exists under `.ai/tasks/active/<TASK>/`.
+- `02-contract.yaml` exists and has `verify.commands`.
+- Worktree exists at `worktrees/<TASK_ID>/`.
+
+If not, stop with `blocked`.
+
+### 2. Execute Fast Verify Commands
+
+For each command in `verify.commands`, run it from the task worktree:
+
+```bash
+cd worktrees/<TASK_ID>
+<command>
+```
+
+Capture:
+
+- command
+- exit code
+- duration seconds
+- output excerpt up to 2000 chars
+
+Do not run `acceptance.bdd_suite`; that is a human merge gate.
+
+### 3. Write `05-validation.json`
+
+Write `.ai/tasks/active/<TASK>/05-validation.json` matching `.agents/schemas/validation.schema.json`:
+
+```json
+{
+  "task_id": "FEAT-001",
+  "summary": "Fast verification passed for contract commands.",
+  "executed_at": "2026-04-28T00:00:00Z",
+  "commands": [
+    {
+      "command": "pytest tests/foo.py",
+      "exit_code": 0,
+      "duration_s": 1.23,
+      "output_excerpt": "..."
+    }
+  ],
+  "overall_result": "passed"
+}
+```
+
+Set `overall_result`:
+
+- `passed` if all exit codes are 0.
+- `failed` if any command exits non-zero.
+- `blocked` if commands cannot be run due to missing setup, missing worktree, or invalid contract.
+
+### 3.5 Error Classification
+
+When `overall_result` is `failed` or `blocked`, set `error_category` based on heuristics over `output_excerpt`:
+
+| Heuristic match in output | Category |
+| :--- | :--- |
+| `TimeoutError`, `Connection refused`, `network unreachable`, `disk full`, `429 Too Many Requests` | `environment` |
+| Same test passes on rerun without code change | `flaky` |
+| `ModuleNotFoundError`, `ImportError`, `unresolved reference`, missing package | `dependency` |
+| `AssertionError`, `expected X got Y`, type errors, logic-level test failures | `logic` |
+| Cannot classify confidently | `unknown` |
+
+If `overall_result` is `passed`, omit `error_category` entirely.
+
+This classification is advisory. Future automation may use it to choose between auto-retry (environment, flaky) and re-blueprint (logic, dependency); for now it is metadata for human review and `q-blueprint`'s related-failure lookup.
+
+### 4. Validate JSON
+
+If possible, validate with:
+
+```bash
+python -m jsonschema -i .ai/tasks/active/<TASK>/05-validation.json .agents/schemas/validation.schema.json
+```
+
+## Output
+
+Report:
+
+```text
+Validation: passed|failed|blocked
+Artifact: .ai/tasks/active/<TASK>/05-validation.json
+Failed commands: <none or list>
+```
+
+## Rules
+
+- Do not change source code.
+- Do not fix failures in this skill.
+- Do not run BDD acceptance suites.
+
+## 🛑 Handoff (single-phase boundary)
+
+This skill executes ONLY the **Verification** phase. After writing `05-validation.json`, STOP.
+
+- DO NOT activate `/q-review`, `/q-implement`, or any other skill — even when validation passes and the next step is "obvious".
+- DO NOT edit source code to fix a failing command. That is `q-implement`'s phase, dispatched separately.
+- DO NOT decide retries. The dispatcher (Rule #7) decides retries based on `error_category` and policy.
+- DO NOT write `06-review.json` or judge the diff.
+
+End your final message with exactly this line and nothing after it:
+
+```text
+Next phase: /q-review <TASK_ID> (if passed) OR /q-implement <TASK_ID> / /q-blueprint <TASK_ID> (per orchestrator policy on error_category) — dispatched separately by the orchestrator.
+```
+
+Auto-chaining into the next phase violates Quorum Rule #9 (Skills Are Single-Phase Units) and Rule #7 (Cost Bounded by Policy, Not Trust).

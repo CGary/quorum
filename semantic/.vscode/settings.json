@@ -1,0 +1,11 @@
+{
+  "sqltools.connections": [
+    {
+      "previewLimit": 50,
+      "driver": "SQLite",
+      "database": "${workspaceFolder:hsme}/data/engram.db",
+      "name": "hsme_db"
+    }
+  ],
+  "sqltools.useNodeRuntime": true
+}

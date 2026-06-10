@@ -1,0 +1,2558 @@
+{
+  "schema_version": 1,
+  "run_id": "20260426T-ranking-followup-pass",
+  "started_at": "2026-04-26T07:21:44Z",
+  "finished_at": "2026-04-26T07:21:45Z",
+  "config": {
+    "db_path": "data/engram.db",
+    "eval_path": "docs/future-missions/mission-3-eval-set.yaml",
+    "baseline_path": "docs/future-missions/mission-3-baseline.json",
+    "half_life_days": 14,
+    "output_dir": "data/benchmarks",
+    "run_id": "20260426T-ranking-followup-pass",
+    "no_vector": false
+  },
+  "eval_total": 20,
+  "baseline_drift": {
+    "compared": 20,
+    "matched": 20,
+    "mismatched": 0,
+    "missing": 0
+  },
+  "fuzzy_results": [
+    {
+      "id": "rec-01",
+      "category": "pure_recency",
+      "query": "what did we do in the last session",
+      "expected_winner_id": 994,
+      "off": [
+        {
+          "memory_id": 902,
+          "score": 0.01639344262295082
+        },
+        {
+          "memory_id": 905,
+          "score": 0.016129032258064516
+        },
+        {
+          "memory_id": 870,
+          "score": 0.015873015873015872
+        },
+        {
+          "memory_id": 889,
+          "score": 0.015625
+        },
+        {
+          "memory_id": 888,
+          "score": 0.015384615384615385
+        },
+        {
+          "memory_id": 872,
+          "score": 0.015151515151515152
+        },
+        {
+          "memory_id": 908,
+          "score": 0.014925373134328358
+        },
+        {
+          "memory_id": 773,
+          "score": 0.014705882352941176
+        },
+        {
+          "memory_id": 617,
+          "score": 0.014492753623188406
+        },
+        {
+          "memory_id": 911,
+          "score": 0.014285714285714285
+        }
+      ],
+      "on": [
+        {
+          "memory_id": 994,
+          "score": 1
+        },
+        {
+          "memory_id": 992,
+          "score": 0.999
+        },
+        {
+          "memory_id": 989,
+          "score": 0.998
+        },
+        {
+          "memory_id": 987,
+          "score": 0.997
+        },
+        {
+          "memory_id": 984,
+          "score": 0.996
+        },
+        {
+          "memory_id": 925,
+          "score": 0.995
+        },
+        {
+          "memory_id": 979,
+          "score": 0.994
+        },
+        {
+          "memory_id": 976,
+          "score": 0.993
+        },
+        {
+          "memory_id": 973,
+          "score": 0.992
+        },
+        {
+          "memory_id": 968,
+          "score": 0.991
+        }
+      ],
+      "off_expected_rank": null,
+      "on_expected_rank": 1,
+      "off_top1": false,
+      "off_top3": false,
+      "off_top10": false,
+      "on_top1": true,
+      "on_top3": true,
+      "on_top10": true
+    },
+    {
+      "id": "rec-02",
+      "category": "pure_recency",
+      "query": "last session aibbe",
+      "expected_winner_id": 911,
+      "off": [
+        {
+          "memory_id": 889,
+          "score": 0.01639344262295082
+        },
+        {
+          "memory_id": 905,
+          "score": 0.016129032258064516
+        },
+        {
+          "memory_id": 888,
+          "score": 0.015873015873015872
+        },
+        {
+          "memory_id": 611,
+          "score": 0.015625
+        },
+        {
+          "memory_id": 872,
+          "score": 0.015384615384615385
+        },
+        {
+          "memory_id": 613,
+          "score": 0.015151515151515152
+        },
+        {
+          "memory_id": 598,
+          "score": 0.014925373134328358
+        },
+        {
+          "memory_id": 870,
+          "score": 0.014705882352941176
+        },
+        {
+          "memory_id": 617,
+          "score": 0.014492753623188406
+        },
+        {
+          "memory_id": 887,
+          "score": 0.014285714285714285
+        }
+      ],
+      "on": [
+        {
+          "memory_id": 911,
+          "score": 1
+        },
+        {
+          "memory_id": 910,
+          "score": 0.999
+        },
+        {
+          "memory_id": 909,
+          "score": 0.998
+        },
+        {
+          "memory_id": 908,
+          "score": 0.997
+        },
+        {
+          "memory_id": 907,
+          "score": 0.996
+        },
+        {
+          "memory_id": 906,
+          "score": 0.995
+        },
+        {
+          "memory_id": 905,
+          "score": 0.994
+        },
+        {
+          "memory_id": 904,
+          "score": 0.993
+        },
+        {
+          "memory_id": 903,
+          "score": 0.992
+        },
+        {
+          "memory_id": 889,
+          "score": 0.991
+        }
+      ],
+      "off_expected_rank": null,
+      "on_expected_rank": 1,
+      "off_top1": false,
+      "off_top3": false,
+      "off_top10": false,
+      "on_top1": true,
+      "on_top3": true,
+      "on_top10": true
+    },
+    {
+      "id": "rec-03",
+      "category": "pure_recency",
+      "query": "most recent bugfix",
+      "expected_winner_id": 997,
+      "off": [
+        {
+          "memory_id": 918,
+          "score": 0.01639344262295082
+        },
+        {
+          "memory_id": 948,
+          "score": 0.016129032258064516
+        },
+        {
+          "memory_id": 771,
+          "score": 0.015873015873015872
+        },
+        {
+          "memory_id": 954,
+          "score": 0.015625
+        },
+        {
+          "memory_id": 603,
+          "score": 0.015384615384615385
+        },
+        {
+          "memory_id": 924,
+          "score": 0.015151515151515152
+        },
+        {
+          "memory_id": 577,
+          "score": 0.014925373134328358
+        },
+        {
+          "memory_id": 949,
+          "score": 0.014705882352941176
+        },
+        {
+          "memory_id": 340,
+          "score": 0.014492753623188406
+        },
+        {
+          "memory_id": 605,
+          "score": 0.014285714285714285
+        }
+      ],
+      "on": [
+        {
+          "memory_id": 997,
+          "score": 1
+        },
+        {
+          "memory_id": 978,
+          "score": 0.999
+        },
+        {
+          "memory_id": 975,
+          "score": 0.998
+        },
+        {
+          "memory_id": 974,
+          "score": 0.997
+        },
+        {
+          "memory_id": 972,
+          "score": 0.996
+        },
+        {
+          "memory_id": 970,
+          "score": 0.995
+        },
+        {
+          "memory_id": 967,
+          "score": 0.994
+        },
+        {
+          "memory_id": 964,
+          "score": 0.993
+        },
+        {
+          "memory_id": 960,
+          "score": 0.992
+        },
+        {
+          "memory_id": 956,
+          "score": 0.991
+        }
+      ],
+      "off_expected_rank": null,
+      "on_expected_rank": 1,
+      "off_top1": false,
+      "off_top3": false,
+      "off_top10": false,
+      "on_top1": true,
+      "on_top3": true,
+      "on_top10": true
+    },
+    {
+      "id": "rec-04",
+      "category": "pure_recency",
+      "query": "latest decision about hsme",
+      "expected_winner_id": 1002,
+      "off": [
+        {
+          "memory_id": 847,
+          "score": 0.01639344262295082
+        },
+        {
+          "memory_id": 849,
+          "score": 0.016129032258064516
+        },
+        {
+          "memory_id": 845,
+          "score": 0.015873015873015872
+        },
+        {
+          "memory_id": 1002,
+          "score": 0.015625
+        },
+        {
+          "memory_id": 842,
+          "score": 0.015384615384615385
+        },
+        {
+          "memory_id": 841,
+          "score": 0.015151515151515152
+        },
+        {
+          "memory_id": 944,
+          "score": 0.014925373134328358
+        },
+        {
+          "memory_id": 937,
+          "score": 0.014705882352941176
+        },
+        {
+          "memory_id": 942,
+          "score": 0.014492753623188406
+        },
+        {
+          "memory_id": 979,
+          "score": 0.014285714285714285
+        }
+      ],
+      "on": [
+        {
+          "memory_id": 1002,
+          "score": 1
+        },
+        {
+          "memory_id": 914,
+          "score": 0.999
+        },
+        {
+          "memory_id": 941,
+          "score": 0.998
+        },
+        {
+          "memory_id": 845,
+          "score": 0.997
+        },
+        {
+          "memory_id": 847,
+          "score": 0.014504599513260597
+        },
+        {
+          "memory_id": 849,
+          "score": 0.014275496339293642
+        },
+        {
+          "memory_id": 842,
+          "score": 0.013527995716409816
+        },
+        {
+          "memory_id": 979,
+          "score": 0.013494806277264494
+        },
+        {
+          "memory_id": 944,
+          "score": 0.01321016079158516
+        },
+        {
+          "memory_id": 994,
+          "score": 0.012995810274380265
+        }
+      ],
+      "off_expected_rank": 4,
+      "on_expected_rank": 1,
+      "off_top1": false,
+      "off_top3": false,
+      "off_top10": true,
+      "on_top1": true,
+      "on_top3": true,
+      "on_top10": true
+    },
+    {
+      "id": "rec-05",
+      "category": "pure_recency",
+      "query": "latest architecture note",
+      "expected_winner_id": 988,
+      "off": [
+        {
+          "memory_id": 276,
+          "score": 0.01639344262295082
+        },
+        {
+          "memory_id": 408,
+          "score": 0.016129032258064516
+        },
+        {
+          "memory_id": 928,
+          "score": 0.015873015873015872
+        },
+        {
+          "memory_id": 621,
+          "score": 0.015625
+        },
+        {
+          "memory_id": 234,
+          "score": 0.015384615384615385
+        },
+        {
+          "memory_id": 204,
+          "score": 0.015151515151515152
+        },
+        {
+          "memory_id": 986,
+          "score": 0.014925373134328358
+        },
+        {
+          "memory_id": 357,
+          "score": 0.014705882352941176
+        },
+        {
+          "memory_id": 100,
+          "score": 0.014492753623188406
+        },
+        {
+          "memory_id": 218,
+          "score": 0.014285714285714285
+        }
+      ],
+      "on": [
+        {
+          "memory_id": 988,
+          "score": 1
+        },
+        {
+          "memory_id": 986,
+          "score": 0.999
+        },
+        {
+          "memory_id": 983,
+          "score": 0.998
+        },
+        {
+          "memory_id": 947,
+          "score": 0.997
+        },
+        {
+          "memory_id": 938,
+          "score": 0.996
+        },
+        {
+          "memory_id": 842,
+          "score": 0.995
+        },
+        {
+          "memory_id": 814,
+          "score": 0.994
+        },
+        {
+          "memory_id": 779,
+          "score": 0.993
+        },
+        {
+          "memory_id": 766,
+          "score": 0.992
+        },
+        {
+          "memory_id": 737,
+          "score": 0.991
+        }
+      ],
+      "off_expected_rank": null,
+      "on_expected_rank": 1,
+      "off_top1": false,
+      "off_top3": false,
+      "off_top10": false,
+      "on_top1": true,
+      "on_top3": true,
+      "on_top10": true
+    },
+    {
+      "id": "rel-01",
+      "category": "pure_relevance",
+      "query": "hybrid search architecture RRF sqlite-vec FTS5",
+      "expected_winner_id": 7,
+      "off": [
+        {
+          "memory_id": 7,
+          "score": 0.03278688524590164
+        },
+        {
+          "memory_id": 916,
+          "score": 0.016129032258064516
+        },
+        {
+          "memory_id": 925,
+          "score": 0.015873015873015872
+        },
+        {
+          "memory_id": 922,
+          "score": 0.015384615384615385
+        },
+        {
+          "memory_id": 976,
+          "score": 0.015151515151515152
+        },
+        {
+          "memory_id": 842,
+          "score": 0.014925373134328358
+        },
+        {
+          "memory_id": 918,
+          "score": 0.014705882352941176
+        },
+        {
+          "memory_id": 841,
+          "score": 0.014492753623188406
+        },
+        {
+          "memory_id": 959,
+          "score": 0.014285714285714285
+        },
+        {
+          "memory_id": 926,
+          "score": 0.014084507042253521
+        }
+      ],
+      "on": [
+        {
+          "memory_id": 7,
+          "score": 0.03278688524590164
+        },
+        {
+          "memory_id": 916,
+          "score": 0.016129032258064516
+        },
+        {
+          "memory_id": 925,
+          "score": 0.015873015873015872
+        },
+        {
+          "memory_id": 922,
+          "score": 0.015384615384615385
+        },
+        {
+          "memory_id": 976,
+          "score": 0.015151515151515152
+        },
+        {
+          "memory_id": 842,
+          "score": 0.014925373134328358
+        },
+        {
+          "memory_id": 918,
+          "score": 0.014705882352941176
+        },
+        {
+          "memory_id": 841,
+          "score": 0.014492753623188406
+        },
+        {
+          "memory_id": 959,
+          "score": 0.014285714285714285
+        },
+        {
+          "memory_id": 926,
+          "score": 0.014084507042253521
+        }
+      ],
+      "off_expected_rank": 1,
+      "on_expected_rank": 1,
+      "off_top1": true,
+      "off_top3": true,
+      "off_top10": true,
+      "on_top1": true,
+      "on_top3": true,
+      "on_top10": true
+    },
+    {
+      "id": "rel-02",
+      "category": "pure_relevance",
+      "query": "FTS5 sanitization for natural language queries",
+      "expected_winner_id": 918,
+      "off": [
+        {
+          "memory_id": 683,
+          "score": 0.01639344262295082
+        },
+        {
+          "memory_id": 634,
+          "score": 0.016129032258064516
+        },
+        {
+          "memory_id": 765,
+          "score": 0.015873015873015872
+        },
+        {
+          "memory_id": 709,
+          "score": 0.015625
+        },
+        {
+          "memory_id": 182,
+          "score": 0.015384615384615385
+        },
+        {
+          "memory_id": 929,
+          "score": 0.015151515151515152
+        },
+        {
+          "memory_id": 648,
+          "score": 0.014925373134328358
+        },
+        {
+          "memory_id": 978,
+          "score": 0.014705882352941176
+        },
+        {
+          "memory_id": 406,
+          "score": 0.014492753623188406
+        },
+        {
+          "memory_id": 392,
+          "score": 0.014285714285714285
+        }
+      ],
+      "on": [
+        {
+          "memory_id": 683,
+          "score": 0.01639344262295082
+        },
+        {
+          "memory_id": 634,
+          "score": 0.016129032258064516
+        },
+        {
+          "memory_id": 765,
+          "score": 0.015873015873015872
+        },
+        {
+          "memory_id": 709,
+          "score": 0.015625
+        },
+        {
+          "memory_id": 182,
+          "score": 0.015384615384615385
+        },
+        {
+          "memory_id": 929,
+          "score": 0.015151515151515152
+        },
+        {
+          "memory_id": 648,
+          "score": 0.014925373134328358
+        },
+        {
+          "memory_id": 978,
+          "score": 0.014705882352941176
+        },
+        {
+          "memory_id": 406,
+          "score": 0.014492753623188406
+        },
+        {
+          "memory_id": 392,
+          "score": 0.014285714285714285
+        }
+      ],
+      "off_expected_rank": null,
+      "on_expected_rank": null,
+      "off_top1": false,
+      "off_top3": false,
+      "off_top10": false,
+      "on_top1": false,
+      "on_top3": false,
+      "on_top10": false
+    },
+    {
+      "id": "rel-03",
+      "category": "pure_relevance",
+      "query": "parseExtractedKG balanced braces malformed JSON phi3.5",
+      "expected_winner_id": 918,
+      "off": [
+        {
+          "memory_id": 918,
+          "score": 0.01639344262295082
+        },
+        {
+          "memory_id": 920,
+          "score": 0.016129032258064516
+        },
+        {
+          "memory_id": 836,
+          "score": 0.015873015873015872
+        },
+        {
+          "memory_id": 948,
+          "score": 0.015625
+        },
+        {
+          "memory_id": 949,
+          "score": 0.015384615384615385
+        },
+        {
+          "memory_id": 344,
+          "score": 0.015151515151515152
+        },
+        {
+          "memory_id": 202,
+          "score": 0.014925373134328358
+        },
+        {
+          "memory_id": 956,
+          "score": 0.014705882352941176
+        },
+        {
+          "memory_id": 954,
+          "score": 0.014492753623188406
+        },
+        {
+          "memory_id": 133,
+          "score": 0.014285714285714285
+        }
+      ],
+      "on": [
+        {
+          "memory_id": 918,
+          "score": 0.01639344262295082
+        },
+        {
+          "memory_id": 920,
+          "score": 0.016129032258064516
+        },
+        {
+          "memory_id": 836,
+          "score": 0.015873015873015872
+        },
+        {
+          "memory_id": 948,
+          "score": 0.015625
+        },
+        {
+          "memory_id": 949,
+          "score": 0.015384615384615385
+        },
+        {
+          "memory_id": 344,
+          "score": 0.015151515151515152
+        },
+        {
+          "memory_id": 202,
+          "score": 0.014925373134328358
+        },
+        {
+          "memory_id": 956,
+          "score": 0.014705882352941176
+        },
+        {
+          "memory_id": 954,
+          "score": 0.014492753623188406
+        },
+        {
+          "memory_id": 133,
+          "score": 0.014285714285714285
+        }
+      ],
+      "off_expected_rank": 1,
+      "on_expected_rank": 1,
+      "off_top1": true,
+      "off_top3": true,
+      "off_top10": true,
+      "on_top1": true,
+      "on_top3": true,
+      "on_top10": true
+    },
+    {
+      "id": "rel-04",
+      "category": "pure_relevance",
+      "query": "HSME observability foundation runtime architecture",
+      "expected_winner_id": 922,
+      "off": [
+        {
+          "memory_id": 988,
+          "score": 0.03278688524590164
+        },
+        {
+          "memory_id": 926,
+          "score": 0.03125
+        },
+        {
+          "memory_id": 987,
+          "score": 0.030621785881252923
+        },
+        {
+          "memory_id": 989,
+          "score": 0.02886002886002886
+        },
+        {
+          "memory_id": 986,
+          "score": 0.016129032258064516
+        },
+        {
+          "memory_id": 983,
+          "score": 0.015873015873015872
+        },
+        {
+          "memory_id": 993,
+          "score": 0.015151515151515152
+        },
+        {
+          "memory_id": 991,
+          "score": 0.014925373134328358
+        },
+        {
+          "memory_id": 982,
+          "score": 0.014285714285714285
+        },
+        {
+          "memory_id": 575,
+          "score": 0.014084507042253521
+        }
+      ],
+      "on": [
+        {
+          "memory_id": 988,
+          "score": 0.03278688524590164
+        },
+        {
+          "memory_id": 926,
+          "score": 0.03125
+        },
+        {
+          "memory_id": 987,
+          "score": 0.030621785881252923
+        },
+        {
+          "memory_id": 989,
+          "score": 0.02886002886002886
+        },
+        {
+          "memory_id": 986,
+          "score": 0.016129032258064516
+        },
+        {
+          "memory_id": 983,
+          "score": 0.015873015873015872
+        },
+        {
+          "memory_id": 993,
+          "score": 0.015151515151515152
+        },
+        {
+          "memory_id": 991,
+          "score": 0.014925373134328358
+        },
+        {
+          "memory_id": 982,
+          "score": 0.014285714285714285
+        },
+        {
+          "memory_id": 575,
+          "score": 0.014084507042253521
+        }
+      ],
+      "off_expected_rank": null,
+      "on_expected_rank": null,
+      "off_top1": false,
+      "off_top3": false,
+      "off_top10": false,
+      "on_top1": false,
+      "on_top3": false,
+      "on_top10": false
+    },
+    {
+      "id": "rel-05",
+      "category": "pure_relevance",
+      "query": "Ollama integration embeddings graph extraction proposal",
+      "expected_winner_id": 845,
+      "off": [
+        {
+          "memory_id": 941,
+          "score": 0.03252247488101534
+        },
+        {
+          "memory_id": 124,
+          "score": 0.01639344262295082
+        },
+        {
+          "memory_id": 956,
+          "score": 0.015873015873015872
+        },
+        {
+          "memory_id": 845,
+          "score": 0.015625
+        },
+        {
+          "memory_id": 922,
+          "score": 0.015384615384615385
+        },
+        {
+          "memory_id": 747,
+          "score": 0.015151515151515152
+        },
+        {
+          "memory_id": 918,
+          "score": 0.014925373134328358
+        },
+        {
+          "memory_id": 46,
+          "score": 0.014705882352941176
+        },
+        {
+          "memory_id": 973,
+          "score": 0.014492753623188406
+        },
+        {
+          "memory_id": 439,
+          "score": 0.014285714285714285
+        }
+      ],
+      "on": [
+        {
+          "memory_id": 941,
+          "score": 0.03252247488101534
+        },
+        {
+          "memory_id": 124,
+          "score": 0.01639344262295082
+        },
+        {
+          "memory_id": 956,
+          "score": 0.015873015873015872
+        },
+        {
+          "memory_id": 845,
+          "score": 0.015625
+        },
+        {
+          "memory_id": 922,
+          "score": 0.015384615384615385
+        },
+        {
+          "memory_id": 747,
+          "score": 0.015151515151515152
+        },
+        {
+          "memory_id": 918,
+          "score": 0.014925373134328358
+        },
+        {
+          "memory_id": 46,
+          "score": 0.014705882352941176
+        },
+        {
+          "memory_id": 973,
+          "score": 0.014492753623188406
+        },
+        {
+          "memory_id": 439,
+          "score": 0.014285714285714285
+        }
+      ],
+      "off_expected_rank": 4,
+      "on_expected_rank": 4,
+      "off_top1": false,
+      "off_top3": false,
+      "off_top10": true,
+      "on_top1": false,
+      "on_top3": false,
+      "on_top10": true
+    },
+    {
+      "id": "mix-01",
+      "category": "mixed",
+      "query": "latest changes to search_exact",
+      "expected_winner_id": 978,
+      "off": [
+        {
+          "memory_id": 925,
+          "score": 0.01639344262295082
+        },
+        {
+          "memory_id": 978,
+          "score": 0.016129032258064516
+        },
+        {
+          "memory_id": 967,
+          "score": 0.015873015873015872
+        },
+        {
+          "memory_id": 966,
+          "score": 0.015625
+        },
+        {
+          "memory_id": 924,
+          "score": 0.015384615384615385
+        },
+        {
+          "memory_id": 977,
+          "score": 0.014925373134328358
+        },
+        {
+          "memory_id": 580,
+          "score": 0.014705882352941176
+        },
+        {
+          "memory_id": 979,
+          "score": 0.014492753623188406
+        },
+        {
+          "memory_id": 960,
+          "score": 0.014285714285714285
+        },
+        {
+          "memory_id": 959,
+          "score": 0.014084507042253521
+        }
+      ],
+      "on": [
+        {
+          "memory_id": 1008,
+          "score": 1
+        },
+        {
+          "memory_id": 1006,
+          "score": 0.999
+        },
+        {
+          "memory_id": 1004,
+          "score": 0.998
+        },
+        {
+          "memory_id": 930,
+          "score": 0.997
+        },
+        {
+          "memory_id": 927,
+          "score": 0.996
+        },
+        {
+          "memory_id": 995,
+          "score": 0.995
+        },
+        {
+          "memory_id": 926,
+          "score": 0.994
+        },
+        {
+          "memory_id": 981,
+          "score": 0.993
+        },
+        {
+          "memory_id": 980,
+          "score": 0.992
+        },
+        {
+          "memory_id": 925,
+          "score": 0.991
+        }
+      ],
+      "off_expected_rank": 2,
+      "on_expected_rank": null,
+      "off_top1": false,
+      "off_top3": true,
+      "off_top10": true,
+      "on_top1": false,
+      "on_top3": false,
+      "on_top10": false
+    },
+    {
+      "id": "mix-02",
+      "category": "mixed",
+      "query": "recent decisions about observability",
+      "expected_winner_id": 991,
+      "off": [
+        {
+          "memory_id": 926,
+          "score": 0.01639344262295082
+        },
+        {
+          "memory_id": 986,
+          "score": 0.016129032258064516
+        },
+        {
+          "memory_id": 991,
+          "score": 0.015625
+        },
+        {
+          "memory_id": 993,
+          "score": 0.015384615384615385
+        },
+        {
+          "memory_id": 988,
+          "score": 0.015151515151515152
+        },
+        {
+          "memory_id": 982,
+          "score": 0.014925373134328358
+        },
+        {
+          "memory_id": 983,
+          "score": 0.014705882352941176
+        },
+        {
+          "memory_id": 928,
+          "score": 0.014492753623188406
+        },
+        {
+          "memory_id": 616,
+          "score": 0.014285714285714285
+        },
+        {
+          "memory_id": 575,
+          "score": 0.014084507042253521
+        }
+      ],
+      "on": [
+        {
+          "memory_id": 991,
+          "score": 1
+        },
+        {
+          "memory_id": 926,
+          "score": 0.015557851839957568
+        },
+        {
+          "memory_id": 986,
+          "score": 0.015262258081751561
+        },
+        {
+          "memory_id": 993,
+          "score": 0.014595200348811076
+        },
+        {
+          "memory_id": 988,
+          "score": 0.01435196191033284
+        },
+        {
+          "memory_id": 982,
+          "score": 0.014104681538385035
+        },
+        {
+          "memory_id": 983,
+          "score": 0.013903568403393312
+        },
+        {
+          "memory_id": 928,
+          "score": 0.013779667576738909
+        },
+        {
+          "memory_id": 927,
+          "score": 0.013204438661928705
+        },
+        {
+          "memory_id": 987,
+          "score": 0.01296255490424841
+        }
+      ],
+      "off_expected_rank": 3,
+      "on_expected_rank": 1,
+      "off_top1": false,
+      "off_top3": true,
+      "off_top10": true,
+      "on_top1": true,
+      "on_top3": true,
+      "on_top10": true
+    },
+    {
+      "id": "mix-03",
+      "category": "mixed",
+      "query": "stalled async task queue fix",
+      "expected_winner_id": 997,
+      "off": [
+        {
+          "memory_id": 997,
+          "score": 0.01639344262295082
+        },
+        {
+          "memory_id": 918,
+          "score": 0.016129032258064516
+        },
+        {
+          "memory_id": 927,
+          "score": 0.015873015873015872
+        },
+        {
+          "memory_id": 954,
+          "score": 0.015625
+        },
+        {
+          "memory_id": 947,
+          "score": 0.015384615384615385
+        },
+        {
+          "memory_id": 948,
+          "score": 0.015151515151515152
+        },
+        {
+          "memory_id": 136,
+          "score": 0.014925373134328358
+        },
+        {
+          "memory_id": 926,
+          "score": 0.014705882352941176
+        },
+        {
+          "memory_id": 955,
+          "score": 0.014492753623188406
+        },
+        {
+          "memory_id": 998,
+          "score": 0.014285714285714285
+        }
+      ],
+      "on": [
+        {
+          "memory_id": 997,
+          "score": 0.01639344262295082
+        },
+        {
+          "memory_id": 918,
+          "score": 0.016129032258064516
+        },
+        {
+          "memory_id": 927,
+          "score": 0.015873015873015872
+        },
+        {
+          "memory_id": 954,
+          "score": 0.015625
+        },
+        {
+          "memory_id": 947,
+          "score": 0.015384615384615385
+        },
+        {
+          "memory_id": 948,
+          "score": 0.015151515151515152
+        },
+        {
+          "memory_id": 136,
+          "score": 0.014925373134328358
+        },
+        {
+          "memory_id": 926,
+          "score": 0.014705882352941176
+        },
+        {
+          "memory_id": 955,
+          "score": 0.014492753623188406
+        },
+        {
+          "memory_id": 998,
+          "score": 0.014285714285714285
+        }
+      ],
+      "off_expected_rank": 1,
+      "on_expected_rank": 1,
+      "off_top1": true,
+      "off_top3": true,
+      "off_top10": true,
+      "on_top1": true,
+      "on_top3": true,
+      "on_top10": true
+    },
+    {
+      "id": "mix-04",
+      "category": "mixed",
+      "query": "latest HSME worker remediation",
+      "expected_winner_id": 947,
+      "off": [
+        {
+          "memory_id": 918,
+          "score": 0.01639344262295082
+        },
+        {
+          "memory_id": 927,
+          "score": 0.016129032258064516
+        },
+        {
+          "memory_id": 954,
+          "score": 0.015873015873015872
+        },
+        {
+          "memory_id": 947,
+          "score": 0.015625
+        },
+        {
+          "memory_id": 948,
+          "score": 0.015384615384615385
+        },
+        {
+          "memory_id": 893,
+          "score": 0.015151515151515152
+        },
+        {
+          "memory_id": 870,
+          "score": 0.014925373134328358
+        },
+        {
+          "memory_id": 926,
+          "score": 0.014705882352941176
+        },
+        {
+          "memory_id": 949,
+          "score": 0.014492753623188406
+        },
+        {
+          "memory_id": 894,
+          "score": 0.014285714285714285
+        }
+      ],
+      "on": [
+        {
+          "memory_id": 947,
+          "score": 1
+        },
+        {
+          "memory_id": 927,
+          "score": 0.015334186222512708
+        },
+        {
+          "memory_id": 918,
+          "score": 0.014792695593212344
+        },
+        {
+          "memory_id": 954,
+          "score": 0.014318940727265054
+        },
+        {
+          "memory_id": 926,
+          "score": 0.013956307712377396
+        },
+        {
+          "memory_id": 948,
+          "score": 0.013857187756255916
+        },
+        {
+          "memory_id": 893,
+          "score": 0.013461583065949119
+        },
+        {
+          "memory_id": 998,
+          "score": 0.013386840882100421
+        },
+        {
+          "memory_id": 870,
+          "score": 0.013260663811815962
+        },
+        {
+          "memory_id": 949,
+          "score": 0.013056475952167537
+        }
+      ],
+      "off_expected_rank": 4,
+      "on_expected_rank": 1,
+      "off_top1": false,
+      "off_top3": false,
+      "off_top10": true,
+      "on_top1": true,
+      "on_top3": true,
+      "on_top10": true
+    },
+    {
+      "id": "mix-05",
+      "category": "mixed",
+      "query": "latest changes to the schema",
+      "expected_winner_id": 988,
+      "off": [
+        {
+          "memory_id": 956,
+          "score": 0.01639344262295082
+        },
+        {
+          "memory_id": 928,
+          "score": 0.016129032258064516
+        },
+        {
+          "memory_id": 922,
+          "score": 0.015873015873015872
+        },
+        {
+          "memory_id": 918,
+          "score": 0.015625
+        },
+        {
+          "memory_id": 973,
+          "score": 0.015384615384615385
+        },
+        {
+          "memory_id": 218,
+          "score": 0.015151515151515152
+        },
+        {
+          "memory_id": 286,
+          "score": 0.014925373134328358
+        },
+        {
+          "memory_id": 417,
+          "score": 0.014705882352941176
+        },
+        {
+          "memory_id": 252,
+          "score": 0.014492753623188406
+        },
+        {
+          "memory_id": 294,
+          "score": 0.014285714285714285
+        }
+      ],
+      "on": [
+        {
+          "memory_id": 988,
+          "score": 1
+        },
+        {
+          "memory_id": 986,
+          "score": 0.999
+        },
+        {
+          "memory_id": 983,
+          "score": 0.998
+        },
+        {
+          "memory_id": 972,
+          "score": 0.997
+        },
+        {
+          "memory_id": 970,
+          "score": 0.996
+        },
+        {
+          "memory_id": 956,
+          "score": 0.995
+        },
+        {
+          "memory_id": 948,
+          "score": 0.994
+        },
+        {
+          "memory_id": 418,
+          "score": 0.993
+        },
+        {
+          "memory_id": 414,
+          "score": 0.992
+        },
+        {
+          "memory_id": 411,
+          "score": 0.991
+        }
+      ],
+      "off_expected_rank": null,
+      "on_expected_rank": 1,
+      "off_top1": false,
+      "off_top3": false,
+      "off_top10": false,
+      "on_top1": true,
+      "on_top3": true,
+      "on_top10": true
+    },
+    {
+      "id": "adv-01",
+      "category": "adversarial",
+      "query": "original HSME architecture overview",
+      "expected_winner_id": 7,
+      "off": [
+        {
+          "memory_id": 276,
+          "score": 0.01639344262295082
+        },
+        {
+          "memory_id": 408,
+          "score": 0.016129032258064516
+        },
+        {
+          "memory_id": 234,
+          "score": 0.015873015873015872
+        },
+        {
+          "memory_id": 405,
+          "score": 0.015625
+        },
+        {
+          "memory_id": 357,
+          "score": 0.015384615384615385
+        },
+        {
+          "memory_id": 621,
+          "score": 0.015151515151515152
+        },
+        {
+          "memory_id": 347,
+          "score": 0.014925373134328358
+        },
+        {
+          "memory_id": 387,
+          "score": 0.014705882352941176
+        },
+        {
+          "memory_id": 154,
+          "score": 0.014492753623188406
+        },
+        {
+          "memory_id": 986,
+          "score": 0.014285714285714285
+        }
+      ],
+      "on": [
+        {
+          "memory_id": 276,
+          "score": 0.01639344262295082
+        },
+        {
+          "memory_id": 408,
+          "score": 0.016129032258064516
+        },
+        {
+          "memory_id": 234,
+          "score": 0.015873015873015872
+        },
+        {
+          "memory_id": 405,
+          "score": 0.015625
+        },
+        {
+          "memory_id": 357,
+          "score": 0.015384615384615385
+        },
+        {
+          "memory_id": 621,
+          "score": 0.015151515151515152
+        },
+        {
+          "memory_id": 347,
+          "score": 0.014925373134328358
+        },
+        {
+          "memory_id": 387,
+          "score": 0.014705882352941176
+        },
+        {
+          "memory_id": 154,
+          "score": 0.014492753623188406
+        },
+        {
+          "memory_id": 986,
+          "score": 0.014285714285714285
+        }
+      ],
+      "off_expected_rank": null,
+      "on_expected_rank": null,
+      "off_top1": false,
+      "off_top3": false,
+      "off_top10": false,
+      "on_top1": false,
+      "on_top3": false,
+      "on_top10": false
+    },
+    {
+      "id": "adv-02",
+      "category": "adversarial",
+      "query": "aibbe architecture specs roadmap ui ux documentation",
+      "expected_winner_id": 234,
+      "off": [
+        {
+          "memory_id": 367,
+          "score": 0.01639344262295082
+        },
+        {
+          "memory_id": 234,
+          "score": 0.016129032258064516
+        },
+        {
+          "memory_id": 152,
+          "score": 0.015873015873015872
+        },
+        {
+          "memory_id": 192,
+          "score": 0.015625
+        },
+        {
+          "memory_id": 423,
+          "score": 0.015384615384615385
+        },
+        {
+          "memory_id": 220,
+          "score": 0.015151515151515152
+        },
+        {
+          "memory_id": 323,
+          "score": 0.014925373134328358
+        },
+        {
+          "memory_id": 263,
+          "score": 0.014705882352941176
+        },
+        {
+          "memory_id": 803,
+          "score": 0.014492753623188406
+        },
+        {
+          "memory_id": 204,
+          "score": 0.014285714285714285
+        }
+      ],
+      "on": [
+        {
+          "memory_id": 367,
+          "score": 0.01639344262295082
+        },
+        {
+          "memory_id": 234,
+          "score": 0.016129032258064516
+        },
+        {
+          "memory_id": 152,
+          "score": 0.015873015873015872
+        },
+        {
+          "memory_id": 192,
+          "score": 0.015625
+        },
+        {
+          "memory_id": 423,
+          "score": 0.015384615384615385
+        },
+        {
+          "memory_id": 220,
+          "score": 0.015151515151515152
+        },
+        {
+          "memory_id": 323,
+          "score": 0.014925373134328358
+        },
+        {
+          "memory_id": 263,
+          "score": 0.014705882352941176
+        },
+        {
+          "memory_id": 803,
+          "score": 0.014492753623188406
+        },
+        {
+          "memory_id": 204,
+          "score": 0.014285714285714285
+        }
+      ],
+      "off_expected_rank": 2,
+      "on_expected_rank": 2,
+      "off_top1": false,
+      "off_top3": true,
+      "off_top10": true,
+      "on_top1": false,
+      "on_top3": true,
+      "on_top10": true
+    },
+    {
+      "id": "adv-03",
+      "category": "adversarial",
+      "query": "t1 base rutina daemon initialization exploration",
+      "expected_winner_id": 154,
+      "off": [
+        {
+          "memory_id": 157,
+          "score": 0.01639344262295082
+        },
+        {
+          "memory_id": 154,
+          "score": 0.016129032258064516
+        },
+        {
+          "memory_id": 156,
+          "score": 0.015873015873015872
+        },
+        {
+          "memory_id": 162,
+          "score": 0.015625
+        },
+        {
+          "memory_id": 155,
+          "score": 0.015384615384615385
+        },
+        {
+          "memory_id": 166,
+          "score": 0.015151515151515152
+        },
+        {
+          "memory_id": 158,
+          "score": 0.014925373134328358
+        },
+        {
+          "memory_id": 165,
+          "score": 0.014705882352941176
+        },
+        {
+          "memory_id": 856,
+          "score": 0.014492753623188406
+        },
+        {
+          "memory_id": 194,
+          "score": 0.014285714285714285
+        }
+      ],
+      "on": [
+        {
+          "memory_id": 157,
+          "score": 0.01639344262295082
+        },
+        {
+          "memory_id": 154,
+          "score": 0.016129032258064516
+        },
+        {
+          "memory_id": 156,
+          "score": 0.015873015873015872
+        },
+        {
+          "memory_id": 162,
+          "score": 0.015625
+        },
+        {
+          "memory_id": 155,
+          "score": 0.015384615384615385
+        },
+        {
+          "memory_id": 166,
+          "score": 0.015151515151515152
+        },
+        {
+          "memory_id": 158,
+          "score": 0.014925373134328358
+        },
+        {
+          "memory_id": 165,
+          "score": 0.014705882352941176
+        },
+        {
+          "memory_id": 856,
+          "score": 0.014492753623188406
+        },
+        {
+          "memory_id": 194,
+          "score": 0.014285714285714285
+        }
+      ],
+      "off_expected_rank": 2,
+      "on_expected_rank": 2,
+      "off_top1": false,
+      "off_top3": true,
+      "off_top10": true,
+      "on_top1": false,
+      "on_top3": true,
+      "on_top10": true
+    },
+    {
+      "id": "adv-04",
+      "category": "adversarial",
+      "query": "frontend-erp project context sdd init",
+      "expected_winner_id": 11,
+      "off": [
+        {
+          "memory_id": 19,
+          "score": 0.01639344262295082
+        },
+        {
+          "memory_id": 11,
+          "score": 0.016129032258064516
+        },
+        {
+          "memory_id": 24,
+          "score": 0.015873015873015872
+        },
+        {
+          "memory_id": 131,
+          "score": 0.015625
+        },
+        {
+          "memory_id": 466,
+          "score": 0.015384615384615385
+        },
+        {
+          "memory_id": 27,
+          "score": 0.015151515151515152
+        },
+        {
+          "memory_id": 23,
+          "score": 0.014925373134328358
+        },
+        {
+          "memory_id": 297,
+          "score": 0.014705882352941176
+        },
+        {
+          "memory_id": 18,
+          "score": 0.014492753623188406
+        },
+        {
+          "memory_id": 149,
+          "score": 0.014285714285714285
+        }
+      ],
+      "on": [
+        {
+          "memory_id": 19,
+          "score": 0.01639344262295082
+        },
+        {
+          "memory_id": 11,
+          "score": 0.016129032258064516
+        },
+        {
+          "memory_id": 24,
+          "score": 0.015873015873015872
+        },
+        {
+          "memory_id": 131,
+          "score": 0.015625
+        },
+        {
+          "memory_id": 466,
+          "score": 0.015384615384615385
+        },
+        {
+          "memory_id": 27,
+          "score": 0.015151515151515152
+        },
+        {
+          "memory_id": 23,
+          "score": 0.014925373134328358
+        },
+        {
+          "memory_id": 297,
+          "score": 0.014705882352941176
+        },
+        {
+          "memory_id": 18,
+          "score": 0.014492753623188406
+        },
+        {
+          "memory_id": 149,
+          "score": 0.014285714285714285
+        }
+      ],
+      "off_expected_rank": 2,
+      "on_expected_rank": 2,
+      "off_top1": false,
+      "off_top3": true,
+      "off_top10": true,
+      "on_top1": false,
+      "on_top3": true,
+      "on_top10": true
+    },
+    {
+      "id": "adv-05",
+      "category": "adversarial",
+      "query": "t2 seguridad ipc archived umask 0600 cross uid rejection",
+      "expected_winner_id": 188,
+      "off": [
+        {
+          "memory_id": 188,
+          "score": 0.01639344262295082
+        },
+        {
+          "memory_id": 173,
+          "score": 0.016129032258064516
+        },
+        {
+          "memory_id": 183,
+          "score": 0.015873015873015872
+        },
+        {
+          "memory_id": 176,
+          "score": 0.015625
+        },
+        {
+          "memory_id": 857,
+          "score": 0.015384615384615385
+        },
+        {
+          "memory_id": 181,
+          "score": 0.015151515151515152
+        },
+        {
+          "memory_id": 168,
+          "score": 0.014925373134328358
+        },
+        {
+          "memory_id": 178,
+          "score": 0.014705882352941176
+        },
+        {
+          "memory_id": 202,
+          "score": 0.014492753623188406
+        },
+        {
+          "memory_id": 858,
+          "score": 0.014285714285714285
+        }
+      ],
+      "on": [
+        {
+          "memory_id": 188,
+          "score": 0.01639344262295082
+        },
+        {
+          "memory_id": 173,
+          "score": 0.016129032258064516
+        },
+        {
+          "memory_id": 183,
+          "score": 0.015873015873015872
+        },
+        {
+          "memory_id": 176,
+          "score": 0.015625
+        },
+        {
+          "memory_id": 857,
+          "score": 0.015384615384615385
+        },
+        {
+          "memory_id": 181,
+          "score": 0.015151515151515152
+        },
+        {
+          "memory_id": 168,
+          "score": 0.014925373134328358
+        },
+        {
+          "memory_id": 178,
+          "score": 0.014705882352941176
+        },
+        {
+          "memory_id": 202,
+          "score": 0.014492753623188406
+        },
+        {
+          "memory_id": 858,
+          "score": 0.014285714285714285
+        }
+      ],
+      "off_expected_rank": 1,
+      "on_expected_rank": 1,
+      "off_top1": true,
+      "off_top3": true,
+      "off_top10": true,
+      "on_top1": true,
+      "on_top3": true,
+      "on_top10": true
+    }
+  ],
+  "exact_samples": [
+    {
+      "id": "rec-01",
+      "category": "pure_recency",
+      "query": "what did we do in the last session",
+      "expected_winner_id": 994,
+      "off": [],
+      "on": [],
+      "off_expected_rank": null,
+      "on_expected_rank": null,
+      "off_top1": false,
+      "off_top3": false,
+      "off_top10": false,
+      "on_top1": false,
+      "on_top3": false,
+      "on_top10": false
+    },
+    {
+      "id": "rec-02",
+      "category": "pure_recency",
+      "query": "last session aibbe",
+      "expected_winner_id": 911,
+      "off": [],
+      "on": [],
+      "off_expected_rank": null,
+      "on_expected_rank": null,
+      "off_top1": false,
+      "off_top3": false,
+      "off_top10": false,
+      "on_top1": false,
+      "on_top3": false,
+      "on_top10": false
+    },
+    {
+      "id": "rec-03",
+      "category": "pure_recency",
+      "query": "most recent bugfix",
+      "expected_winner_id": 997,
+      "off": [],
+      "on": [],
+      "off_expected_rank": null,
+      "on_expected_rank": null,
+      "off_top1": false,
+      "off_top3": false,
+      "off_top10": false,
+      "on_top1": false,
+      "on_top3": false,
+      "on_top10": false
+    },
+    {
+      "id": "rec-04",
+      "category": "pure_recency",
+      "query": "latest decision about hsme",
+      "expected_winner_id": 1002,
+      "off": [],
+      "on": [],
+      "off_expected_rank": null,
+      "on_expected_rank": null,
+      "off_top1": false,
+      "off_top3": false,
+      "off_top10": false,
+      "on_top1": false,
+      "on_top3": false,
+      "on_top10": false
+    },
+    {
+      "id": "rec-05",
+      "category": "pure_recency",
+      "query": "latest architecture note",
+      "expected_winner_id": 988,
+      "off": [],
+      "on": [],
+      "off_expected_rank": null,
+      "on_expected_rank": null,
+      "off_top1": false,
+      "off_top3": false,
+      "off_top10": false,
+      "on_top1": false,
+      "on_top3": false,
+      "on_top10": false
+    },
+    {
+      "id": "rel-01",
+      "category": "pure_relevance",
+      "query": "hybrid search architecture RRF sqlite-vec FTS5",
+      "expected_winner_id": 7,
+      "off": [
+        {
+          "memory_id": 7,
+          "score": -10.880646268545492
+        }
+      ],
+      "on": [
+        {
+          "memory_id": 7,
+          "score": -9.653931376685994
+        }
+      ],
+      "off_expected_rank": 1,
+      "on_expected_rank": 1,
+      "off_top1": true,
+      "off_top3": true,
+      "off_top10": true,
+      "on_top1": true,
+      "on_top3": true,
+      "on_top10": true
+    },
+    {
+      "id": "rel-02",
+      "category": "pure_relevance",
+      "query": "FTS5 sanitization for natural language queries",
+      "expected_winner_id": 918,
+      "off": [],
+      "on": [],
+      "off_expected_rank": null,
+      "on_expected_rank": null,
+      "off_top1": false,
+      "off_top3": false,
+      "off_top10": false,
+      "on_top1": false,
+      "on_top3": false,
+      "on_top10": false
+    },
+    {
+      "id": "rel-03",
+      "category": "pure_relevance",
+      "query": "parseExtractedKG balanced braces malformed JSON phi3.5",
+      "expected_winner_id": 918,
+      "off": [],
+      "on": [],
+      "off_expected_rank": null,
+      "on_expected_rank": null,
+      "off_top1": false,
+      "off_top3": false,
+      "off_top10": false,
+      "on_top1": false,
+      "on_top3": false,
+      "on_top10": false
+    },
+    {
+      "id": "rel-04",
+      "category": "pure_relevance",
+      "query": "HSME observability foundation runtime architecture",
+      "expected_winner_id": 922,
+      "off": [
+        {
+          "memory_id": 926,
+          "score": -8.101092021255667
+        },
+        {
+          "memory_id": 987,
+          "score": -10.775217189387272
+        },
+        {
+          "memory_id": 988,
+          "score": -11.480307109607475
+        },
+        {
+          "memory_id": 989,
+          "score": -9.805202091923764
+        }
+      ],
+      "on": [
+        {
+          "memory_id": 988,
+          "score": -10.874486002373551
+        },
+        {
+          "memory_id": 987,
+          "score": -10.196227704376302
+        },
+        {
+          "memory_id": 989,
+          "score": -9.287872850993729
+        },
+        {
+          "memory_id": 926,
+          "score": -7.688171377323044
+        }
+      ],
+      "off_expected_rank": null,
+      "on_expected_rank": null,
+      "off_top1": false,
+      "off_top3": false,
+      "off_top10": false,
+      "on_top1": false,
+      "on_top3": false,
+      "on_top10": false
+    },
+    {
+      "id": "rel-05",
+      "category": "pure_relevance",
+      "query": "Ollama integration embeddings graph extraction proposal",
+      "expected_winner_id": 845,
+      "off": [
+        {
+          "memory_id": 941,
+          "score": -16.46474839446499
+        }
+      ],
+      "on": [
+        {
+          "memory_id": 941,
+          "score": -14.543174094113306
+        }
+      ],
+      "off_expected_rank": null,
+      "on_expected_rank": null,
+      "off_top1": false,
+      "off_top3": false,
+      "off_top10": false,
+      "on_top1": false,
+      "on_top3": false,
+      "on_top10": false
+    },
+    {
+      "id": "mix-01",
+      "category": "mixed",
+      "query": "latest changes to search_exact",
+      "expected_winner_id": 978,
+      "off": [],
+      "on": [],
+      "off_expected_rank": null,
+      "on_expected_rank": null,
+      "off_top1": false,
+      "off_top3": false,
+      "off_top10": false,
+      "on_top1": false,
+      "on_top3": false,
+      "on_top10": false
+    },
+    {
+      "id": "mix-02",
+      "category": "mixed",
+      "query": "recent decisions about observability",
+      "expected_winner_id": 991,
+      "off": [],
+      "on": [],
+      "off_expected_rank": null,
+      "on_expected_rank": null,
+      "off_top1": false,
+      "off_top3": false,
+      "off_top10": false,
+      "on_top1": false,
+      "on_top3": false,
+      "on_top10": false
+    },
+    {
+      "id": "mix-03",
+      "category": "mixed",
+      "query": "stalled async task queue fix",
+      "expected_winner_id": 997,
+      "off": [],
+      "on": [],
+      "off_expected_rank": null,
+      "on_expected_rank": null,
+      "off_top1": false,
+      "off_top3": false,
+      "off_top10": false,
+      "on_top1": false,
+      "on_top3": false,
+      "on_top10": false
+    },
+    {
+      "id": "mix-04",
+      "category": "mixed",
+      "query": "latest HSME worker remediation",
+      "expected_winner_id": 947,
+      "off": [],
+      "on": [],
+      "off_expected_rank": null,
+      "on_expected_rank": null,
+      "off_top1": false,
+      "off_top3": false,
+      "off_top10": false,
+      "on_top1": false,
+      "on_top3": false,
+      "on_top10": false
+    },
+    {
+      "id": "mix-05",
+      "category": "mixed",
+      "query": "latest changes to the schema",
+      "expected_winner_id": 988,
+      "off": [],
+      "on": [],
+      "off_expected_rank": null,
+      "on_expected_rank": null,
+      "off_top1": false,
+      "off_top3": false,
+      "off_top10": false,
+      "on_top1": false,
+      "on_top3": false,
+      "on_top10": false
+    },
+    {
+      "id": "adv-01",
+      "category": "adversarial",
+      "query": "original HSME architecture overview",
+      "expected_winner_id": 7,
+      "off": [],
+      "on": [],
+      "off_expected_rank": null,
+      "on_expected_rank": null,
+      "off_top1": false,
+      "off_top3": false,
+      "off_top10": false,
+      "on_top1": false,
+      "on_top3": false,
+      "on_top10": false
+    },
+    {
+      "id": "adv-02",
+      "category": "adversarial",
+      "query": "aibbe architecture specs roadmap ui ux documentation",
+      "expected_winner_id": 234,
+      "off": [],
+      "on": [],
+      "off_expected_rank": null,
+      "on_expected_rank": null,
+      "off_top1": false,
+      "off_top3": false,
+      "off_top10": false,
+      "on_top1": false,
+      "on_top3": false,
+      "on_top10": false
+    },
+    {
+      "id": "adv-03",
+      "category": "adversarial",
+      "query": "t1 base rutina daemon initialization exploration",
+      "expected_winner_id": 154,
+      "off": [],
+      "on": [],
+      "off_expected_rank": null,
+      "on_expected_rank": null,
+      "off_top1": false,
+      "off_top3": false,
+      "off_top10": false,
+      "on_top1": false,
+      "on_top3": false,
+      "on_top10": false
+    },
+    {
+      "id": "adv-04",
+      "category": "adversarial",
+      "query": "frontend-erp project context sdd init",
+      "expected_winner_id": 11,
+      "off": [],
+      "on": [],
+      "off_expected_rank": null,
+      "on_expected_rank": null,
+      "off_top1": false,
+      "off_top3": false,
+      "off_top10": false,
+      "on_top1": false,
+      "on_top3": false,
+      "on_top10": false
+    },
+    {
+      "id": "adv-05",
+      "category": "adversarial",
+      "query": "t2 seguridad ipc archived umask 0600 cross uid rejection",
+      "expected_winner_id": 188,
+      "off": [],
+      "on": [],
+      "off_expected_rank": null,
+      "on_expected_rank": null,
+      "off_top1": false,
+      "off_top3": false,
+      "off_top10": false,
+      "on_top1": false,
+      "on_top3": false,
+      "on_top10": false
+    }
+  ],
+  "category_metrics": {
+    "adversarial": {
+      "n": 5,
+      "top1_hit_rate": 0.2,
+      "top3_hit_rate": 0.8,
+      "top10_hit_rate": 0.8
+    },
+    "mixed": {
+      "n": 5,
+      "top1_hit_rate": 0.8,
+      "top3_hit_rate": 0.8,
+      "top10_hit_rate": 0.8
+    },
+    "pure_recency": {
+      "n": 5,
+      "top1_hit_rate": 1,
+      "top3_hit_rate": 1,
+      "top10_hit_rate": 1
+    },
+    "pure_relevance": {
+      "n": 5,
+      "top1_hit_rate": 0.4,
+      "top3_hit_rate": 0.4,
+      "top10_hit_rate": 0.6
+    }
+  },
+  "overall_metrics": {
+    "n": 20,
+    "top1_hit_rate": 0.6,
+    "top3_hit_rate": 0.75,
+    "top10_hit_rate": 0.8
+  },
+  "acceptance": {
+    "passed": true,
+    "pure_recency_top3_passed": true,
+    "adversarial_top3_passed": true,
+    "pure_relevance_top10_passed": true,
+    "mixed_top3_passed": true,
+    "thresholds": {
+      "adversarial_top3": 0.8,
+      "mixed_top3": 0.6,
+      "pure_recency_top3": 0.6,
+      "pure_relevance_top10": 0.6
+    }
+  },
+  "deltas": [
+    {
+      "id": "rec-01",
+      "category": "pure_recency",
+      "query": "what did we do in the last session",
+      "off_rank": null,
+      "on_rank": 1
+    },
+    {
+      "id": "rec-02",
+      "category": "pure_recency",
+      "query": "last session aibbe",
+      "off_rank": null,
+      "on_rank": 1
+    },
+    {
+      "id": "rec-03",
+      "category": "pure_recency",
+      "query": "most recent bugfix",
+      "off_rank": null,
+      "on_rank": 1
+    },
+    {
+      "id": "rec-04",
+      "category": "pure_recency",
+      "query": "latest decision about hsme",
+      "off_rank": 4,
+      "on_rank": 1,
+      "rank_delta": 3
+    },
+    {
+      "id": "rec-05",
+      "category": "pure_recency",
+      "query": "latest architecture note",
+      "off_rank": null,
+      "on_rank": 1
+    },
+    {
+      "id": "rel-01",
+      "category": "pure_relevance",
+      "query": "hybrid search architecture RRF sqlite-vec FTS5",
+      "off_rank": 1,
+      "on_rank": 1,
+      "rank_delta": 0
+    },
+    {
+      "id": "rel-02",
+      "category": "pure_relevance",
+      "query": "FTS5 sanitization for natural language queries",
+      "off_rank": null,
+      "on_rank": null
+    },
+    {
+      "id": "rel-03",
+      "category": "pure_relevance",
+      "query": "parseExtractedKG balanced braces malformed JSON phi3.5",
+      "off_rank": 1,
+      "on_rank": 1,
+      "rank_delta": 0
+    },
+    {
+      "id": "rel-04",
+      "category": "pure_relevance",
+      "query": "HSME observability foundation runtime architecture",
+      "off_rank": null,
+      "on_rank": null
+    },
+    {
+      "id": "rel-05",
+      "category": "pure_relevance",
+      "query": "Ollama integration embeddings graph extraction proposal",
+      "off_rank": 4,
+      "on_rank": 4,
+      "rank_delta": 0
+    },
+    {
+      "id": "mix-01",
+      "category": "mixed",
+      "query": "latest changes to search_exact",
+      "off_rank": 2,
+      "on_rank": null
+    },
+    {
+      "id": "mix-02",
+      "category": "mixed",
+      "query": "recent decisions about observability",
+      "off_rank": 3,
+      "on_rank": 1,
+      "rank_delta": 2
+    },
+    {
+      "id": "mix-03",
+      "category": "mixed",
+      "query": "stalled async task queue fix",
+      "off_rank": 1,
+      "on_rank": 1,
+      "rank_delta": 0
+    },
+    {
+      "id": "mix-04",
+      "category": "mixed",
+      "query": "latest HSME worker remediation",
+      "off_rank": 4,
+      "on_rank": 1,
+      "rank_delta": 3
+    },
+    {
+      "id": "mix-05",
+      "category": "mixed",
+      "query": "latest changes to the schema",
+      "off_rank": null,
+      "on_rank": 1
+    },
+    {
+      "id": "adv-01",
+      "category": "adversarial",
+      "query": "original HSME architecture overview",
+      "off_rank": null,
+      "on_rank": null
+    },
+    {
+      "id": "adv-02",
+      "category": "adversarial",
+      "query": "aibbe architecture specs roadmap ui ux documentation",
+      "off_rank": 2,
+      "on_rank": 2,
+      "rank_delta": 0
+    },
+    {
+      "id": "adv-03",
+      "category": "adversarial",
+      "query": "t1 base rutina daemon initialization exploration",
+      "off_rank": 2,
+      "on_rank": 2,
+      "rank_delta": 0
+    },
+    {
+      "id": "adv-04",
+      "category": "adversarial",
+      "query": "frontend-erp project context sdd init",
+      "off_rank": 2,
+      "on_rank": 2,
+      "rank_delta": 0
+    },
+    {
+      "id": "adv-05",
+      "category": "adversarial",
+      "query": "t2 seguridad ipc archived umask 0600 cross uid rejection",
+      "off_rank": 1,
+      "on_rank": 1,
+      "rank_delta": 0
+    }
+  ]
+}

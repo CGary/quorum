@@ -1,0 +1,1 @@
+Que hsme tenga posibilidad de usar llm en la nube que son rápidos y/o gratis, que trate de usar el 1 que sera el pontente, ya que la segunda opción es el un modelo lento corriendo en el ordenador.

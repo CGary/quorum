@@ -1,0 +1,189 @@
+{
+  "run_id": "20260426T-ranking-followup-pass",
+  "half_life_days": 14,
+  "baseline_drift": {
+    "compared": 20,
+    "matched": 20,
+    "mismatched": 0,
+    "missing": 0
+  },
+  "deltas": [
+    {
+      "id": "rec-01",
+      "category": "pure_recency",
+      "query": "what did we do in the last session",
+      "off_rank": null,
+      "on_rank": 1
+    },
+    {
+      "id": "rec-02",
+      "category": "pure_recency",
+      "query": "last session aibbe",
+      "off_rank": null,
+      "on_rank": 1
+    },
+    {
+      "id": "rec-03",
+      "category": "pure_recency",
+      "query": "most recent bugfix",
+      "off_rank": null,
+      "on_rank": 1
+    },
+    {
+      "id": "rec-04",
+      "category": "pure_recency",
+      "query": "latest decision about hsme",
+      "off_rank": 4,
+      "on_rank": 1,
+      "rank_delta": 3
+    },
+    {
+      "id": "rec-05",
+      "category": "pure_recency",
+      "query": "latest architecture note",
+      "off_rank": null,
+      "on_rank": 1
+    },
+    {
+      "id": "rel-01",
+      "category": "pure_relevance",
+      "query": "hybrid search architecture RRF sqlite-vec FTS5",
+      "off_rank": 1,
+      "on_rank": 1,
+      "rank_delta": 0
+    },
+    {
+      "id": "rel-02",
+      "category": "pure_relevance",
+      "query": "FTS5 sanitization for natural language queries",
+      "off_rank": null,
+      "on_rank": null
+    },
+    {
+      "id": "rel-03",
+      "category": "pure_relevance",
+      "query": "parseExtractedKG balanced braces malformed JSON phi3.5",
+      "off_rank": 1,
+      "on_rank": 1,
+      "rank_delta": 0
+    },
+    {
+      "id": "rel-04",
+      "category": "pure_relevance",
+      "query": "HSME observability foundation runtime architecture",
+      "off_rank": null,
+      "on_rank": null
+    },
+    {
+      "id": "rel-05",
+      "category": "pure_relevance",
+      "query": "Ollama integration embeddings graph extraction proposal",
+      "off_rank": 4,
+      "on_rank": 4,
+      "rank_delta": 0
+    },
+    {
+      "id": "mix-01",
+      "category": "mixed",
+      "query": "latest changes to search_exact",
+      "off_rank": 2,
+      "on_rank": null
+    },
+    {
+      "id": "mix-02",
+      "category": "mixed",
+      "query": "recent decisions about observability",
+      "off_rank": 3,
+      "on_rank": 1,
+      "rank_delta": 2
+    },
+    {
+      "id": "mix-03",
+      "category": "mixed",
+      "query": "stalled async task queue fix",
+      "off_rank": 1,
+      "on_rank": 1,
+      "rank_delta": 0
+    },
+    {
+      "id": "mix-04",
+      "category": "mixed",
+      "query": "latest HSME worker remediation",
+      "off_rank": 4,
+      "on_rank": 1,
+      "rank_delta": 3
+    },
+    {
+      "id": "mix-05",
+      "category": "mixed",
+      "query": "latest changes to the schema",
+      "off_rank": null,
+      "on_rank": 1
+    },
+    {
+      "id": "adv-01",
+      "category": "adversarial",
+      "query": "original HSME architecture overview",
+      "off_rank": null,
+      "on_rank": null
+    },
+    {
+      "id": "adv-02",
+      "category": "adversarial",
+      "query": "aibbe architecture specs roadmap ui ux documentation",
+      "off_rank": 2,
+      "on_rank": 2,
+      "rank_delta": 0
+    },
+    {
+      "id": "adv-03",
+      "category": "adversarial",
+      "query": "t1 base rutina daemon initialization exploration",
+      "off_rank": 2,
+      "on_rank": 2,
+      "rank_delta": 0
+    },
+    {
+      "id": "adv-04",
+      "category": "adversarial",
+      "query": "frontend-erp project context sdd init",
+      "off_rank": 2,
+      "on_rank": 2,
+      "rank_delta": 0
+    },
+    {
+      "id": "adv-05",
+      "category": "adversarial",
+      "query": "t2 seguridad ipc archived umask 0600 cross uid rejection",
+      "off_rank": 1,
+      "on_rank": 1,
+      "rank_delta": 0
+    }
+  ],
+  "category_metrics": {
+    "adversarial": {
+      "n": 5,
+      "top1_hit_rate": 0.2,
+      "top3_hit_rate": 0.8,
+      "top10_hit_rate": 0.8
+    },
+    "mixed": {
+      "n": 5,
+      "top1_hit_rate": 0.8,
+      "top3_hit_rate": 0.8,
+      "top10_hit_rate": 0.8
+    },
+    "pure_recency": {
+      "n": 5,
+      "top1_hit_rate": 1,
+      "top3_hit_rate": 1,
+      "top10_hit_rate": 1
+    },
+    "pure_relevance": {
+      "n": 5,
+      "top1_hit_rate": 0.4,
+      "top3_hit_rate": 0.4,
+      "top10_hit_rate": 0.6
+    }
+  }
+}
