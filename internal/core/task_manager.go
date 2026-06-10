@@ -486,27 +486,14 @@ func ShowStatus(taskID string) error {
 }
 
 func GetBaseBranch() string {
-	out, err := exec.Command("git", "symbolic-ref", "refs/remotes/origin/HEAD").Output()
-	if err == nil {
-		parts := strings.Split(strings.TrimSpace(string(out)), "/")
-		if len(parts) > 0 {
-			return parts[len(parts)-1]
-		}
-	}
-	for _, b := range []string{"main", "master", "develop", "trunk"} {
-		out, err := exec.Command("git", "show-ref", "--verify", "refs/heads/"+b).Output()
-		if err == nil && len(out) > 0 {
-			return b
-		}
-	}
-	out, err = exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD").Output()
-	if err == nil {
-		return strings.TrimSpace(string(out))
-	}
-	return "main"
+	return execGitRunner{}.BaseBranch()
 }
 
 func StartTask(taskID string) {
+	startTaskWith(execGitRunner{}, taskID)
+}
+
+func startTaskWith(git GitRunner, taskID string) {
 	fmt.Printf("[*] Starting task %s...\n", taskID)
 	store, err := DefaultTaskStore()
 	if err != nil {
@@ -546,15 +533,14 @@ func StartTask(taskID string) {
 	root, _ := ProjectRoot()
 	worktreePath := filepath.Join(root, "worktrees", taskID)
 	branchName := "ai/" + taskID
-	baseBranch := GetBaseBranch()
+	baseBranch := git.BaseBranch()
 
 	if _, err := os.Stat(worktreePath); err == nil {
 		fmt.Printf("[*] Worktree for %s already exists.\n", taskID)
 	} else {
 		fmt.Printf("[*] Creating worktree in %s (base: %s)...\n", worktreePath, baseBranch)
-		cmd := exec.Command("git", "worktree", "add", worktreePath, "-b", branchName, baseBranch)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			fmt.Printf("[!] Error creating worktree: %s\n", strings.TrimSpace(string(out)))
+		if err := git.WorktreeAdd(worktreePath, branchName, baseBranch); err != nil {
+			fmt.Printf("[!] Error creating worktree: %s\n", err)
 			return
 		}
 	}
@@ -619,23 +605,7 @@ func StartTask(taskID string) {
 }
 
 func WorktreeDirtyPaths(worktreePath string) []string {
-	out, err := exec.Command("git", "-C", worktreePath, "status", "--porcelain").CombinedOutput()
-	if err != nil {
-		return nil
-	}
-	var paths []string
-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		path := strings.TrimSpace(line[2:])
-		if strings.Contains(path, " -> ") {
-			parts := strings.Split(path, " -> ")
-			path = parts[len(parts)-1]
-		}
-		paths = append(paths, path)
-	}
+	paths, _ := execGitRunner{}.DirtyPaths(worktreePath)
 	return paths
 }
 
@@ -644,24 +614,8 @@ func IsWorktreeDirty(worktreePath string) bool {
 }
 
 func SaveWorktreeChanges(worktreePath, taskID string) (bool, string) {
-	root, err := ProjectRoot()
+	patchPath, err := execGitRunner{}.SavePatch(worktreePath, taskID)
 	if err != nil {
-		return false, err.Error()
-	}
-	stashDir := filepath.Join(root, "worktrees", ".stash")
-	if err := os.MkdirAll(stashDir, 0755); err != nil {
-		return false, err.Error()
-	}
-	patchPath := filepath.Join(stashDir, fmt.Sprintf("%s-%s.patch", taskID, time.Now().UTC().Format("20060102T150405Z")))
-	_ = exec.Command("git", "-C", worktreePath, "add", "-N", ".").Run()
-	out, err := exec.Command("git", "-C", worktreePath, "diff", "--binary", "HEAD").CombinedOutput()
-	if err != nil {
-		return false, string(out)
-	}
-	if len(out) == 0 {
-		return false, "no patch content produced"
-	}
-	if err := os.WriteFile(patchPath, out, 0644); err != nil {
 		return false, err.Error()
 	}
 	return true, patchPath
@@ -684,37 +638,18 @@ func appendCleanupTrace(taskDirPath, phase, result, notes string) {
 }
 
 func BranchExists(branchName string) bool {
-	root, _ := ProjectRoot()
-	err := exec.Command("git", "-C", root, "show-ref", "--verify", "refs/heads/"+branchName).Run()
-	return err == nil
+	return execGitRunner{}.BranchExists(branchName)
 }
 
 func DeleteBranchIfMerged(branchName, baseBranch string) bool {
-	if !BranchExists(branchName) {
-		fmt.Printf("[*] Branch %s is absent; skipping local branch cleanup.\n", branchName)
-		return false
-	}
-	root, _ := ProjectRoot()
-	err := exec.Command("git", "-C", root, "merge-base", "--is-ancestor", branchName, baseBranch).Run()
-	if err == nil {
-		out, err2 := exec.Command("git", "-C", root, "branch", "-d", branchName).CombinedOutput()
-		if err2 == nil {
-			fmt.Printf("[+] Deleted merged local branch %s.\n", branchName)
-			return true
-		}
-		fmt.Printf("[!] Could not delete merged local branch %s: %s\n", branchName, strings.TrimSpace(string(out)))
-		return false
-	}
-	if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
-		fmt.Printf("[!] Preserving local branch %s; it has commits not merged into %s.\n", branchName, baseBranch)
-		fmt.Printf("    After merging, delete it manually with: git branch -d %s\n", branchName)
-		return false
-	}
-	fmt.Printf("[!] Could not determine whether %s is merged into %s; preserving branch. \n", branchName, baseBranch)
-	return false
+	return execGitRunner{}.DeleteBranchIfMerged(branchName, baseBranch)
 }
 
 func CleanTask(taskID string, force, stash bool) {
+	cleanTaskWith(execGitRunner{}, taskID, force, stash)
+}
+
+func cleanTaskWith(git GitRunner, taskID string, force, stash bool) {
 	if force && stash {
 		fmt.Printf("[!] --force and --stash are mutually exclusive. Pick one: --force discards changes, --stash saves them to a patch.\n")
 		return
@@ -769,7 +704,7 @@ func CleanTask(taskID string, force, stash bool) {
 	root, _ := ProjectRoot()
 	worktreePath := filepath.Join(root, "worktrees", taskID)
 	if _, err := os.Stat(worktreePath); err == nil {
-		dirtyPaths := WorktreeDirtyPaths(worktreePath)
+		dirtyPaths, _ := git.DirtyPaths(worktreePath)
 		dirty := len(dirtyPaths) > 0
 		if dirty && !force && !stash {
 			appendCleanupTrace(taskDir.Path, "execute", "blocked", "dirty_worktree_detected: "+strings.Join(dirtyPaths, ", "))
@@ -784,28 +719,28 @@ func CleanTask(taskID string, force, stash bool) {
 		}
 		if dirty && stash {
 			fmt.Printf("[*] Saving worktree changes as patch...\n")
-			if ok, patchPath := SaveWorktreeChanges(worktreePath, taskID); !ok {
-				fmt.Printf("[!] patch save failed: %s\n", strings.TrimSpace(patchPath))
+			patchPath, err := git.SavePatch(worktreePath, taskID)
+			if err != nil {
+				fmt.Printf("[!] patch save failed: %s\n", strings.TrimSpace(err.Error()))
 				return
-			} else {
-				fmt.Printf("[+] Saved worktree patch: %s\n", patchPath)
-				appendCleanupTrace(taskDir.Path, "execute", "passed", "stash_path: "+patchPath)
 			}
+			fmt.Printf("[+] Saved worktree patch: %s\n", patchPath)
+			appendCleanupTrace(taskDir.Path, "execute", "passed", "stash_path: "+patchPath)
 		}
 		if force && dirty {
 			appendCleanupTrace(taskDir.Path, "execute", "passed", "force_cleanup: dirty paths "+strings.Join(dirtyPaths, ", "))
 			fmt.Printf("[*] Force-removing worktree %s (discarding changes)...\n", worktreePath)
-			exec.Command("git", "-C", root, "worktree", "remove", "--force", worktreePath).Run()
+			_ = git.WorktreeRemove(worktreePath, true)
 		} else if stash && dirty {
 			fmt.Printf("[*] Removing worktree %s after saving patch...\n", worktreePath)
-			exec.Command("git", "-C", root, "worktree", "remove", "--force", worktreePath).Run()
+			_ = git.WorktreeRemove(worktreePath, true)
 		} else {
 			fmt.Printf("[*] Removing worktree %s...\n", worktreePath)
-			exec.Command("git", "-C", root, "worktree", "remove", worktreePath).Run()
+			_ = git.WorktreeRemove(worktreePath, false)
 		}
 	}
 
-	DeleteBranchIfMerged("ai/"+taskID, GetBaseBranch())
+	git.DeleteBranchIfMerged("ai/"+taskID, git.BaseBranch())
 	if taskDir.Location == "active" {
 		fmt.Printf("[*] Archiving task to done/...\n")
 		store, err := DefaultTaskStore()
@@ -870,6 +805,10 @@ func AutoArchiveParentIfComplete(parentID string) {
 }
 
 func BackTask(taskID string, opts ...bool) {
+	backTaskWith(execGitRunner{}, taskID, opts...)
+}
+
+func backTaskWith(git GitRunner, taskID string, opts ...bool) {
 	force := false
 	stash := false
 	if len(opts) > 0 {
@@ -890,7 +829,7 @@ func BackTask(taskID string, opts ...bool) {
 	root, _ := ProjectRoot()
 	worktreePath := filepath.Join(root, "worktrees", taskID)
 	if _, err := os.Stat(worktreePath); err == nil {
-		dirtyPaths := WorktreeDirtyPaths(worktreePath)
+		dirtyPaths, _ := git.DirtyPaths(worktreePath)
 		dirty := len(dirtyPaths) > 0
 		if dirty && !force && !stash {
 			appendCleanupTrace(taskDir.Path, "execute", "blocked", "dirty_worktree_detected: "+strings.Join(dirtyPaths, ", "))
@@ -905,39 +844,24 @@ func BackTask(taskID string, opts ...bool) {
 		}
 		if dirty && stash {
 			fmt.Printf("[*] Saving worktree changes as patch...\n")
-			if ok, patchPath := SaveWorktreeChanges(worktreePath, taskID); !ok {
-				fmt.Printf("[!] patch save failed: %s\n", strings.TrimSpace(patchPath))
+			patchPath, err := git.SavePatch(worktreePath, taskID)
+			if err != nil {
+				fmt.Printf("[!] patch save failed: %s\n", strings.TrimSpace(err.Error()))
 				return
-			} else {
-				fmt.Printf("[+] Saved worktree patch: %s\n", patchPath)
-				appendCleanupTrace(taskDir.Path, "execute", "passed", "stash_path: "+patchPath)
 			}
+			fmt.Printf("[+] Saved worktree patch: %s\n", patchPath)
+			appendCleanupTrace(taskDir.Path, "execute", "passed", "stash_path: "+patchPath)
 		}
 		fmt.Printf("[*] Reversing 'start': removing worktree %s...\n", worktreePath)
-		args := []string{"worktree", "remove"}
-		if dirty && (force || stash) {
-			args = append(args, "--force")
-			if force {
-				appendCleanupTrace(taskDir.Path, "execute", "passed", "force_cleanup: dirty paths "+strings.Join(dirtyPaths, ", "))
-			}
+		forceRemove := dirty && (force || stash)
+		if forceRemove && force {
+			appendCleanupTrace(taskDir.Path, "execute", "passed", "force_cleanup: dirty paths "+strings.Join(dirtyPaths, ", "))
 		}
-		args = append(args, worktreePath)
-		out, err := exec.Command("git", args...).CombinedOutput()
-		if err != nil {
-			fmt.Printf("[!] git worktree remove failed: %s\n", strings.TrimSpace(string(out)))
+		if err := git.WorktreeRemove(worktreePath, forceRemove); err != nil {
+			fmt.Printf("[!] git worktree remove failed: %s\n", err)
 			return
 		}
-		branchName := "ai/" + taskID
-		baseBranch := GetBaseBranch()
-		out, err = exec.Command("git", "rev-list", "--count", baseBranch+".."+branchName).CombinedOutput()
-		if err == nil {
-			if strings.TrimSpace(string(out)) == "0" {
-				exec.Command("git", "branch", "-D", branchName).Run()
-				fmt.Printf("[+] Removed empty branch %s.\n", branchName)
-			} else {
-				fmt.Printf("[!] Branch %s has commits; not deleted. Use 'git branch -D %s' if you really want to drop them.\n", branchName, branchName)
-			}
-		}
+		git.ForceDeleteBranchIfEmpty("ai/"+taskID, git.BaseBranch())
 		fmt.Printf("[+] Worktree removed. Task %s stays in %s/. Re-run '/q-blueprint %s' if the contract needs changes, or 'quorum task start %s' when ready.\n", taskID, taskDir.Location, taskID, taskID)
 		return
 	}
@@ -1396,11 +1320,11 @@ func promptProjectConfig(in io.Reader, out io.Writer, suggested *QuorumConfig) (
 	return final, nil
 }
 
-func ensureRetryWorktree(taskID string) bool {
+func ensureRetryWorktreeWith(git GitRunner, taskID string) bool {
 	root, _ := ProjectRoot()
 	worktreePath := filepath.Join(root, "worktrees", taskID)
 	if _, err := os.Stat(worktreePath); err == nil {
-		if IsWorktreeDirty(worktreePath) {
+		if dirtyPaths, _ := git.DirtyPaths(worktreePath); len(dirtyPaths) > 0 {
 			fmt.Printf("[!] Worktree %s has uncommitted changes.\n", worktreePath)
 			fmt.Printf("[!] Refusing retry for %s until the worktree is clean.\n", taskID)
 			fmt.Printf("      cd %s && git status\n", worktreePath)
@@ -1410,15 +1334,14 @@ func ensureRetryWorktree(taskID string) bool {
 	}
 
 	branchName := "ai/" + taskID
-	var cmd *exec.Cmd
-	if err := exec.Command("git", "-C", root, "rev-parse", "--verify", branchName).Run(); err == nil {
-		cmd = exec.Command("git", "-C", root, "worktree", "add", worktreePath, branchName)
+	var err error
+	if git.RefExists(branchName) {
+		err = git.WorktreeAttach(worktreePath, branchName)
 	} else {
-		cmd = exec.Command("git", "-C", root, "worktree", "add", worktreePath, "-b", branchName, GetBaseBranch())
+		err = git.WorktreeAdd(worktreePath, branchName, git.BaseBranch())
 	}
-
-	if out, err := cmd.CombinedOutput(); err != nil {
-		fmt.Printf("[!] Could not prepare retry worktree for %s: %s\n", taskID, strings.TrimSpace(string(out)))
+	if err != nil {
+		fmt.Printf("[!] Could not prepare retry worktree for %s: %s\n", taskID, err)
 		return false
 	}
 	return true
@@ -1456,6 +1379,10 @@ func restoreParentForChildRetry(parentID string) bool {
 }
 
 func PrepareFailedChildRetry(taskID string) bool {
+	return prepareFailedChildRetryWith(execGitRunner{}, taskID)
+}
+
+func prepareFailedChildRetryWith(git GitRunner, taskID string) bool {
 	store, err := DefaultTaskStore()
 	if err != nil {
 		fmt.Printf("[!] Error initializing task store: %v\n", err)
@@ -1520,7 +1447,7 @@ func PrepareFailedChildRetry(taskID string) bool {
 		return false
 	}
 
-	if !ensureRetryWorktree(taskID) {
+	if !ensureRetryWorktreeWith(git, taskID) {
 		return false
 	}
 	if !restoreParentForChildRetry(parentID) {

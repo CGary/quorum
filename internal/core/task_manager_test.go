@@ -3,6 +3,7 @@ package core
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -1166,6 +1167,261 @@ func TestPromptProjectConfig(t *testing.T) {
 			}
 		})
 	}
+}
+
+// fakeGitRunner records port calls and answers from in-memory state so
+// task-state transitions are testable without real git repos or worktrees.
+// It is injected explicitly per test; there is no package-global hook.
+type fakeGitRunner struct {
+	base     string
+	branches map[string]bool
+	refs     map[string]bool
+	dirty    map[string][]string
+	patch    string
+	patchErr error
+	calls    []string
+}
+
+func newFakeGitRunner() *fakeGitRunner {
+	return &fakeGitRunner{
+		base:     "main",
+		branches: map[string]bool{},
+		refs:     map[string]bool{},
+		dirty:    map[string][]string{},
+	}
+}
+
+var _ GitRunner = (*fakeGitRunner)(nil)
+
+func (f *fakeGitRunner) record(call string)         { f.calls = append(f.calls, call) }
+func (f *fakeGitRunner) BaseBranch() string         { return f.base }
+func (f *fakeGitRunner) BranchExists(b string) bool { return f.branches[b] }
+func (f *fakeGitRunner) RefExists(r string) bool    { return f.refs[r] }
+func (f *fakeGitRunner) WorktreeAdd(path, branch, base string) error {
+	f.record("add " + path + " " + branch + " " + base)
+	return nil
+}
+func (f *fakeGitRunner) WorktreeAttach(path, branch string) error {
+	f.record("attach " + path + " " + branch)
+	return nil
+}
+func (f *fakeGitRunner) WorktreeRemove(path string, force bool) error {
+	f.record(fmt.Sprintf("remove %s force=%v", path, force))
+	return nil
+}
+func (f *fakeGitRunner) DirtyPaths(worktreePath string) ([]string, error) {
+	return f.dirty[worktreePath], nil
+}
+func (f *fakeGitRunner) SavePatch(worktreePath, taskID string) (string, error) {
+	f.record("patch " + taskID)
+	return f.patch, f.patchErr
+}
+func (f *fakeGitRunner) DeleteBranchIfMerged(branch, base string) bool {
+	f.record("delete-merged " + branch + " " + base)
+	return false
+}
+func (f *fakeGitRunner) ForceDeleteBranchIfEmpty(branch, base string) bool {
+	f.record("force-delete-empty " + branch + " " + base)
+	return false
+}
+
+func (f *fakeGitRunner) assertCalled(t *testing.T, want string) {
+	t.Helper()
+	for _, c := range f.calls {
+		if c == want {
+			return
+		}
+	}
+	t.Fatalf("call %q missing in %#v", want, f.calls)
+}
+
+func (f *fakeGitRunner) assertNotCalled(t *testing.T, prefix string) {
+	t.Helper()
+	for _, c := range f.calls {
+		if strings.HasPrefix(c, prefix) {
+			t.Fatalf("unexpected call %q in %#v", c, f.calls)
+		}
+	}
+}
+
+// mkFakeRepoRoot prepares a project root whose .git is a plain directory:
+// ProjectRoot resolves it via the upward walk, and any real git invocation
+// against it would fail — proving the transitions only talk to the fake port.
+func mkFakeRepoRoot(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	chdir(t, root)
+	ensureTaskDirs(t, root)
+	return root
+}
+
+func TestStartTaskWithFakeGitRunner(t *testing.T) {
+	useSchemas(t)
+	root := mkFakeRepoRoot(t)
+	taskDir := mkActiveTask(t, root, "FEAT-070")
+	mkContract(t, taskDir, "FEAT-070")
+
+	fake := newFakeGitRunner()
+	out := captureStdout(t, func() { startTaskWith(fake, "FEAT-070") })
+	if !strings.Contains(out, "initialized and worktree ready") {
+		t.Fatalf("output = %q", out)
+	}
+	wt := filepath.Join(root, "worktrees", "FEAT-070")
+	fake.assertCalled(t, "add "+wt+" ai/FEAT-070 main")
+	for _, artifact := range []string{"04-implementation-log.yaml", "07-trace.json"} {
+		if _, err := os.Stat(filepath.Join(taskDir, artifact)); err != nil {
+			t.Fatalf("missing %s: %v", artifact, err)
+		}
+	}
+}
+
+func TestCleanTaskWithFakeGitRunner(t *testing.T) {
+	cases := []struct {
+		name        string
+		dirty       []string
+		force, save bool
+		wantDone    bool
+		wantCalls   []string
+		wantMissing string
+		wantOut     string
+	}{
+		{name: "clean worktree removes and archives", wantDone: true,
+			wantCalls: []string{"remove {wt} force=false", "delete-merged ai/{id} main"}},
+		{name: "dirty without flags blocks", dirty: []string{"wip.txt"},
+			wantMissing: "remove ", wantOut: "uncommitted changes"},
+		{name: "dirty stash saves patch then force-removes", dirty: []string{"wip.txt"}, save: true, wantDone: true,
+			wantCalls: []string{"patch {id}", "remove {wt} force=true"}},
+		{name: "dirty force discards", dirty: []string{"wip.txt"}, force: true, wantDone: true,
+			wantCalls: []string{"remove {wt} force=true"}},
+	}
+	for i, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			useSchemas(t)
+			taskID := "FEAT-8" + string(rune('0'+i))
+			root := mkFakeRepoRoot(t)
+			taskDir := mkActiveTask(t, root, taskID)
+			wt := filepath.Join(root, "worktrees", taskID)
+			if err := os.MkdirAll(wt, 0o755); err != nil {
+				t.Fatal(err)
+			}
+
+			fake := newFakeGitRunner()
+			fake.dirty[wt] = tc.dirty
+			fake.patch = filepath.Join(root, "worktrees", ".stash", taskID+".patch")
+			out := captureStdout(t, func() { cleanTaskWith(fake, taskID, tc.force, tc.save) })
+
+			expand := strings.NewReplacer("{wt}", wt, "{id}", taskID)
+			for _, want := range tc.wantCalls {
+				fake.assertCalled(t, expand.Replace(want))
+			}
+			if tc.wantMissing != "" {
+				fake.assertNotCalled(t, tc.wantMissing)
+			}
+			if tc.wantOut != "" && !strings.Contains(out, tc.wantOut) {
+				t.Fatalf("output %q missing %q", out, tc.wantOut)
+			}
+			done := filepath.Join(root, ".ai", "tasks", "done", filepath.Base(taskDir))
+			if _, err := os.Stat(done); (err == nil) != tc.wantDone {
+				t.Fatalf("archived = %v, want %v", err == nil, tc.wantDone)
+			}
+		})
+	}
+}
+
+func TestBackTaskWithFakeGitRunner(t *testing.T) {
+	useSchemas(t)
+	root := mkFakeRepoRoot(t)
+	taskDir := mkActiveTask(t, root, "FEAT-090")
+	wt := filepath.Join(root, "worktrees", "FEAT-090")
+	if err := os.MkdirAll(wt, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	fake := newFakeGitRunner()
+	out := captureStdout(t, func() { backTaskWith(fake, "FEAT-090") })
+	if !strings.Contains(out, "Worktree removed") {
+		t.Fatalf("output = %q", out)
+	}
+	fake.assertCalled(t, "remove "+wt+" force=false")
+	fake.assertCalled(t, "force-delete-empty ai/FEAT-090 main")
+	if _, err := os.Stat(taskDir); err != nil {
+		t.Fatalf("task should stay in active/ after reversing start: %v", err)
+	}
+
+	// Dirty + stash: patch saved before the forced removal.
+	if err := os.MkdirAll(wt, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	fake2 := newFakeGitRunner()
+	fake2.dirty[wt] = []string{"wip.txt"}
+	fake2.patch = filepath.Join(root, "worktrees", ".stash", "FEAT-090.patch")
+	captureStdout(t, func() { backTaskWith(fake2, "FEAT-090", false, true) })
+	fake2.assertCalled(t, "patch FEAT-090")
+	fake2.assertCalled(t, "remove "+wt+" force=true")
+}
+
+func TestPrepareFailedChildRetryWithFakeGitRunner(t *testing.T) {
+	useSchemas(t)
+	root := mkFakeRepoRoot(t)
+	if err := os.MkdirAll(filepath.Join(root, ".ai", "tasks", "active", "PARENT-002"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	failedDir := filepath.Join(root, ".ai", "tasks", "failed", "PARENT-002-a")
+	if err := os.MkdirAll(failedDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	longText := "this is a very long string that satisfies the minimum length requirement"
+	childSpec := map[string]any{
+		"task_id":     "PARENT-002-a",
+		"parent_task": "PARENT-002",
+		"summary":     longText,
+		"goal":        longText,
+		"invariants":  []any{longText},
+		"acceptance":  []any{longText},
+		"risk":        "low",
+	}
+	childTrace := map[string]any{
+		"task_id":           "PARENT-002-a",
+		"summary":           longText,
+		"started_at":        "2024-01-01T00:00:00Z",
+		"execution_mode":    "patch_only",
+		"total_cost_usd":    0.0,
+		"violations":        []any{},
+		"context_overflows": []any{},
+		"attempts":          []any{},
+	}
+	if _, err := SaveArtifact(filepath.Join(failedDir, "00-spec.yaml"), childSpec); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := SaveArtifact(filepath.Join(failedDir, "07-trace.json"), childTrace); err != nil {
+		t.Fatal(err)
+	}
+
+	// Existing branch is re-attached, never re-created with -b.
+	fake := newFakeGitRunner()
+	fake.refs["ai/PARENT-002-a"] = true
+	ok := false
+	captureStdout(t, func() { ok = prepareFailedChildRetryWith(fake, "PARENT-002-a") })
+	if !ok {
+		t.Fatalf("retry preparation failed: %#v", fake.calls)
+	}
+	wt := filepath.Join(root, "worktrees", "PARENT-002-a")
+	fake.assertCalled(t, "attach "+wt+" ai/PARENT-002-a")
+	fake.assertNotCalled(t, "add ")
+	if _, err := os.Stat(filepath.Join(root, ".ai", "tasks", "active", "PARENT-002-a")); err != nil {
+		t.Fatalf("child not restored to active/: %v", err)
+	}
+
+	// Missing branch falls back to a fresh worktree add from the base branch.
+	fake2 := newFakeGitRunner()
+	if !ensureRetryWorktreeWith(fake2, "PARENT-002-b") {
+		t.Fatalf("ensureRetryWorktreeWith failed: %#v", fake2.calls)
+	}
+	wtB := filepath.Join(root, "worktrees", "PARENT-002-b")
+	fake2.assertCalled(t, "add "+wtB+" ai/PARENT-002-b main")
 }
 
 func TestEnsureProjectConfigGuards(t *testing.T) {
