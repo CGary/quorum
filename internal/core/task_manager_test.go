@@ -1417,8 +1417,8 @@ func TestPrepareFailedChildRetryWithFakeGitRunner(t *testing.T) {
 
 	// Missing branch falls back to a fresh worktree add from the base branch.
 	fake2 := newFakeGitRunner()
-	if !ensureRetryWorktreeWith(fake2, "PARENT-002-b") {
-		t.Fatalf("ensureRetryWorktreeWith failed: %#v", fake2.calls)
+	if err := ensureRetryWorktreeWith(fake2, "PARENT-002-b"); err != nil {
+		t.Fatalf("ensureRetryWorktreeWith failed: %v (%#v)", err, fake2.calls)
 	}
 	wtB := filepath.Join(root, "worktrees", "PARENT-002-b")
 	fake2.assertCalled(t, "add "+wtB+" ai/PARENT-002-b main")

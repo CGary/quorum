@@ -5,7 +5,14 @@ goal: >
 invariants:
   - Existing behavior that must remain true.
 acceptance:
-  - Measurable outcome that proves success.
+  # Structured form: stable id + statement, optional given/when/then state transition.
+  - id: AC-1
+    statement: Measurable outcome that proves success with state transition.
+    given: precondition state or context
+    when: trigger action or event
+    then: expected observable state change
+  # Plain string form: still valid; use it when the transition adds no value.
+  - Existing behavior or simple checklist item remains true.
 risk: medium
 non_goals:
   - Explicitly excluded outcome.

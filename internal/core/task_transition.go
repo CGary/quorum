@@ -523,6 +523,13 @@ func guardRetryPrepareTransition(ctx *TransitionContext) error {
 	if taskDir.Location != "failed" {
 		return fmt.Errorf("[!] Task %s is in %s/; retry preparation only handles failed/ children.", ctx.TaskID, taskDir.Location)
 	}
+	specPath, err := ctx.Store.TaskArtifactPath(taskDir, "00-spec.yaml")
+	if err != nil {
+		return fmt.Errorf("[!] Cannot retry %s: invalid 00-spec.yaml: %v", ctx.TaskID, err)
+	}
+	if _, err := os.Stat(specPath); os.IsNotExist(err) {
+		return fmt.Errorf("[!] Cannot retry %s: missing 00-spec.yaml.", ctx.TaskID)
+	}
 	payload, err := ctx.Store.LoadArtifact(taskDir, "00-spec.yaml")
 	if err != nil {
 		return fmt.Errorf("[!] Cannot retry %s: invalid 00-spec.yaml: %v", ctx.TaskID, err)
@@ -540,6 +547,13 @@ func guardRetryPrepareTransition(ctx *TransitionContext) error {
 	if _, err := os.Stat(activeTarget); err == nil {
 		return fmt.Errorf("[!] Cannot retry %s: active/%s already exists.", ctx.TaskID, filepath.Base(taskDir.Path))
 	}
+	tracePath, err := ctx.Store.TaskArtifactPath(taskDir, "07-trace.json")
+	if err != nil {
+		return fmt.Errorf("[!] Cannot retry %s: invalid 07-trace.json: %v", ctx.TaskID, err)
+	}
+	if _, err := os.Stat(tracePath); os.IsNotExist(err) {
+		return fmt.Errorf("[!] Cannot retry %s: missing 07-trace.json to preserve attempts history.", ctx.TaskID)
+	}
 	if _, err := ctx.Store.LoadArtifact(taskDir, "07-trace.json"); err != nil {
 		return fmt.Errorf("[!] Cannot retry %s: invalid 07-trace.json: %v", ctx.TaskID, err)
 	}
@@ -547,7 +561,35 @@ func guardRetryPrepareTransition(ctx *TransitionContext) error {
 }
 
 func effectRetryPrepareTransition(ctx *TransitionContext) error {
-	// The current retry path remains in prepareFailedChildRetryWith so its
-	// human/orchestrator-only behavior and user-facing messages stay unchanged.
+	if ctx.Noop {
+		fmt.Printf("[*] Task %s is already active; retry preparation not needed.\n", ctx.TaskID)
+		return nil
+	}
+	if err := ensureRetryWorktreeWith(ctx.Git, ctx.TaskID); err != nil {
+		return err
+	}
+	if err := restoreParentForChildRetry(ctx.ParentTaskID); err != nil {
+		return err
+	}
+	removed := clearRetryArtifacts(ctx.TaskDir.Path)
+	moved, err := ctx.Store.MoveTask(ctx.TaskDir, "active")
+	if err != nil {
+		return fmt.Errorf("[!] Cannot retry %s: %v", ctx.TaskID, err)
+	}
+	ctx.ResultTaskDir = moved
+	ctx.RemovedArtifacts = removed
+	if len(removed) > 0 {
+		fmt.Printf("[*] Removed stale retry artifacts for %s: %s\n", ctx.TaskID, strings.Join(removed, ", "))
+	}
+	fmt.Printf("[+] Failed child task %s restored to active/ for /q-implement retry.\n", ctx.TaskID)
 	return nil
+}
+
+func runRetryPrepareTransition(git GitRunner, taskID string) bool {
+	ctx := &TransitionContext{TaskID: taskID, Git: git}
+	if err := runTaskTransition(transitionRetryPrepare, ctx); err != nil {
+		fmt.Println(err)
+		return false
+	}
+	return true
 }

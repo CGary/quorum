@@ -169,31 +169,7 @@ func InitializeSpecify(taskID string) (string, error) {
 }
 
 func PrepareBlueprint(taskID string) (string, error) {
-	store, err := DefaultTaskStore()
-	if err != nil {
-		return "", err
-	}
-	taskDir, err := store.FindTask(taskID, "inbox")
-	if err != nil {
-		return "", err
-	}
-	if taskDir == nil {
-		activeDir, err := store.FindTask(taskID, "active")
-		if err != nil {
-			return "", err
-		}
-		if activeDir != nil {
-			fmt.Printf("[*] Task %s is already in active.\n", taskID)
-			return activeDir.Path, nil
-		}
-		return "", fmt.Errorf("Task %s not found in inbox.", taskID)
-	}
-
-	moved, err := store.MoveTask(taskDir, "active")
-	if err != nil {
-		return "", err
-	}
-	return moved.Path, nil
+	return runPrepareBlueprintTransition(taskID)
 }
 
 // acceptanceStatement returns the plain statement text of an acceptance item:
@@ -1065,17 +1041,14 @@ func promptProjectConfig(in io.Reader, out io.Writer, suggested *QuorumConfig) (
 	return final, nil
 }
 
-func ensureRetryWorktreeWith(git GitRunner, taskID string) bool {
+func ensureRetryWorktreeWith(git GitRunner, taskID string) error {
 	root, _ := ProjectRoot()
 	worktreePath := filepath.Join(root, "worktrees", taskID)
 	if _, err := os.Stat(worktreePath); err == nil {
 		if dirtyPaths, _ := git.DirtyPaths(worktreePath); len(dirtyPaths) > 0 {
-			fmt.Printf("[!] Worktree %s has uncommitted changes.\n", worktreePath)
-			fmt.Printf("[!] Refusing retry for %s until the worktree is clean.\n", taskID)
-			fmt.Printf("      cd %s && git status\n", worktreePath)
-			return false
+			return fmt.Errorf("[!] Worktree %s has uncommitted changes.\n[!] Refusing retry for %s until the worktree is clean.\n      cd %s && git status", worktreePath, taskID, worktreePath)
 		}
-		return true
+		return nil
 	}
 
 	branchName := "ai/" + taskID
@@ -1086,10 +1059,9 @@ func ensureRetryWorktreeWith(git GitRunner, taskID string) bool {
 		err = git.WorktreeAdd(worktreePath, branchName, git.BaseBranch())
 	}
 	if err != nil {
-		fmt.Printf("[!] Could not prepare retry worktree for %s: %s\n", taskID, err)
-		return false
+		return fmt.Errorf("[!] Could not prepare retry worktree for %s: %s", taskID, err)
 	}
-	return true
+	return nil
 }
 
 func clearRetryArtifacts(taskDir string) []string {
@@ -1104,23 +1076,21 @@ func clearRetryArtifacts(taskDir string) []string {
 	return removed
 }
 
-func restoreParentForChildRetry(parentID string) bool {
+func restoreParentForChildRetry(parentID string) error {
 	parentDir, err := FindTaskDir(parentID, []string{"active", "done"})
 	if err != nil || parentDir == nil {
-		fmt.Printf("[!] Parent task %s not found for retry.\n", parentID)
-		return false
+		return fmt.Errorf("[!] Parent task %s not found for retry.", parentID)
 	}
 	if parentDir.Location == "active" {
-		return true
+		return nil
 	}
 
 	store, _ := DefaultTaskStore()
 	fmt.Printf("[*] Restoring parent task %s from done/ to active/ for child retry...\n", parentID)
 	if _, err := store.MoveTask(parentDir, "active"); err != nil {
-		fmt.Printf("[!] Cannot restore parent %s: %v\n", parentID, err)
-		return false
+		return fmt.Errorf("[!] Cannot restore parent %s: %v", parentID, err)
 	}
-	return true
+	return nil
 }
 
 func PrepareFailedChildRetry(taskID string) bool {
@@ -1128,87 +1098,7 @@ func PrepareFailedChildRetry(taskID string) bool {
 }
 
 func prepareFailedChildRetryWith(git GitRunner, taskID string) bool {
-	store, err := DefaultTaskStore()
-	if err != nil {
-		fmt.Printf("[!] Error initializing task store: %v\n", err)
-		return false
-	}
-	taskDir, err := store.FindTask(taskID, "active", "failed")
-	if err != nil || taskDir == nil {
-		fmt.Printf("[!] Task %s not found in active/ or failed/.\n", taskID)
-		return false
-	}
-	if taskDir.Location == "active" {
-		fmt.Printf("[*] Task %s is already active; retry preparation not needed.\n", taskID)
-		return true
-	}
-	if taskDir.Location != "failed" {
-		fmt.Printf("[!] Task %s is in %s/; retry preparation only handles failed/ children.\n", taskID, taskDir.Location)
-		return false
-	}
-
-	specPath, err := store.TaskArtifactPath(taskDir, "00-spec.yaml")
-	if err != nil {
-		fmt.Printf("[!] Cannot retry %s: invalid 00-spec.yaml: %v\n", taskID, err)
-		return false
-	}
-	if _, err := os.Stat(specPath); os.IsNotExist(err) {
-		fmt.Printf("[!] Cannot retry %s: missing 00-spec.yaml.\n", taskID)
-		return false
-	}
-	payload, err := store.LoadArtifact(taskDir, "00-spec.yaml")
-	if err != nil {
-		fmt.Printf("[!] Cannot retry %s: invalid 00-spec.yaml: %v\n", taskID, err)
-		return false
-	}
-	spec, ok := payload.(map[string]any)
-	if !ok {
-		return false
-	}
-
-	parentID, ok := spec["parent_task"].(string)
-	if !ok || parentID == "" {
-		fmt.Printf("[!] Retry is only authorized for failed child tasks; %s has no parent_task.\n", taskID)
-		return false
-	}
-
-	activeTarget := filepath.Join(store.ProjectRoot, ".ai", "tasks", "active", filepath.Base(taskDir.Path))
-	if _, err := os.Stat(activeTarget); err == nil {
-		fmt.Printf("[!] Cannot retry %s: active/%s already exists.\n", taskID, filepath.Base(taskDir.Path))
-		return false
-	}
-
-	tracePath, err := store.TaskArtifactPath(taskDir, "07-trace.json")
-	if err != nil {
-		fmt.Printf("[!] Cannot retry %s: invalid 07-trace.json: %v\n", taskID, err)
-		return false
-	}
-	if _, err := os.Stat(tracePath); os.IsNotExist(err) {
-		fmt.Printf("[!] Cannot retry %s: missing 07-trace.json to preserve attempts history.\n", taskID)
-		return false
-	}
-	if _, err := store.LoadArtifact(taskDir, "07-trace.json"); err != nil {
-		fmt.Printf("[!] Cannot retry %s: invalid 07-trace.json: %v\n", taskID, err)
-		return false
-	}
-
-	if !ensureRetryWorktreeWith(git, taskID) {
-		return false
-	}
-	if !restoreParentForChildRetry(parentID) {
-		return false
-	}
-
-	removed := clearRetryArtifacts(taskDir.Path)
-	if _, err := store.MoveTask(taskDir, "active"); err != nil {
-		fmt.Printf("[!] Cannot retry %s: %v\n", taskID, err)
-		return false
-	}
-	if len(removed) > 0 {
-		fmt.Printf("[*] Removed stale retry artifacts for %s: %s\n", taskID, strings.Join(removed, ", "))
-	}
-	fmt.Printf("[+] Failed child task %s restored to active/ for /q-implement retry.\n", taskID)
-	return true
+	return runRetryPrepareTransition(git, taskID)
 }
 
 func DeriveParentState(spec map[string]any) string {
