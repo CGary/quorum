@@ -36,7 +36,39 @@
     "acceptance": {
       "type": "array",
       "items": {
-        "type": "string"
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "statement"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^AC-[0-9]+$",
+                "description": "Stable criterion identity within this spec. Never renumbered; uniqueness is a q-analyze protocol finding, not enforced here."
+              },
+              "statement": {
+                "type": "string",
+                "minLength": 1
+              },
+              "given": {
+                "type": "string"
+              },
+              "when": {
+                "type": "string"
+              },
+              "then": {
+                "type": "string"
+              }
+            }
+          }
+        ]
       },
       "minItems": 1
     },

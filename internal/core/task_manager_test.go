@@ -240,6 +240,116 @@ func TestValidateArtifactErrorFormatAndTraceAppendOnly(t *testing.T) {
 	}
 }
 
+func TestValidateSpecAcceptanceOneOf(t *testing.T) {
+	useSchemas(t)
+	base := func(acceptance []any) map[string]any {
+		return map[string]any{
+			"task_id":    "FEAT-001",
+			"summary":    "Spec with structured acceptance",
+			"goal":       "Exercise acceptance oneOf validation.",
+			"invariants": []any{"Existing specs keep validating."},
+			"acceptance": acceptance,
+		}
+	}
+
+	valid := []struct {
+		name       string
+		acceptance []any
+	}{
+		{"string only (backward compat)", []any{"User can select CASH."}},
+		{"object with id and statement", []any{map[string]any{"id": "AC-1", "statement": "User can select CASH."}}},
+		{"object with given/when/then", []any{map[string]any{"id": "AC-1", "statement": "User can select CASH.", "given": "an open sale", "when": "the user picks a method", "then": "the method is stored"}}},
+		{"mixed strings and objects", []any{"Existing tests pass.", map[string]any{"id": "AC-2", "statement": "New tests cover selection."}}},
+	}
+	for _, tc := range valid {
+		if err := ValidateArtifact("00-spec.yaml", base(tc.acceptance)); err != nil {
+			t.Fatalf("%s: unexpected error: %v", tc.name, err)
+		}
+	}
+
+	invalid := []struct {
+		name       string
+		acceptance []any
+		want       string
+	}{
+		{
+			"object missing statement",
+			[]any{map[string]any{"id": "AC-1", "given": "an open sale"}},
+			"artifact=00-spec.yaml; field=$.acceptance[0]; reason='statement' is a required property",
+		},
+		{
+			"object with unknown key",
+			[]any{map[string]any{"id": "AC-1", "statement": "ok", "foo": "bar"}},
+			"artifact=00-spec.yaml; field=$.acceptance[0]; reason=Additional properties are not allowed ('foo' was unexpected)",
+		},
+		{
+			"object with bad id pattern",
+			[]any{map[string]any{"id": "X-1", "statement": "ok"}},
+			"artifact=00-spec.yaml; field=$.acceptance[0].id; reason='X-1' does not match '^AC-[0-9]+$'",
+		},
+	}
+	for _, tc := range invalid {
+		err := ValidateArtifact("00-spec.yaml", base(tc.acceptance))
+		if err == nil || err.Error() != tc.want {
+			t.Fatalf("%s: error = %v, want %s", tc.name, err, tc.want)
+		}
+	}
+}
+
+func TestSplitTaskStripsAcceptanceObjects(t *testing.T) {
+	useSchemas(t)
+	root := initGitRepo(t)
+	chdir(t, root)
+	ensureTaskDirs(t, root)
+
+	parentDir := filepath.Join(root, ".ai", "tasks", "active", "FEAT-030-parent")
+	if err := os.MkdirAll(parentDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	parentSpec := "task_id: FEAT-030\n" +
+		"summary: Parent with structured acceptance\n" +
+		"goal: Coordinate split children with object criteria.\n" +
+		"invariants:\n  - Keep child order.\n" +
+		"acceptance:\n" +
+		"  - id: AC-1\n" +
+		"    statement: Structured criterion is stripped to its statement.\n" +
+		"    given: a parent spec with object acceptance\n" +
+		"    when: the parent is split\n" +
+		"    then: children receive the plain statement\n" +
+		"  - Plain string criterion is copied verbatim.\n" +
+		"risk: medium\n" +
+		"non_goals: []\n" +
+		"constraints: []\n" +
+		"decomposition:\n  - child_id: FEAT-030-a\n    summary: Only child\n"
+	if err := os.WriteFile(filepath.Join(parentDir, "00-spec.yaml"), []byte(parentSpec), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := SplitTask("FEAT-030"); err != nil {
+		t.Fatal(err)
+	}
+	childPayload, err := LoadArtifactPayload(filepath.Join(root, ".ai", "tasks", "inbox", "FEAT-030-a", "00-spec.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	childAcceptance, ok := asSlice(childPayload.(map[string]any)["acceptance"])
+	if !ok {
+		t.Fatalf("child acceptance is not a list: %#v", childPayload)
+	}
+	want := []any{
+		"Structured criterion is stripped to its statement.",
+		"Plain string criterion is copied verbatim.",
+	}
+	if len(childAcceptance) != len(want) {
+		t.Fatalf("child acceptance = %#v, want %#v", childAcceptance, want)
+	}
+	for i := range want {
+		if childAcceptance[i] != want[i] {
+			t.Fatalf("child acceptance[%d] = %#v, want %#v", i, childAcceptance[i], want[i])
+		}
+	}
+}
+
 func TestSaveArtifactValidatesBeforeOverwrite(t *testing.T) {
 	useSchemas(t)
 	root := t.TempDir()

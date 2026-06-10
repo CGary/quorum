@@ -3,6 +3,7 @@ package core
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -67,6 +68,64 @@ func TestAnalyzeParentChildCoverage_MissingChild(t *testing.T) {
 	}
 	if !hasMissingChild {
 		t.Errorf("missing child not reported in findings")
+	}
+}
+
+func TestAnalyzeParentChildCoverage_ObjectAcceptance(t *testing.T) {
+	tempDir := t.TempDir()
+	taskDir := filepath.Join(tempDir, ".ai", "tasks", "inbox", "F-100")
+	childDir := filepath.Join(tempDir, ".ai", "tasks", "inbox", "F-100-a")
+	os.MkdirAll(taskDir, 0755)
+	os.MkdirAll(childDir, 0755)
+
+	specPath := filepath.Join(taskDir, "00-spec.yaml")
+	DumpArtifactPayload(specPath, map[string]any{
+		"task_id":    "F-100",
+		"summary":    "something",
+		"goal":       "this is a valid goal",
+		"invariants": []string{"inv 1"},
+		"acceptance": []any{
+			map[string]any{"id": "AC-1", "statement": "structured acc 1", "given": "g", "when": "w", "then": "t"},
+			"plain acc 2",
+		},
+		"risk": "low",
+		"decomposition": []any{
+			map[string]any{"child_id": "F-100-a", "summary": "child a"},
+		},
+	})
+
+	childSpecPath := filepath.Join(childDir, "00-spec.yaml")
+	DumpArtifactPayload(childSpecPath, map[string]any{
+		"task_id":     "F-100-a",
+		"summary":     "child a",
+		"goal":        "this is a valid goal",
+		"parent_task": "F-100",
+		"invariants":  []string{"inv 1"},
+		"acceptance": []any{
+			"structured acc 1",
+			map[string]any{"id": "AC-1", "statement": "plain acc 2"},
+		},
+		"risk": "low",
+	})
+
+	res := AnalyzeParentChildCoverage(specPath, filepath.Join(tempDir, ".ai", "tasks"))
+	if res.Status != "pass" {
+		t.Fatalf("expected pass, got %q with findings: %v", res.Status, res.Findings)
+	}
+	if len(res.Coverage.Acceptance) != 2 {
+		t.Fatalf("expected 2 acceptance rows, got %#v", res.Coverage.Acceptance)
+	}
+	wantItems := []string{"structured acc 1", "plain acc 2"}
+	for i, row := range res.Coverage.Acceptance {
+		if row.Item != wantItems[i] {
+			t.Errorf("acceptance[%d].Item = %q, want %q (no map[...] dump)", i, row.Item, wantItems[i])
+		}
+		if strings.Contains(row.Item, "map[") {
+			t.Errorf("acceptance[%d].Item contains stringified map: %q", i, row.Item)
+		}
+		if len(row.CoveredBy) != 1 || row.CoveredBy[0] != "F-100-a" {
+			t.Errorf("acceptance[%d].CoveredBy = %v, want [F-100-a]", i, row.CoveredBy)
+		}
 	}
 }
 

@@ -197,6 +197,35 @@ func PrepareBlueprint(taskID string) (string, error) {
 	return moved.Path, nil
 }
 
+// acceptanceStatement returns the plain statement text of an acceptance item:
+// the string itself for string items, the "statement" field for object items.
+func acceptanceStatement(item any) string {
+	if s, ok := item.(string); ok {
+		return s
+	}
+	if stmt, ok := lookupKey(item, "statement"); ok {
+		if s, ok := stmt.(string); ok {
+			return s
+		}
+	}
+	return fmt.Sprintf("%v", item)
+}
+
+// flattenAcceptance strips object-form acceptance criteria down to their plain
+// statement. Acceptance ids belong to the spec where they are born; children
+// must not inherit the parent's AC-* identities.
+func flattenAcceptance(acceptance any) any {
+	items, ok := asSlice(acceptance)
+	if !ok {
+		return acceptance
+	}
+	flat := make([]any, len(items))
+	for i, item := range items {
+		flat[i] = acceptanceStatement(item)
+	}
+	return flat
+}
+
 func SplitTask(parentID string) error {
 	if !parentIDRE.MatchString(parentID) {
 		fmt.Printf("[!] '%s' is not a valid parent task ID (expected '<PREFIX>-<NUMBER>', e.g. FEAT-001).\n", parentID)
@@ -277,7 +306,7 @@ func SplitTask(parentID string) error {
 			"summary":     item["summary"],
 			"goal":        "Subset of " + parentID + ": " + fmt.Sprintf("%v", item["summary"]),
 			"invariants":  parentSpec["invariants"],
-			"acceptance":  parentSpec["acceptance"],
+			"acceptance":  flattenAcceptance(parentSpec["acceptance"]),
 			"risk":        parentSpec["risk"],
 			"parent_task": parentID,
 			"non_goals":   parentSpec["non_goals"],

@@ -45,6 +45,10 @@ Inspect `00-spec.yaml` for:
 - non-goals and constraints are clear enough to prevent scope creep
 - risk matches `.agents/policies/risk.yaml`
 
+Acceptance items may be plain strings or structured objects (`id` + `statement`, optional `given`/`when`/`then`). For structured items, additionally apply this **deterministic** check:
+
+- **Duplicated acceptance id**: if the same `id` value appears more than once within `acceptance[]`, report a `high` finding for each duplicate occurrence. This is mandatory and non-discretionary: JSON Schema cannot enforce per-field uniqueness inside the array, so this protocol pass is the only gate. Format the finding as `[high] 00-spec.yaml.acceptance[<index>]: Duplicate acceptance id <id>.` Choosing which occurrence keeps the id is a human decision (ids are stable by convention), so categorize it per the standard `feedback.json` rules below.
+
 ### 3. Blueprint Coverage
 
 Check that `01-blueprint.yaml`:

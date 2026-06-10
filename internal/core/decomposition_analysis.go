@@ -318,7 +318,7 @@ func coverageForItems(parentItemsAny any, loadedChildren map[string]map[string]a
 	sort.Strings(childIDs)
 
 	for _, piAny := range parentItems {
-		pi := fmt.Sprintf("%v", piAny)
+		pi := acceptanceStatement(piAny)
 		var coveredBy []string
 		for _, childID := range childIDs {
 			childSpec := loadedChildren[childID]
@@ -326,7 +326,7 @@ func coverageForItems(parentItemsAny any, loadedChildren map[string]map[string]a
 			if childItems, ok := asSlice(childItemsAny); ok {
 				covers := false
 				for _, ciAny := range childItems {
-					ci := fmt.Sprintf("%v", ciAny)
+					ci := acceptanceStatement(ciAny)
 					if coversItem(pi, ci) {
 						covers = true
 						break

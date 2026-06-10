@@ -44,6 +44,13 @@ Ask questions one by one to fill the `00-spec.yaml` structure. You MUST enforce 
 - What must ALWAYS remain true after the change? (Invariants - must be enforced by the Aggregate)
 - Are there any new Business Policies or Operational Limits? (Constraints)
 - How will we verify success without looking at the code? (Acceptance)
+- For each acceptance criterion, ask whether the user can express it as an explicit state transition (precondition / action / expected outcome). When they can, capture the criterion in the **structured form** with `id` + `statement` plus `given`/`when`/`then`; when the transition adds no value, a plain string (or `id` + `statement` only) is enough. Both forms are valid and may be mixed in the same spec.
+
+Advisory conventions for structured acceptance ids (sustained by this protocol, NOT enforced by `SaveArtifact`):
+
+- `id` follows `^AC-[0-9]+$` (schema-checked) and MUST be unique within `acceptance[]` (protocol-checked: duplicates surface as a `q-analyze` high finding, not a schema error).
+- Ids are stable: never renumber existing criteria when editing a spec; append new ids instead.
+- Ids belong to the spec where they are born. `quorum task split` strips object criteria to their plain `statement` when copying to children; each child defines its own ids.
 
 ### Phase 3: Generation
 Create `.ai/tasks/inbox/<TASK_ID>-<slug>/` and write:
@@ -59,7 +66,13 @@ invariants:
   - CASH remains the default payment method.
   - Existing sale flow remains unchanged when user does not interact.
 acceptance:
-  - User can select CASH, QR, or CARD before completing a sale.
+  # Structured form: stable id + statement, optional given/when/then state transition.
+  - id: AC-1
+    statement: User can select CASH, QR, or CARD before completing a sale.
+    given: an open POS Express sale screen with no payment selected
+    when: the user picks a payment method
+    then: the selected method is stored on the sale aggregate before completion
+  # Plain string form: still valid; use it when the transition adds no value.
   - Existing unit tests and new payment method tests pass.
 risk: medium
 non_goals:
@@ -73,7 +86,7 @@ constraints:
 - Quote ambiguous YAML strings such as `NO`, `1.10`, and `22:30`.
 - Do NOT suggest file paths yet. That is the job of `q-blueprint`.
 - **Language**: The generated `00-spec.yaml` field values (summary, goal, invariants, etc.) MUST be written in concise English, even if the user chat was in Spanish.
-- **Strict Schema**: Do NOT invent new YAML keys (e.g. `aggregate:`). Embed domain concepts within the existing `goal`, `invariants`, and `constraints` fields.
+- **Strict Schema**: Do NOT invent new YAML keys (e.g. `aggregate:`). Embed domain concepts within the existing `goal`, `invariants`, and `constraints` fields. The only structured exception is the acceptance object form (`id`, `statement`, `given`, `when`, `then`): those keys are defined by `spec.schema.json`, so using them is not invention — but no key beyond those five is allowed inside an acceptance object.
 
 ## 🛑 Handoff (single-phase boundary + forward auto-transition)
 
