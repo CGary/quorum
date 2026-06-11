@@ -20,8 +20,9 @@ You are the **Merge Gatekeeper**. Decide whether a Quorum task is ready for huma
 Read:
 
 - `.ai/tasks/active/<TASK>/00-spec.yaml`
+- `.ai/tasks/active/<TASK>/01-blueprint.yaml` for `test_scenarios[].covers` covered acceptance ids
 - `.ai/tasks/active/<TASK>/02-contract.yaml`
-- `.ai/tasks/active/<TASK>/05-validation.json`
+- `.ai/tasks/active/<TASK>/05-validation.json` including optional `tdd_evidence[]`
 - `.ai/tasks/active/<TASK>/06-review.json`
 - `.ai/tasks/active/<TASK>/07-trace.json` if present
 - Git status/diff in `worktrees/<TASK_ID>/`
@@ -38,6 +39,12 @@ A task is ready only if:
 6. Worktree has only intended task changes.
 7. Trace has no unresolved violations, if present.
 8. If `02-contract.yaml.acceptance.bdd_suite` exists, report it as a required **human-run** gate.
+9. For each covered acceptance id from `01-blueprint.yaml` `test_scenarios[].covers`, report TDD evidence as advisory human context, not an automatic merge decision:
+   - missing evidence: no matching `05-validation.json.tdd_evidence[]` item.
+   - invalid evidence: `red_exit_code 0`, because the test was not observed failing before implementation.
+   - still-failing evidence: `green_exit_code not 0`.
+   - unreliable evidence: validation/review context indicates `error_category == flaky` or flaky attempts in trace; mark the TDD evidence as unreliable.
+   - valid advisory evidence: `red_exit_code != 0` and `green_exit_code == 0` for that acceptance id.
 
 ## Output
 
@@ -48,6 +55,7 @@ Aceptación: ready|not_ready
 Tarea: <TASK_ID>
 Acción humana requerida:
 - Correr compuerta BDD: <comando o none>
+- Revisar evidencia TDD advisory: <missing/invalid/still-failing/unreliable/valid por acceptance id>
 - Inspeccionar diff en worktrees/<TASK_ID>
 - Mergear manualmente si está conforme
 Bloqueantes:

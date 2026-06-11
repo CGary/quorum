@@ -77,7 +77,18 @@ If unrelated dirty changes exist, stop with `BLOCKED`. For retry dispatches, a
 dirty worktree must also block; do not stash, reset, discard, or call
 `quorum task back` yourself.
 
-### 3. Implement Surgically
+### 3. Capture TDD Red Evidence Before Implementation
+
+When the task uses structured acceptance criteria with `acceptance.id` and the blueprint has `test_scenarios[].covers`, capture non-vacuity evidence before implementation when a covering test command can be run:
+
+- Identify covered acceptance ids from `01-blueprint.yaml` `test_scenarios[].covers`; ignore legacy plain-string acceptance criteria without ids.
+- For each covered `acceptance_id` that has a concrete fast test command available, run that command before implementation changes make it pass.
+- Record each observation in `04-implementation-log.yaml` top-level optional `tdd_red_runs[]` as `{acceptance_id, command, red_exit_code}`.
+- If `red_exit_code` is `0`, record the run anyway and surface it as an immediate vacuity finding: the covering test passed before implementation and is invalid TDD evidence.
+- If no safe covering command exists for an id, do not invent evidence; leave it missing so `/q-accept` can report missing evidence as advisory human context.
+- This RED capture belongs only in `04-implementation-log.yaml`; never write `05-validation.json` from `/q-implement`.
+
+### 4. Implement Surgically
 
 - Modify only files allowed by `touch`.
 - Respect every invariant from `00-spec.yaml`.
@@ -85,7 +96,7 @@ dirty worktree must also block; do not stash, reset, discard, or call
 - Add or update tests when acceptance or blueprint requires behavior coverage.
 - Avoid broad refactors, formatting-only rewrites, dependency changes, generated churn, or opportunistic cleanup.
 
-### 4. Boundary Check
+### 5. Boundary Check
 
 Before finishing, compare changed files to `touch` and `forbid.files`:
 
@@ -95,13 +106,17 @@ git -C worktrees/<TASK_ID> diff --name-only
 
 If any changed file is outside `touch` or matches `forbid.files`, revert only the violating changes or stop as `BLOCKED`.
 
-### 5. Implementation Log
+### 6. Implementation Log
 
-Create or append `.ai/tasks/active/<TASK>/04-implementation-log.yaml`:
+Create or append `.ai/tasks/active/<TASK>/04-implementation-log.yaml`. If RED runs were captured, include top-level `tdd_red_runs[]`; field values must be concise English:
 
 ```yaml
 task_id: FEAT-001
 summary: Implemented contract-scoped change in allowed files.
+tdd_red_runs:
+  - acceptance_id: AC-1
+    command: go test ./internal/core -run TestSpecificAcceptance
+    red_exit_code: 1
 entries:
   - changed_files:
       - path/to/file.py
@@ -111,7 +126,7 @@ entries:
 ```
 Keep YAML shallow. `summary` must be second key.
 
-### 6. Git Commit
+### 7. Git Commit
 
 [Mandatory] Before declaring DONE, you must consolidate your work by formally recording your changes on the Git branch for the task. Run the following commands from the worktree directory (`worktrees/<TASK_ID>/`):
 

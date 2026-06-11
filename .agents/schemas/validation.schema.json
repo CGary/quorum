@@ -65,8 +65,46 @@
     },
     "error_category": {
       "type": "string",
-      "enum": ["logic", "dependency", "environment", "flaky", "unknown"],
+      "enum": [
+        "logic",
+        "dependency",
+        "environment",
+        "flaky",
+        "unknown"
+      ],
       "description": "Optional. Set when overall_result is failed or blocked. Distinguishes recoverable transient failures from code-level failures."
+    },
+    "tdd_evidence": {
+      "type": "array",
+      "description": "Optional per-acceptance red-to-green TDD evidence reconstructed by q-verify from 04.tdd_red_runs plus current green runs. Advisory only; does not determine overall_result.",
+      "items": {
+        "type": "object",
+        "required": [
+          "acceptance_id",
+          "command",
+          "red_exit_code",
+          "green_exit_code"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "acceptance_id": {
+            "type": "string",
+            "pattern": "^AC-[0-9]+$"
+          },
+          "command": {
+            "type": "string",
+            "minLength": 1
+          },
+          "red_exit_code": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "green_exit_code": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
     }
   }
 }

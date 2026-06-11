@@ -241,6 +241,125 @@ func TestValidateArtifactErrorFormatAndTraceAppendOnly(t *testing.T) {
 	}
 }
 
+func TestValidateImplementationLogTDDRedRuns(t *testing.T) {
+	useSchemas(t)
+
+	legacy := map[string]any{
+		"task_id": "FEAT-001",
+		"summary": "Legacy implementation log remains valid.",
+		"entries": []any{map[string]any{
+			"changed_files":  []any{"internal/core/foo.go"},
+			"notes":          []any{"Implemented behavior."},
+			"verify_pending": true,
+		}},
+	}
+	if err := ValidateArtifact("04-implementation-log.yaml", legacy); err != nil {
+		t.Fatalf("legacy log rejected: %v", err)
+	}
+
+	withEvidence := map[string]any{
+		"task_id": "FEAT-001",
+		"summary": "Implementation log with red TDD evidence.",
+		"tdd_red_runs": []any{map[string]any{
+			"acceptance_id": "AC-1",
+			"command":       "go test ./internal/core -run TestFoo",
+			"red_exit_code": 1,
+		}},
+		"entries": []any{map[string]any{
+			"changed_files":  []any{"internal/core/foo.go"},
+			"notes":          []any{"Observed the covering test failing before implementation."},
+			"verify_pending": true,
+		}},
+	}
+	if err := ValidateArtifact("04-implementation-log.yaml", withEvidence); err != nil {
+		t.Fatalf("log with tdd_red_runs rejected: %v", err)
+	}
+
+	invalid := map[string]any{
+		"task_id": "FEAT-001",
+		"summary": "Invalid TDD evidence.",
+		"tdd_red_runs": []any{map[string]any{
+			"acceptance_id": "X-1",
+			"command":       "go test ./internal/core -run TestFoo",
+			"red_exit_code": 1,
+		}},
+		"entries": []any{map[string]any{
+			"changed_files":  []any{"internal/core/foo.go"},
+			"notes":          []any{"Invalid evidence should fail validation."},
+			"verify_pending": true,
+		}},
+	}
+	want := "artifact=04-implementation-log.yaml; field=$.tdd_red_runs[0].acceptance_id; reason='X-1' does not match '^AC-[0-9]+$'"
+	if err := ValidateArtifact("04-implementation-log.yaml", invalid); err == nil || err.Error() != want {
+		t.Fatalf("invalid tdd_red_runs error = %v, want %s", err, want)
+	}
+}
+
+func TestValidateValidationTDDEvidence(t *testing.T) {
+	useSchemas(t)
+
+	legacy := map[string]any{
+		"task_id":     "FEAT-001",
+		"summary":     "Fast verification passed.",
+		"executed_at": "2026-05-03T00:00:00Z",
+		"commands": []any{map[string]any{
+			"command":        "go test ./internal/core",
+			"exit_code":      0,
+			"duration_s":     1.0,
+			"output_excerpt": "ok",
+		}},
+		"overall_result": "passed",
+	}
+	if err := ValidateArtifact("05-validation.json", legacy); err != nil {
+		t.Fatalf("legacy validation rejected: %v", err)
+	}
+
+	withEvidence := map[string]any{
+		"task_id":     "FEAT-001",
+		"summary":     "Fast verification passed with TDD evidence.",
+		"executed_at": "2026-05-03T00:00:00Z",
+		"commands": []any{map[string]any{
+			"command":        "go test ./internal/core",
+			"exit_code":      0,
+			"duration_s":     1.0,
+			"output_excerpt": "ok",
+		}},
+		"overall_result": "passed",
+		"tdd_evidence": []any{map[string]any{
+			"acceptance_id":   "AC-1",
+			"command":         "go test ./internal/core -run TestFoo",
+			"red_exit_code":   1,
+			"green_exit_code": 0,
+		}},
+	}
+	if err := ValidateArtifact("05-validation.json", withEvidence); err != nil {
+		t.Fatalf("validation with tdd_evidence rejected: %v", err)
+	}
+
+	invalid := map[string]any{
+		"task_id":     "FEAT-001",
+		"summary":     "Invalid TDD evidence.",
+		"executed_at": "2026-05-03T00:00:00Z",
+		"commands": []any{map[string]any{
+			"command":        "go test ./internal/core",
+			"exit_code":      0,
+			"duration_s":     1.0,
+			"output_excerpt": "ok",
+		}},
+		"overall_result": "passed",
+		"tdd_evidence": []any{map[string]any{
+			"acceptance_id":   "AC-1",
+			"command":         "go test ./internal/core -run TestFoo",
+			"red_exit_code":   1,
+			"green_exit_code": "0",
+		}},
+	}
+	want := "artifact=05-validation.json; field=$.tdd_evidence[0].green_exit_code; reason='0' is not of type 'integer'"
+	if err := ValidateArtifact("05-validation.json", invalid); err == nil || err.Error() != want {
+		t.Fatalf("invalid tdd_evidence error = %v, want %s", err, want)
+	}
+}
+
 func TestValidateSpecAcceptanceOneOf(t *testing.T) {
 	useSchemas(t)
 	base := func(acceptance []any) map[string]any {

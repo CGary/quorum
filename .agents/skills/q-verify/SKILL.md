@@ -27,6 +27,7 @@ Confirm:
 
 - Task exists under `.ai/tasks/active/<TASK>/`.
 - `02-contract.yaml` exists and has `verify.commands`.
+- `04-implementation-log.yaml` may contain optional `tdd_red_runs[]`; read it if present.
 - Worktree exists at `worktrees/<TASK_ID>/`.
 - Worktree is clean (all implementation changes are committed; i.e., running `git -C worktrees/<TASK_ID> status --porcelain` does not return any untracked or modified tracked files, excluding ignored files).
 
@@ -50,9 +51,19 @@ Capture:
 
 Do not run `acceptance.bdd_suite`; that is a human merge gate.
 
+### 2.5 Recalculate TDD Green Evidence
+
+If `04-implementation-log.yaml` contains `tdd_red_runs[]`, consolidate RED-to-GREEN evidence as advisory metadata:
+
+- Do not reconstruct pre-implementation state: do not stash, checkout, reset, or mutate the worktree to rerun old code.
+- Group `tdd_red_runs[]` by `acceptance_id` and use only the last recorded entry per acceptance id.
+- For each selected red run, rerun its `command` from the current implemented worktree.
+- Capture the current exit code as `green_exit_code` and write a matching `tdd_evidence[]` item with `acceptance_id`, `command`, original `red_exit_code`, and current `green_exit_code`.
+- Missing `tdd_red_runs[]`, `red_exit_code 0`, or `green_exit_code` failures are evidence quality signals only; TDD evidence presence or absence never changes overall_result.
+
 ### 3. Write `05-validation.json`
 
-Write `.ai/tasks/active/<TASK>/05-validation.json` matching `.agents/schemas/validation.schema.json`:
+Write `.ai/tasks/active/<TASK>/05-validation.json` matching `.agents/schemas/validation.schema.json`. Include optional `tdd_evidence[]` only when reconstructed from `04.tdd_red_runs[]`:
 
 ```json
 {
@@ -67,15 +78,25 @@ Write `.ai/tasks/active/<TASK>/05-validation.json` matching `.agents/schemas/val
       "output_excerpt": "..."
     }
   ],
-  "overall_result": "passed"
+  "overall_result": "passed",
+  "tdd_evidence": [
+    {
+      "acceptance_id": "AC-1",
+      "command": "pytest tests/foo.py::test_specific_acceptance",
+      "red_exit_code": 1,
+      "green_exit_code": 0
+    }
+  ]
 }
 ```
 
-Set `overall_result`:
+Set `overall_result` only from `verify.commands` results:
 
 - `passed` if all exit codes are 0.
 - `failed` if any command exits non-zero.
 - `blocked` if commands cannot be run due to missing setup, missing worktree, or invalid contract.
+
+`tdd_evidence` is advisory human merge context and never changes overall_result.
 
 ### 3.5 Error Classification
 

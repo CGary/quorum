@@ -389,6 +389,54 @@ func TestSkillProtocolQMemoryUsesSQLiteSave(t *testing.T) {
 	}
 }
 
+func TestSkillProtocolTDDEvidenceAdvisory(t *testing.T) {
+	implement := readProtocolSkill(t, "q-implement")
+	verify := readProtocolSkill(t, "q-verify")
+	accept := readProtocolSkill(t, "q-accept")
+
+	for _, want := range []string{
+		"tdd_red_runs",
+		"acceptance_id",
+		"red_exit_code",
+		"before implementation",
+		"vacuity finding",
+		"04-implementation-log.yaml",
+	} {
+		if !strings.Contains(implement, want) {
+			t.Errorf("q-implement: missing TDD red-run protocol marker %q", want)
+		}
+	}
+
+	for _, want := range []string{
+		"tdd_red_runs",
+		"tdd_evidence",
+		"green_exit_code",
+		"last recorded entry per acceptance id",
+		"never changes overall_result",
+		"Do not reconstruct pre-implementation state",
+	} {
+		if !strings.Contains(verify, want) {
+			t.Errorf("q-verify: missing TDD evidence consolidation marker %q", want)
+		}
+	}
+
+	for _, want := range []string{
+		"tdd_evidence",
+		"covered acceptance ids",
+		"missing evidence",
+		"invalid evidence",
+		"red_exit_code 0",
+		"still-failing evidence",
+		"green_exit_code not 0",
+		"flaky",
+		"advisory",
+	} {
+		if !strings.Contains(accept, want) {
+			t.Errorf("q-accept: missing TDD advisory marker %q", want)
+		}
+	}
+}
+
 func TestSkillProtocolUserVisibleOutputTemplatesAreSpanish(t *testing.T) {
 	for _, name := range protocolSkillNames(t) {
 		content := readProtocolSkill(t, name)
