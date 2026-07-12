@@ -114,6 +114,7 @@ transports:
       - --message-file
       - "{prompt_file}"
       - --no-auto-commits
+      - --no-attribute-co-authored-by
       - --yes-always
       - --model
       - "{model_arg}"
