@@ -239,6 +239,26 @@ func TestValidateArtifactErrorFormatAndTraceAppendOnly(t *testing.T) {
 	if err := EnsureTraceAppendOnly("07-trace.json", existing, mutated); err == nil || err.Error() != want {
 		t.Fatalf("mutate = %v", err)
 	}
+
+	existingWithEvents := map[string]any{"events": []any{map[string]any{"type": "dispatch_started", "ts": "2026-07-12T00:00:00Z", "dispatch_id": "d1"}}}
+	appendedEvents := map[string]any{"events": []any{map[string]any{"type": "dispatch_started", "ts": "2026-07-12T00:00:00Z", "dispatch_id": "d1"}, map[string]any{"type": "dispatch_finished", "ts": "2026-07-12T00:01:00Z", "dispatch_id": "d1"}}}
+	if err := EnsureTraceAppendOnly("07-trace.json", existingWithEvents, appendedEvents); err != nil {
+		t.Fatal(err)
+	}
+	want = "artifact=07-trace.json; field=$.events; reason=append-only trace cannot remove existing events"
+	if err := EnsureTraceAppendOnly("07-trace.json", existingWithEvents, map[string]any{"events": []any{}}); err == nil || err.Error() != want {
+		t.Fatalf("shorten events = %v", err)
+	}
+	want = "artifact=07-trace.json; field=$.events; reason=append-only trace cannot reorder or mutate existing events"
+	mutatedEvents := map[string]any{"events": []any{map[string]any{"type": "reroute", "ts": "2026-07-12T00:00:00Z", "dispatch_id": "d1"}}}
+	if err := EnsureTraceAppendOnly("07-trace.json", existingWithEvents, mutatedEvents); err == nil || err.Error() != want {
+		t.Fatalf("mutate events = %v", err)
+	}
+	oldPayloadNoEvents := map[string]any{"attempts": []any{}}
+	newPayloadWithEvents := map[string]any{"attempts": []any{}, "events": []any{map[string]any{"type": "dispatch_started", "ts": "2026-07-12T00:00:00Z", "dispatch_id": "d1"}}}
+	if err := EnsureTraceAppendOnly("07-trace.json", oldPayloadNoEvents, newPayloadWithEvents); err != nil {
+		t.Fatalf("old payload with no events field should be treated as empty baseline: %v", err)
+	}
 }
 
 func TestValidateImplementationLogTDDRedRuns(t *testing.T) {
