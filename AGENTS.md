@@ -83,6 +83,14 @@ quorum analyze contract-check         # stdin: contract_path + changed_files + d
 
 If examples inside older skill documents disagree with this section, the Go CLI contract wins: inspect `cmd/analyze_*.go` or run `quorum analyze <command> --help`, then send the documented JSON request through stdin.
 
+### Fleet CLI surface
+
+`quorum fleet` is a new command group for headless-delegate dispatch helpers, distinct from `quorum analyze` (`quorum analyze fleet-preflight` is untouched and stays under `analyze`):
+
+```bash
+quorum fleet bundle <ID>  # writes a deterministic dispatch context bundle + manifest under .ai/tasks/active/<ID>/dispatch/<dispatch_id>/ (internal/core/fleet_bundle.go)
+```
+
 ## High-level architecture
 
 ### Lifecycle artifacts (`00`→`07`)

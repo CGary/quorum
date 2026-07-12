@@ -1,0 +1,9 @@
+task_id: GOLD-001
+summary: Synthetic golden fixture blueprint for the fleet bundler.
+strategy:
+  - step: 1
+    action: Fixture-only placeholder strategy step.
+    files:
+      - files/alpha.go
+symbols:
+  - AlphaSymbol
