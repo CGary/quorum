@@ -1,0 +1,20 @@
+# Complexity band cut points — read at runtime by `quorum analyze complexity-score`
+# via the JSON request piped through stdin (see internal/core/complexity_score.go).
+# These are NOT hardcoded in Go; the binary always receives them as input.
+#
+# NOT CALIBRATED: the S/M/L cut points below are placeholder values only.
+# They have not been validated against real task outcomes. Calibrating real
+# thresholds from production data is explicitly out of scope for this task
+# and is deferred to a later phase.
+calibrated: false
+
+# Band S: files and symbols both within these bounds, and no L-trigger signal.
+s_max_files: 2
+s_max_symbols: 3
+
+# Band L: file count strictly above this cut, OR any of migration /
+# public_api / schema_change signals set on the blueprint — forces L
+# regardless of file/symbol counts.
+l_max_files: 5
+
+# Band M: everything that is neither S nor L.
