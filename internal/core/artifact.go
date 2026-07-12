@@ -19,12 +19,34 @@ func EnsureTraceAppendOnly(path string, existingPayload, newPayload any) error {
 			return ArtifactValidationError{fmt.Sprintf("artifact=%s; field=$.attempts; reason=append-only trace cannot reorder or mutate existing attempts", path)}
 		}
 	}
+
+	// events[] gets the same append-only protection as attempts[]. An existing
+	// payload with no "events" key at all (older traces predating this field)
+	// is treated as an empty baseline, not an error.
+	existingEvents, nextEvents := events(existingPayload), events(newPayload)
+	if len(nextEvents) < len(existingEvents) {
+		return ArtifactValidationError{fmt.Sprintf("artifact=%s; field=$.events; reason=append-only trace cannot remove existing events", path)}
+	}
+	for i := range existingEvents {
+		if !sameJSON(existingEvents[i], nextEvents[i]) {
+			return ArtifactValidationError{fmt.Sprintf("artifact=%s; field=$.events; reason=append-only trace cannot reorder or mutate existing events", path)}
+		}
+	}
 	return nil
 }
 
 func attempts(payload any) []any {
 	if obj, ok := payload.(map[string]any); ok {
 		if items, ok := asSlice(obj["attempts"]); ok {
+			return items
+		}
+	}
+	return nil
+}
+
+func events(payload any) []any {
+	if obj, ok := payload.(map[string]any); ok {
+		if items, ok := asSlice(obj["events"]); ok {
 			return items
 		}
 	}
