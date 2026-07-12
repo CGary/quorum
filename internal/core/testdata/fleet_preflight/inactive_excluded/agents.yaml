@@ -1,0 +1,30 @@
+transports:
+  codex:
+    binary: codex
+    argv_template:
+      - --json
+    input_channel: stdin
+    output_format: jsonl
+    timeouts:
+      default_s: 120
+    quota_class: subscription
+    models:
+      openai/gpt-5.5-medium:
+        model_arg: gpt-5.5
+        reasoning_effort: medium
+    contract_test: contracts/codex.yaml
+    active: true
+  claude:
+    binary: claude
+    argv_template:
+      - -p
+    input_channel: stdin
+    output_format: json
+    timeouts:
+      default_s: 120
+    quota_class: subscription
+    models:
+      anthropic/claude-opus-4-7:
+        model_arg: claude-opus-4-7
+    contract_test: contracts/claude.yaml
+    active: false

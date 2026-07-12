@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "fleet-preflight-testdata://agents.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["transports"],
+  "properties": {
+    "transports": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/transport" }
+    }
+  },
+  "$defs": {
+    "transport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "binary",
+        "argv_template",
+        "input_channel",
+        "output_format",
+        "timeouts",
+        "quota_class",
+        "models",
+        "contract_test",
+        "active"
+      ],
+      "properties": {
+        "binary": { "type": "string" },
+        "argv_template": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "input_channel": {
+          "type": "string",
+          "enum": ["stdin", "prompt_file", "prompt_arg"]
+        },
+        "output_format": {
+          "type": "string",
+          "enum": ["jsonl", "json", "text"]
+        },
+        "timeouts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["default_s"],
+          "properties": {
+            "default_s": { "type": "integer" }
+          }
+        },
+        "quota_class": {
+          "type": "string",
+          "enum": ["subscription", "api"]
+        },
+        "max_cost_per_call_usd": { "type": "number" },
+        "models": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/model" }
+        },
+        "contract_test": { "type": "string" },
+        "active": { "type": "boolean" }
+      },
+      "if": {
+        "properties": { "quota_class": { "const": "api" } },
+        "required": ["quota_class"]
+      },
+      "then": {
+        "required": ["max_cost_per_call_usd"]
+      },
+      "else": {
+        "not": { "required": ["max_cost_per_call_usd"] }
+      }
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model_arg"],
+      "properties": {
+        "model_arg": { "type": "string" },
+        "reasoning_effort": { "type": "string" },
+        "effort_whitelist": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}
