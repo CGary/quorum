@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -35,6 +36,24 @@ func ResolveRepoBoundedPath(projectRoot, relPath string) (string, error) {
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return "", fmt.Errorf("context_bundle path %q resolves outside the repository root", relPath)
 	}
+
+	// If the candidate path exists on disk, resolve symlinks (on both the
+	// path and projectRoot) and re-check containment, so a symlink inside
+	// the repo that targets an out-of-repo location cannot smuggle
+	// out-of-repo content past the lexical check above. Paths that do not
+	// yet exist (e.g. new files in a touch list) keep only the lexical
+	// check, since EvalSymlinks requires the path to exist.
+	if _, statErr := os.Lstat(absPath); statErr == nil {
+		resolvedRoot, rootErr := filepath.EvalSymlinks(projectRoot)
+		resolvedPath, pathErr := filepath.EvalSymlinks(absPath)
+		if rootErr == nil && pathErr == nil {
+			resolvedRel, relErr := filepath.Rel(resolvedRoot, resolvedPath)
+			if relErr != nil || resolvedRel == ".." || strings.HasPrefix(resolvedRel, ".."+string(filepath.Separator)) {
+				return "", fmt.Errorf("context_bundle path %q resolves outside the repository root via symlink", relPath)
+			}
+		}
+	}
+
 	return absPath, nil
 }
 

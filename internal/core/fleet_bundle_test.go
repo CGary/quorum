@@ -1,6 +1,8 @@
 package core
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -190,6 +192,28 @@ func TestBuildBundleDeterministicTruncation(t *testing.T) {
 // a location outside projectRoot.
 func TestResolveRepoBoundedPathRejectsEscape(t *testing.T) {
 	root := t.TempDir()
+
+	// Regular in-repo file: must still resolve successfully once symlink
+	// resolution is added, since it is not a symlink at all.
+	regularRel := "cmd/regular_file.go"
+	if err := os.MkdirAll(filepath.Join(root, "cmd"), 0o755); err != nil {
+		t.Fatalf("failed to create cmd dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, regularRel), []byte("package cmd\n"), 0o644); err != nil {
+		t.Fatalf("failed to write regular file: %v", err)
+	}
+
+	// In-repo symlink whose target resolves outside root: must be rejected.
+	outsideDir := t.TempDir()
+	outsideTarget := filepath.Join(outsideDir, "secret.txt")
+	if err := os.WriteFile(outsideTarget, []byte("secret"), 0o644); err != nil {
+		t.Fatalf("failed to write outside target: %v", err)
+	}
+	symlinkRel := "cmd/escape_link.go"
+	if err := os.Symlink(outsideTarget, filepath.Join(root, symlinkRel)); err != nil {
+		t.Fatalf("failed to create symlink: %v", err)
+	}
+
 	cases := []struct {
 		name    string
 		relPath string
@@ -198,6 +222,8 @@ func TestResolveRepoBoundedPathRejectsEscape(t *testing.T) {
 		{"relative within root", "cmd/fleet_bundle.go", false},
 		{"traversal escapes root", "../../etc/passwd", true},
 		{"absolute path rejected", "/etc/passwd", true},
+		{"regular in-repo file resolves", regularRel, false},
+		{"symlink escaping root is rejected", symlinkRel, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
