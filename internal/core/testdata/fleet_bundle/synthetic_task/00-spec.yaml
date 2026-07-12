@@ -1,0 +1,10 @@
+task_id: GOLD-001
+goal: Synthetic golden fixture task for the fleet bundler.
+summary: Synthetic task used only by TestBuildBundleGoldenMaster.
+risk: low
+acceptance:
+  - id: AC-1
+    given: a synthetic bundle fixture
+    when: quorum fleet bundle runs against it
+    then: the bundle matches the committed golden output
+    statement: Golden fixture placeholder acceptance criterion.

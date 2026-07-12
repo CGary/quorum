@@ -1,0 +1,14 @@
+task_id: GOLD-001
+summary: Synthetic golden fixture contract for the fleet bundler.
+goal: Fixture-only contract goal text.
+read:
+  - files/alpha.go
+  - files/beta.go
+touch:
+  - files/alpha.go
+limits:
+  max_files_changed: 5
+  max_diff_lines: 100
+verify:
+  commands:
+    - CGO_ENABLED=0 go test ./...
