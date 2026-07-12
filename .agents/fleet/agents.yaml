@@ -1,0 +1,163 @@
+# Fleet transports (ADR 0010): describes ONLY how to invoke each CLI.
+# Never add tier/level/risk/confidence/budget fields here — that policy lives
+# exclusively in .agents/config.yaml.levels and .agents/policies/routing.yaml.
+# Canonical model names use the provider/model form and join config.yaml.levels
+# by exact string match (ADR 0010 section 2). The reasoning-effort suffix is
+# provisional; validated per-model against effort_whitelist, never a global enum.
+transports:
+  codex:
+    # exec subcommand, config-isolated so it never inherits the interactive
+    # user's ~/.codex/config.toml model/effort/MCP config (Fase 0a §8.2).
+    binary: codex
+    argv_template:
+      - exec
+      - --ephemeral
+      - --ignore-user-config
+      - -m
+      - "{model_arg}"
+      - -c
+      - "model_reasoning_effort={reasoning_effort}"
+      - -C
+      - "{worktree}"
+      - --sandbox
+      - workspace-write
+      - --json
+      - -o
+      - "{out}"
+    input_channel: stdin
+    output_format: jsonl
+    timeouts:
+      # No CLI-native timeout was observed in Fase 0a (successful run: 115s).
+      # Provisional wrapper default with margin; not an inventory-verified value.
+      default_s: 600
+    sandbox: workspace-write
+    failure_signatures:
+      # Verified in Fase 0a §2: rejection when the pinned model is unavailable
+      # for the account's ChatGPT tier (attempt 1, ADR 0010 context).
+      - model not supported when using Codex with a ChatGPT account
+    quota_class: subscription
+    models:
+      # gpt-5.5 whitelist per Fase 0a §9: {none, low, medium, high, xhigh}.
+      # minimal is syntactically valid globally but rejected by this backend;
+      # there is no "max" — the former config.toml "max" was exactly this bug.
+      openai/gpt-5.5-none:
+        model_arg: gpt-5.5
+        reasoning_effort: none
+        effort_whitelist: [none, low, medium, high, xhigh]
+      openai/gpt-5.5-low:
+        model_arg: gpt-5.5
+        reasoning_effort: low
+        effort_whitelist: [none, low, medium, high, xhigh]
+      openai/gpt-5.5-medium:
+        model_arg: gpt-5.5
+        reasoning_effort: medium
+        effort_whitelist: [none, low, medium, high, xhigh]
+      openai/gpt-5.5-high:
+        model_arg: gpt-5.5
+        reasoning_effort: high
+        effort_whitelist: [none, low, medium, high, xhigh]
+      openai/gpt-5.5-xhigh:
+        model_arg: gpt-5.5
+        reasoning_effort: xhigh
+        effort_whitelist: [none, low, medium, high, xhigh]
+      # gpt-5.6-sol intentionally absent: temporarily unavailable, not obsolete
+      # (Fase 0a §9 addendum). Reintroducing it only requires editing this map.
+    contract_test: .agents/fleet/contract_tests/codex.yaml
+    active: true
+
+  agy:
+    # No -C/--cd flag exists for agy (Fase 0a §3): the wrapper MUST launch
+    # this process with cwd=worktree instead of passing a directory flag.
+    # --print/-p is a greedy Go-style string flag: it MUST be the last argv
+    # token, or the next flag is swallowed as the prompt (false-success trap,
+    # Fase 0a §8.1). All other flags go first.
+    binary: agy
+    argv_template:
+      - --model
+      - "{model_arg}"
+      - --print-timeout
+      - 5m0s
+      - --print
+      - "{prompt}"
+    input_channel: prompt_arg
+    output_format: text
+    timeouts:
+      # agy's own documented default for --print-timeout (Fase 0a §3).
+      default_s: 300
+    failure_signatures: []
+    quota_class: subscription
+    models:
+      # Exact strings from `agy models` (Fase 0a §3), joined by canonical
+      # provider/model name. GPT-OSS 120B only ships a single effort tier.
+      google/gemini-3.5-flash-low:
+        model_arg: Gemini 3.5 Flash (Low)
+      google/gemini-3.5-flash-medium:
+        model_arg: Gemini 3.5 Flash (Medium)
+      google/gemini-3.5-flash-high:
+        model_arg: Gemini 3.5 Flash (High)
+      google/gemini-3.1-pro-low:
+        model_arg: Gemini 3.1 Pro (Low)
+      google/gemini-3.1-pro-high:
+        model_arg: Gemini 3.1 Pro (High)
+      openai/gpt-oss-120b:
+        model_arg: GPT-OSS 120B (Medium)
+    contract_test: .agents/fleet/contract_tests/agy.yaml
+    active: true
+
+  aider:
+    # Declaration only (ADR 0010 section 4; ideas/fleet/17-adapter-aider.md).
+    # No adapter, dispatch wiring, or preflight is implemented by this task.
+    # First quota_class:api transport, validating the schema's api-only
+    # max_cost_per_call_usd constraint against a concrete case.
+    binary: aider
+    argv_template:
+      - --message-file
+      - "{prompt_file}"
+      - --no-auto-commits
+      - --no-attribute-co-authored-by
+      - --yes-always
+      - --model
+      - "{model_arg}"
+      - "{files}"
+    input_channel: prompt_file
+    output_format: text
+    timeouts:
+      # Provisional: no aider-native default documented by the Fase 0a
+      # mini-inventory (sondeo only, no LLM execution). Open item for the
+      # doc 17 adapter task.
+      default_s: 600
+    failure_signatures: []
+    quota_class: api
+    models:
+      # Backend model is an open decision reserved for doc 17/F4; this entry
+      # only validates the schema's api-only cost constraint against a real
+      # case, reusing a canonical name already declared in config.yaml.
+      deepseek/deepseek-v3.2:
+        model_arg: deepseek/deepseek-v3.2
+        # Provisional placeholder; concrete value is an open decision of
+        # ideas/fleet/17-adapter-aider.md (doc 17 / F4).
+        max_cost_per_call_usd: 0.5
+    contract_test: .agents/fleet/contract_tests/aider.yaml
+    active: false
+
+  claude:
+    # Inactive in v1 (ADR 0010 section 5). No level routes to this transport:
+    # the "Claude frontier" referenced by config.yaml.levels[2].primary is the
+    # human orchestrator session itself, not this CLI. Declared for symmetry
+    # and future activation only.
+    binary: claude
+    argv_template:
+      - -p
+      - --model
+      - "{model_arg}"
+      - --output-format
+      - json
+    input_channel: stdin
+    output_format: json
+    timeouts:
+      default_s: 300
+    failure_signatures: []
+    quota_class: subscription
+    models: {}
+    contract_test: .agents/fleet/contract_tests/claude.yaml
+    active: false
