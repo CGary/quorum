@@ -1,0 +1,5 @@
+levels:
+  0:
+    primary: openai/gpt-5.5-medium
+  1:
+    primary: anthropic/claude-opus-4-7
