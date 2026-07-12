@@ -135,13 +135,18 @@ func readFleetTaskArtifact(store core.TaskStore, taskDir *core.TaskDirMatch, nam
 }
 
 // resolveFleetBundleSlices reads the whole-file content of every path in
-// contextBundle, relative to projectRoot. Directories are skipped (a
-// context_bundle entry is a file reference); this is not a size-driven
-// truncation and is therefore never recorded as a manifest drop.
+// contextBundle, relative to projectRoot. Each path is first rejected via
+// core.ResolveRepoBoundedPath if absolute or resolving outside projectRoot.
+// Directories are skipped (a context_bundle entry is a file reference); this
+// is not a size-driven truncation and is therefore never recorded as a
+// manifest drop.
 func resolveFleetBundleSlices(projectRoot string, contextBundle []string) ([]core.BundleSlice, error) {
 	slices := make([]core.BundleSlice, 0, len(contextBundle))
 	for _, relPath := range contextBundle {
-		absPath := filepath.Join(projectRoot, relPath)
+		absPath, err := core.ResolveRepoBoundedPath(projectRoot, relPath)
+		if err != nil {
+			return nil, err
+		}
 		info, err := os.Stat(absPath)
 		if err != nil {
 			if os.IsNotExist(err) {

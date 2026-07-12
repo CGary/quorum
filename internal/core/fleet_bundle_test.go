@@ -185,6 +185,33 @@ func TestBuildBundleDeterministicTruncation(t *testing.T) {
 	}
 }
 
+// Negative test for fleet-bundle-path-traversal-guard: a context_bundle
+// member path with ".." segments or an absolute path must never resolve to
+// a location outside projectRoot.
+func TestResolveRepoBoundedPathRejectsEscape(t *testing.T) {
+	root := t.TempDir()
+	cases := []struct {
+		name    string
+		relPath string
+		wantErr bool
+	}{
+		{"relative within root", "cmd/fleet_bundle.go", false},
+		{"traversal escapes root", "../../etc/passwd", true},
+		{"absolute path rejected", "/etc/passwd", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := ResolveRepoBoundedPath(root, tc.relPath)
+			if tc.wantErr && err == nil {
+				t.Fatalf("ResolveRepoBoundedPath(%q) = nil error, want rejection", tc.relPath)
+			}
+			if !tc.wantErr && err != nil {
+				t.Fatalf("ResolveRepoBoundedPath(%q) unexpected error: %v", tc.relPath, err)
+			}
+		})
+	}
+}
+
 func TestResolveContextBundleDedupesAndSorts(t *testing.T) {
 	got := ResolveContextBundle(
 		[]string{"b.go", "a.go", ""},

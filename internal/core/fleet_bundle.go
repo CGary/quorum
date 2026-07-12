@@ -4,7 +4,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"path/filepath"
 	"sort"
+	"strings"
 )
 
 // fleetBundleProtocolVersion identifies the fixed, versioned English minimum
@@ -17,6 +19,24 @@ const fleetBundleProtocolVersion = "fleet-bundle-protocol/v1"
 // bundle prompt before deterministic truncation kicks in. Callers may
 // override it (e.g. via a --max-bytes flag).
 const DefaultFleetBundleMaxBytes = 200_000
+
+// ResolveRepoBoundedPath canonicalizes relPath against projectRoot and
+// rejects it with an actionable error if it is absolute or resolves outside
+// projectRoot, before any caller may Stat/ReadFile it. This closes the gap
+// where a crafted context_bundle entry (e.g. containing "../") could read
+// and embed out-of-repo content into a dispatch bundle, violating
+// constitutional Rule 2's deterministic, repo-bounded context guarantee.
+func ResolveRepoBoundedPath(projectRoot, relPath string) (string, error) {
+	if filepath.IsAbs(relPath) {
+		return "", fmt.Errorf("context_bundle path %q must be relative, not absolute", relPath)
+	}
+	absPath := filepath.Join(projectRoot, relPath)
+	rel, err := filepath.Rel(projectRoot, absPath)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("context_bundle path %q resolves outside the repository root", relPath)
+	}
+	return absPath, nil
+}
 
 // fleetBundleProtocolBlock is the fixed, versioned English minimum protocol
 // template. It never varies with task content, spec/blueprint language, or
