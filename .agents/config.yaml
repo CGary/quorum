@@ -5,9 +5,9 @@ levels:
       - tests
       - docs
       - mechanical_refactor
-    primary: minimax/minimax-m2.7
-    fallback: deepseek/deepseek-v3.2
-    secondary_fallback: qwen/qwen3-coder
+    primary: google/gemini-3.5-flash-low
+    fallback: openai/gpt-oss-120b
+    # max_cost_per_call_usd only binds transports with quota_class: api (ADR-A).
     max_cost_per_call_usd: 0.15
 
   1:
@@ -15,8 +15,8 @@ levels:
       - review
       - diagnose_verify_failure
       - small_corrections
-    primary: openai/gpt-5-mini
-    fallback: anthropic/claude-haiku-4-5-20251001
+    primary: openai/gpt-5.5-medium
+    fallback: google/gemini-3.1-pro-low
     max_cost_per_call_usd: 0.50
 
   2:
@@ -27,7 +27,7 @@ levels:
       - migrations
       - security
     primary: anthropic/claude-opus-4-7
-    fallback: openai/gpt-5
+    fallback: openai/gpt-5.5-high
     max_cost_per_call_usd: 3.00
     requires_human_gate: true
 
