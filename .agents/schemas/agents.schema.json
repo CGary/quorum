@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "agents.schema.json",
+  "title": "Fleet Transports Schema",
+  "description": "Transport-only description of how to invoke each fleet CLI (agents.yaml). Never encodes tiers, levels, risk, confidence, or budget policy: that stays exclusively in .agents/config.yaml.levels and .agents/policies/routing.yaml (ADR 0010). additionalProperties:false on every object is the anti-drift guard: a tier/level/risk/confidence/budget field added here fails validation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["transports"],
+  "properties": {
+    "transports": {
+      "type": "object",
+      "description": "Map of transport name (e.g. codex, agy, aider, claude) to its invocation contract.",
+      "minProperties": 1,
+      "additionalProperties": { "$ref": "#/$defs/transport" },
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]*$"
+      }
+    }
+  },
+  "$defs": {
+    "transport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "binary",
+        "argv_template",
+        "input_channel",
+        "output_format",
+        "timeouts",
+        "quota_class",
+        "models",
+        "contract_test",
+        "active"
+      ],
+      "properties": {
+        "binary": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Executable name or path resolved on PATH (e.g. codex, agy, aider, claude)."
+        },
+        "argv_template": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" },
+          "description": "Ordered argv tokens, including placeholders such as {model_arg}, {worktree}, {out}, {prompt}, {files}. Rendered directly via exec, never through a shell."
+        },
+        "input_channel": {
+          "type": "string",
+          "enum": ["stdin", "prompt_file", "prompt_arg"],
+          "description": "How the prompt payload reaches the CLI: piped to stdin, written to a file referenced by argv, or passed as a trailing argv token."
+        },
+        "output_format": {
+          "type": "string",
+          "enum": ["jsonl", "json", "text"],
+          "description": "Shape of the CLI's stdout/output file: newline-delimited JSON events, a single JSON document, or unstructured text/prose."
+        },
+        "timeouts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["default_s"],
+          "properties": {
+            "default_s": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Default wall-clock timeout in seconds for one dispatch on this transport."
+            }
+          }
+        },
+        "sandbox": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Sandbox/isolation flag value passed to the CLI (e.g. workspace-write). Optional: not every transport exposes a sandbox flag."
+        },
+        "failure_signatures": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true,
+          "description": "Substrings/patterns identifying quota or auth failures in this transport's output, used to classify a dispatch outcome as reroute-worthy rather than a generic error."
+        },
+        "quota_class": {
+          "type": "string",
+          "enum": ["subscription", "api"],
+          "description": "Fact of the underlying account, not a judgment: subscription (fixed-cap account, no per-call billing) or api (billed per call)."
+        },
+        "models": {
+          "type": "object",
+          "description": "Canonical model name (provider/model, optionally with a provisional effort suffix) to this transport's invocation details.",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z0-9_.-]+/[a-z0-9_.-]+$"
+          }
+        },
+        "contract_test": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path to this transport's structural contract test (verifies the binary and the argv flags this adapter depends on still exist)."
+        },
+        "active": {
+          "type": "boolean",
+          "description": "Whether config.yaml.levels may route to this transport in v1. false means declared-but-inactive (e.g. claude in v1)."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "quota_class": { "const": "api" } },
+            "required": ["quota_class"]
+          },
+          "then": {
+            "properties": {
+              "models": { "additionalProperties": { "$ref": "#/$defs/modelApi" } }
+            }
+          },
+          "else": {
+            "properties": {
+              "models": { "additionalProperties": { "$ref": "#/$defs/modelSubscription" } }
+            }
+          }
+        }
+      ]
+    },
+    "modelSubscription": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model_arg"],
+      "properties": {
+        "model_arg": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Exact string this transport's CLI expects for --model/-m (or equivalent)."
+        },
+        "reasoning_effort": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Provisional effort suffix decomposed from the canonical model name, passed to the CLI's own effort flag."
+        },
+        "effort_whitelist": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true,
+          "minItems": 1,
+          "description": "Per-model whitelist of accepted reasoning_effort values, validated against the backend's real constraints, never a single global enum."
+        }
+      },
+      "$comment": "max_cost_per_call_usd is forbidden here: subscription accounts have no per-call billing (ADR 0010 section 4)."
+    },
+    "modelApi": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model_arg"],
+      "properties": {
+        "model_arg": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Exact string this transport's CLI expects for --model/-m (or equivalent)."
+        },
+        "reasoning_effort": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Provisional effort suffix decomposed from the canonical model name, passed to the CLI's own effort flag."
+        },
+        "effort_whitelist": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true,
+          "minItems": 1,
+          "description": "Per-model whitelist of accepted reasoning_effort values, validated against the backend's real constraints, never a single global enum."
+        },
+        "max_cost_per_call_usd": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Per-call cost ceiling. Only meaningful for quota_class:api transports (ADR 0010 section 4)."
+        }
+      }
+    }
+  }
+}
