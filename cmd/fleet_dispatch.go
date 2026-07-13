@@ -105,16 +105,110 @@ func runFleetDispatch(store core.TaskStore, req fleetDispatchRequest) (string, e
 		"model_arg":        stringField(transport.Models[req.Model], "model_arg"),
 		"reasoning_effort": stringField(transport.Models[req.Model], "reasoning_effort"),
 	}
+	argv := substituteFleetArgv(transport.ArgvTemplate, vars)
+	stdinPrompt := prompt
+	if containsToken(transport.ArgvTemplate, "{prompt_file}") {
+		aiderArgv, aerr := assembleAiderInvocation(taskDir.Path, dispatchDir, prompt, vars, transport.ArgvTemplate)
+		if aerr != nil {
+			return "", aerr
+		}
+		argv = aiderArgv
+		stdinPrompt = "" // aider has no stdin channel (input_channel: prompt_file)
+	}
 	spec := core.DispatchSpec{
 		TaskID: req.TaskID, TaskDir: taskDir.Path, Agent: req.Agent, Model: req.Model,
 		DispatchID: req.DispatchID, Worktree: worktree, Binary: transport.Binary,
-		Argv: substituteFleetArgv(transport.ArgvTemplate, vars), StdinPrompt: prompt,
+		Argv: argv, StdinPrompt: stdinPrompt,
 		TimeoutS: timeoutS, FailureSignatures: transport.FailureSignatures, OutputFormat: transport.OutputFormat,
 	}
 	if _, err := core.Dispatch(spec); err != nil {
 		return "", err
 	}
+	if containsToken(transport.ArgvTemplate, "{prompt_file}") {
+		checkAiderCostGuard(dispatchDir, transport.Models[req.Model])
+	}
 	return filepath.Join(dispatchDir, "result.json"), nil
+}
+
+// checkAiderCostGuard is the AC-7 post-dispatch detect-and-alert: it reads
+// the delegate's raw output that core.Dispatch already wrote to
+// dispatchDir/notes.txt (the motor itself is untouched -- this only reads
+// its output afterwards), parses aider's free-text reported session cost via
+// core.ParseAiderReportedCost, and -- when core.CostExceedsCeiling reports
+// the model's max_cost_per_call_usd ceiling was exceeded -- surfaces a
+// cost_exceeded alert on stderr. This always runs AFTER Dispatch returns, so
+// it never blocks or delays the exec, never introduces a new ADR-0011
+// outcome class, and never touches result.json or 07-trace.json.
+func checkAiderCostGuard(dispatchDir string, model map[string]any) {
+	ceiling, ok := floatField(model, "max_cost_per_call_usd")
+	if !ok {
+		return
+	}
+	notes, err := os.ReadFile(filepath.Join(dispatchDir, "notes.txt"))
+	if err != nil {
+		return
+	}
+	cost, ok := core.ParseAiderReportedCost(string(notes))
+	if !ok {
+		return
+	}
+	if core.CostExceedsCeiling(cost, ceiling) {
+		fmt.Fprintf(os.Stderr, "[!] cost_exceeded: aider reported session cost $%.4f exceeds max_cost_per_call_usd $%.4f\n", cost, ceiling)
+	}
+}
+
+// containsToken reports whether tmpl contains the exact placeholder token
+// (e.g. "{prompt_file}"), used to key the aider-specific dispatch branch
+// without hardcoding an agent name.
+func containsToken(tmpl []string, token string) bool {
+	for _, t := range tmpl {
+		if t == token {
+			return true
+		}
+	}
+	return false
+}
+
+// assembleAiderInvocation builds the aider argv for the prompt_file/{files}
+// dispatch branch (FLEET-017): the bundle is materialized to a temp file
+// under taskDir/dispatch/<id> (OUTSIDE the worktree, so it never pollutes the
+// delegate's diff), {files} is sourced from 02-contract.yaml's touch list via
+// core.Contract, and the resulting argv is validated and preflight-checked
+// before the caller ever execs it. StdinPrompt must be set to "" by the
+// caller (aider has no stdin channel).
+func assembleAiderInvocation(taskDirPath, dispatchDir, prompt string, vars map[string]string, argvTemplate []string) ([]string, error) {
+	if err := os.MkdirAll(dispatchDir, 0o755); err != nil {
+		return nil, fmt.Errorf("cannot create dispatch dir for aider message file: %w", err)
+	}
+	messageFile := filepath.Join(dispatchDir, "message.txt")
+	if err := os.WriteFile(messageFile, []byte(prompt), 0o644); err != nil {
+		return nil, fmt.Errorf("cannot write aider message file: %w", err)
+	}
+	contractPath := filepath.Join(taskDirPath, "02-contract.yaml")
+	raw, err := os.ReadFile(contractPath)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read %s for aider {files}: %w", contractPath, err)
+	}
+	var contract core.Contract
+	if err := yaml.Unmarshal(raw, &contract); err != nil {
+		return nil, fmt.Errorf("cannot parse %s: %w", contractPath, err)
+	}
+	if len(contract.Touch) == 0 {
+		return nil, fmt.Errorf("02-contract.yaml touch list is empty; aider requires at least one file")
+	}
+	renderVars := make(map[string]string, len(vars)+1)
+	for k, v := range vars {
+		renderVars[k] = v
+	}
+	renderVars["prompt_file"] = messageFile
+	argv := core.RenderAiderArgv(argvTemplate, renderVars, contract.Touch)
+	if err := core.ValidateAiderArgv(argv); err != nil {
+		return nil, err
+	}
+	if err := core.CheckAiderPreflight(renderVars["model_arg"]); err != nil {
+		return nil, err
+	}
+	return argv, nil
 }
 func loadFleetTransport(projectRoot, agent string) (fleetTransport, error) {
 	path := filepath.Join(projectRoot, ".agents", "fleet", "agents.yaml")
@@ -151,6 +245,23 @@ func stringField(m map[string]any, key string) string {
 		}
 	}
 	return ""
+}
+
+// floatField reads a numeric field (e.g. max_cost_per_call_usd) out of a
+// transport model entry. YAML numbers unmarshal into float64 or int
+// depending on literal shape, so both are accepted; ok is false when the
+// field is absent or not numeric, so callers never fabricate a ceiling.
+func floatField(m map[string]any, key string) (float64, bool) {
+	if m == nil {
+		return 0, false
+	}
+	switch v := m[key].(type) {
+	case float64:
+		return v, true
+	case int:
+		return float64(v), true
+	}
+	return 0, false
 }
 func init() {
 	fleetCmd.AddCommand(fleetDispatchCmd)
