@@ -106,6 +106,9 @@ func runFleetSmoke(store core.TaskStore, agent, taskID string) (string, error) {
 	if _, err := core.Dispatch(spec); err != nil {
 		return "", err
 	}
+	if containsToken(transport.ArgvTemplate, "{prompt_file}") {
+		checkAiderCostGuard(dispatchDir, transport.Models[model])
+	}
 	return filepath.Join(dispatchDir, "result.json"), nil
 }
 
