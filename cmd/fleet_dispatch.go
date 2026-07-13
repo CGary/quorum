@@ -107,10 +107,21 @@ func runFleetDispatch(store core.TaskStore, req fleetDispatchRequest) (string, e
 		Argv: substituteFleetArgv(transport.ArgvTemplate, vars), StdinPrompt: prompt,
 		TimeoutS: timeoutS, FailureSignatures: transport.FailureSignatures, OutputFormat: transport.OutputFormat,
 	}
-	if _, err := core.Dispatch(spec); err != nil {
+	res, err := core.Dispatch(spec)
+	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dispatchDir, "result.json"), nil
+	resultPath := filepath.Join(dispatchDir, "result.json")
+	if req.Agent == "codex" {
+		// Codex-specific enrichment (FLEET-006-b): the generic engine cannot
+		// parse codex's own JSONL usage events or -o last-message file, so
+		// apply that as a post-Dispatch patch over result.json.
+		notesRaw, _ := os.ReadFile(filepath.Join(taskDir.Path, res.NotesPath))
+		usage := core.ParseCodexJSONLUsage(string(notesRaw))
+		_, _ = core.ReadCodexLastMessage(vars["out"]) // no result.json field to land in yet; read for future wiring
+		_ = core.ApplyDispatchResultUsage(resultPath, usage)
+	}
+	return resultPath, nil
 }
 func loadFleetTransport(projectRoot, agent string) (fleetTransport, error) {
 	path := filepath.Join(projectRoot, ".agents", "fleet", "agents.yaml")

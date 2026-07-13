@@ -35,6 +35,15 @@ transports:
       # Verified in Fase 0a §2: rejection when the pinned model is unavailable
       # for the account's ChatGPT tier (attempt 1, ADR 0010 context).
       - model not supported when using Codex with a ChatGPT account
+      # PROVISIONAL (FLEET-006-b): unverified. No Fase-0a session captured a
+      # real quota-exhaustion response yet; this phrasing is a best-effort
+      # guess pending a real captured session and should be corrected once
+      # one is available.
+      - You've hit your usage limit
+      # PROVISIONAL (FLEET-006-b): unverified. No Fase-0a session captured a
+      # real logged-out/session-expired response yet; this phrasing is a
+      # best-effort guess pending a real captured session.
+      - not authenticated
     quota_class: subscription
     models:
       # gpt-5.5 whitelist per Fase 0a §9: {none, low, medium, high, xhigh}.
