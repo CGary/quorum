@@ -104,6 +104,16 @@ transports:
         model_arg: Gemini 3.1 Pro (High)
       openai/gpt-oss-120b:
         model_arg: GPT-OSS 120B (Medium)
+      # Anthropic Claude 4.6, single-tier "(Thinking)" (no low/medium/high),
+      # so the canonical key carries no effort suffix and the entry declares
+      # only model_arg (openai/gpt-oss-120b single-tier precedent). Hyphen form
+      # matches the sole existing Anthropic canonical name
+      # (config.yaml.levels[2].primary = anthropic/claude-opus-4-7). Exposed to
+      # 'quorum fleet run'; not routed by any config.yaml level (ADR 0010 §5).
+      anthropic/claude-sonnet-4-6:
+        model_arg: Claude Sonnet 4.6 (Thinking)
+      anthropic/claude-opus-4-6:
+        model_arg: Claude Opus 4.6 (Thinking)
     contract_test: .agents/fleet/contract_tests/agy.yaml
     active: true
 

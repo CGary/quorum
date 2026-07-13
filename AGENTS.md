@@ -90,6 +90,35 @@ If examples inside older skill documents disagree with this section, the Go CLI 
 ```bash
 quorum fleet bundle <ID>  # writes a deterministic dispatch context bundle + manifest under .ai/tasks/active/<ID>/dispatch/<dispatch_id>/ (internal/core/fleet_bundle.go)
 quorum fleet dispatch     # stdin JSON {task_id, agent, model, bundle_path, timeout_s?, dispatch_id} -> runs a delegated CLI in the task worktree with lock, process-group-kill timeout, forensic ref, ADR 0011 outcome class, and a normalized result.json (internal/core/fleet_dispatch.go)
+quorum fleet run          # NON-LIFECYCLE: runs a transport in an explicit --cwd via core.RunDelegate; no task, worktree, git, forensic ref, 07-trace, or result.json (cmd/fleet_run.go)
+```
+
+#### Agent usage (`quorum fleet run`, mk-cli contract)
+
+`quorum fleet run` is the agent-friendly, **non-lifecycle** standalone runner. It executes an
+agent transport (default `agy`) in an explicit `--cwd` and returns the delegate result. It is
+NOT `quorum fleet dispatch`: `run` is task-less and produces no SDC artifact, forensic ref, or
+git side effect; `dispatch` is task-bound and runs the full forensic pipeline against a worktree.
+
+Default agent flags:
+
+- Always pass `--json` (stable `{ok, command, summary, data, next_actions}` envelope; errors are
+  `{ok:false, command, error:{code, message, field, received}, retryable, suggested_fix}`). Under
+  `--json` stdout is exactly one JSON object; all logs go to stderr.
+- Always pass `--no-input`; supply the prompt via `--input <file>` or `--input -` (stdin). There is
+  no inline prompt flag.
+- `--model` is a **closed enum** derived from the transport's models map; an unknown value is
+  rejected with `INVALID_ENUM` listing the valid names. Run `quorum fleet run --schema` to see it.
+- Use `--dry-run` to resolve/validate the argv without starting a process; `--output <file>` to
+  redirect large results (returned as `data.result_file`); `--timeout <s>` to bound the run
+  (a timed-out delegate returns `TIMEOUT`).
+- Stable error codes: `MISSING_REQUIRED_FLAG`, `INVALID_ENUM`, `FILE_NOT_FOUND`, `TIMEOUT`,
+  `INVALID_ARGUMENT`, `INTERNAL_ERROR`.
+
+```bash
+quorum fleet run --schema
+quorum fleet run --agent agy --model anthropic/claude-sonnet-4-6 --cwd . --input - --no-input --json
+quorum fleet run --agent agy --model anthropic/claude-opus-4-6 --cwd /repo --input prompt.txt --dry-run --json
 ```
 
 ## High-level architecture

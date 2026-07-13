@@ -132,21 +132,58 @@ type runResult struct {
 	killed   bool
 }
 
-// runDelegate runs the delegate in its own process group; on timeout it signals
-// the NEGATIVE pid SIGTERM then SIGKILL so a child ignoring SIGTERM still dies.
-func runDelegate(spec DispatchSpec) runResult {
-	timeout := time.Duration(spec.TimeoutS) * time.Second
+// RunDelegateInput is the policy-free data-only Value Object for one delegated
+// process run. It carries no task/worktree/git/forensic concern: the delegate
+// binary, argv, working directory, prompt, timeout, and the DATA needed to
+// classify the output (failure signatures, declared output format) all arrive
+// as plain data so a caller outside the SDC lifecycle can reuse the exact
+// process-group timeout machinery without pulling in dispatch policy.
+type RunDelegateInput struct {
+	Binary            string
+	Argv              []string
+	Cwd               string
+	StdinPrompt       string
+	TimeoutS          int
+	FailureSignatures []string
+	OutputFormat      string
+}
+
+// RunDelegateResult holds the observed outcome of one delegated process run.
+// QuotaMatched and OutputParseOK are pure signal computations over Output; the
+// caller decides what they mean (RunDelegate itself takes no action on them).
+type RunDelegateResult struct {
+	Output        string
+	ExitCode      int
+	HasExit       bool
+	TimedOut      bool
+	Killed        bool
+	QuotaMatched  bool
+	OutputParseOK bool
+}
+
+// RunDelegate runs the delegate in its own process group in in.Cwd; on timeout
+// it signals the NEGATIVE pid SIGTERM then SIGKILL so a child ignoring SIGTERM
+// still dies. It is policy-free and performs no git/task/trace side effect: it
+// only starts the process, enforces the timeout, and returns the captured
+// output plus the QuotaMatched/OutputParseOK signals derived from it.
+func RunDelegate(in RunDelegateInput) RunDelegateResult {
+	timeout := time.Duration(in.TimeoutS) * time.Second
 	if timeout <= 0 {
 		timeout = time.Duration(dispatchDefaultTimeoutS) * time.Second
 	}
-	cmd := exec.Command(spec.Binary, spec.Argv...)
-	cmd.Dir = spec.Worktree
-	cmd.Stdin = strings.NewReader(spec.StdinPrompt)
+	cmd := exec.Command(in.Binary, in.Argv...)
+	cmd.Dir = in.Cwd
+	cmd.Stdin = strings.NewReader(in.StdinPrompt)
 	var buf bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &buf, &buf
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {
-		return runResult{output: fmt.Sprintf("dispatch could not start delegate: %v", err), exitCode: -1}
+		out := fmt.Sprintf("dispatch could not start delegate: %v", err)
+		return RunDelegateResult{
+			Output: out, ExitCode: -1,
+			QuotaMatched:  matchesAnySignature(out, in.FailureSignatures),
+			OutputParseOK: outputParses(in.OutputFormat, out),
+		}
 	}
 	pgid := cmd.Process.Pid // Setpgid makes the child its own group leader
 	done := make(chan error, 1)
@@ -174,7 +211,30 @@ func runDelegate(spec DispatchSpec) runResult {
 			werr = <-done
 		}
 	}
-	return runResult{output: buf.String(), exitCode: exitCodeFrom(werr), hasExit: true, timedOut: timedOut, killed: killed}
+	output := buf.String()
+	return RunDelegateResult{
+		Output: output, ExitCode: exitCodeFrom(werr), HasExit: true,
+		TimedOut: timedOut, Killed: killed,
+		QuotaMatched:  matchesAnySignature(output, in.FailureSignatures),
+		OutputParseOK: outputParses(in.OutputFormat, output),
+	}
+}
+
+// runDelegate is a thin behavior-preserving adapter: it builds a RunDelegateInput
+// from the dispatch spec (Cwd=spec.Worktree) and maps the result back to the
+// internal runResult so core.Dispatch stays byte-for-byte unchanged. Dispatch
+// recomputes QuotaMatched/OutputParseOK from run.output, so those fields are
+// intentionally dropped here.
+func runDelegate(spec DispatchSpec) runResult {
+	r := RunDelegate(RunDelegateInput{
+		Binary: spec.Binary, Argv: spec.Argv, Cwd: spec.Worktree,
+		StdinPrompt: spec.StdinPrompt, TimeoutS: spec.TimeoutS,
+		FailureSignatures: spec.FailureSignatures, OutputFormat: spec.OutputFormat,
+	})
+	return runResult{
+		output: r.Output, exitCode: r.ExitCode, hasExit: r.HasExit,
+		timedOut: r.TimedOut, killed: r.Killed,
+	}
 }
 func exitCodeFrom(err error) int {
 	if err == nil {
