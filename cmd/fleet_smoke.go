@@ -87,10 +87,20 @@ func runFleetSmoke(store core.TaskStore, agent, taskID string) (string, error) {
 		"model_arg":        stringField(transport.Models[model], "model_arg"),
 		"reasoning_effort": stringField(transport.Models[model], "reasoning_effort"),
 	}
+	argv := substituteFleetArgv(transport.ArgvTemplate, vars)
+	stdinPrompt := fleetSmokePrompt
+	if containsToken(transport.ArgvTemplate, "{prompt_file}") {
+		aiderArgv, aerr := assembleAiderInvocation(taskDir.Path, dispatchDir, fleetSmokePrompt, vars, transport.ArgvTemplate)
+		if aerr != nil {
+			return "", aerr
+		}
+		argv = aiderArgv
+		stdinPrompt = "" // aider has no stdin channel (input_channel: prompt_file)
+	}
 	spec := core.DispatchSpec{
 		TaskID: taskID, TaskDir: taskDir.Path, Agent: agent, Model: model,
 		DispatchID: dispatchID, Worktree: worktree, Binary: transport.Binary,
-		Argv: substituteFleetArgv(transport.ArgvTemplate, vars), StdinPrompt: fleetSmokePrompt,
+		Argv: argv, StdinPrompt: stdinPrompt,
 		TimeoutS: timeoutS, FailureSignatures: transport.FailureSignatures, OutputFormat: transport.OutputFormat,
 	}
 	if _, err := core.Dispatch(spec); err != nil {

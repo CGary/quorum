@@ -1,0 +1,25 @@
+# Level 1 structural contract test for the aider transport (FLEET-017).
+# Checks are read-only with respect to .agents/fleet/agents.yaml: they mirror
+# the flags already declared there (argv_template) via a single cheap --help
+# probe per check. No model/LLM invocation happens here; it skips gracefully
+# when aider is absent from PATH (same auto-discovery contract as agy.yaml).
+# Level 2 (real dispatch, consumes OpenRouter free-tier quota) is manual only:
+# `quorum fleet smoke aider <task_id>`.
+transport: aider
+binary: aider
+checks:
+  - name: message_file_flag
+    probe_args: ["--help"]
+    expect_substring: "--message-file"
+  - name: no_auto_commits_flag
+    probe_args: ["--help"]
+    expect_substring: "--no-auto-commits"
+  - name: yes_always_flag
+    probe_args: ["--help"]
+    expect_substring: "--yes-always"
+  - name: model_flag
+    probe_args: ["--help"]
+    expect_substring: "--model"
+  - name: no_attribute_co_authored_by_flag
+    probe_args: ["--help"]
+    expect_substring: "--no-attribute-co-authored-by"

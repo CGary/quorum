@@ -108,16 +108,23 @@ transports:
     active: true
 
   aider:
-    # Declaration only (ADR 0010 section 4; ideas/fleet/17-adapter-aider.md).
-    # No adapter, dispatch wiring, or preflight is implemented by this task.
-    # First quota_class:api transport, validating the schema's api-only
-    # max_cost_per_call_usd constraint against a concrete case.
+    # Wired transport (FLEET-017; ideas/fleet/17-adapter-aider.md). First
+    # quota_class:api transport, backed by OpenRouter's free auto-router.
+    # aider auto-commits by default -- the wrapper neutralizes that (and any
+    # attribution/lint/test side effects) so q-verify remains the sole
+    # validation truth (Rule 4 / D15) and the forensic-ref/reset invariant
+    # (task 06) stays intact.
     binary: aider
     argv_template:
       - --message-file
       - "{prompt_file}"
       - --no-auto-commits
       - --no-attribute-co-authored-by
+      - --no-attribute-author
+      - --no-attribute-committer
+      - --no-dirty-commits
+      - --no-auto-lint
+      - --no-auto-test
       - --yes-always
       - --model
       - "{model_arg}"
@@ -132,16 +139,18 @@ transports:
     failure_signatures: []
     quota_class: api
     models:
-      # Backend model is an open decision reserved for doc 17/F4; this entry
-      # only validates the schema's api-only cost constraint against a real
-      # case, reusing a canonical name already declared in config.yaml.
-      deepseek/deepseek-v3.2:
-        model_arg: deepseek/deepseek-v3.2
-        # Provisional placeholder; concrete value is an open decision of
-        # ideas/fleet/17-adapter-aider.md (doc 17 / F4).
+      # openrouter/free is OpenRouter's free auto-router: it dynamically
+      # selects among free-tier models, so provider_trust is a property of
+      # the OpenRouter gateway itself, not a fixed model (classified
+      # external_standard for v1, D13). litellm doubles the "openrouter/"
+      # prefix -- the model_arg value MUST stay "openrouter/openrouter/free"
+      # (a bare "openrouter/free" silently mis-routes); verify this at
+      # `quorum fleet smoke aider` before trusting any real dispatch.
+      openrouter/free:
+        model_arg: openrouter/openrouter/free
         max_cost_per_call_usd: 0.5
     contract_test: .agents/fleet/contract_tests/aider.yaml
-    active: false
+    active: true
 
   claude:
     # Inactive in v1 (ADR 0010 section 5). No level routes to this transport:

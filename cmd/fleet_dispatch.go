@@ -105,16 +105,80 @@ func runFleetDispatch(store core.TaskStore, req fleetDispatchRequest) (string, e
 		"model_arg":        stringField(transport.Models[req.Model], "model_arg"),
 		"reasoning_effort": stringField(transport.Models[req.Model], "reasoning_effort"),
 	}
+	argv := substituteFleetArgv(transport.ArgvTemplate, vars)
+	stdinPrompt := prompt
+	if containsToken(transport.ArgvTemplate, "{prompt_file}") {
+		aiderArgv, aerr := assembleAiderInvocation(taskDir.Path, dispatchDir, prompt, vars, transport.ArgvTemplate)
+		if aerr != nil {
+			return "", aerr
+		}
+		argv = aiderArgv
+		stdinPrompt = "" // aider has no stdin channel (input_channel: prompt_file)
+	}
 	spec := core.DispatchSpec{
 		TaskID: req.TaskID, TaskDir: taskDir.Path, Agent: req.Agent, Model: req.Model,
 		DispatchID: req.DispatchID, Worktree: worktree, Binary: transport.Binary,
-		Argv: substituteFleetArgv(transport.ArgvTemplate, vars), StdinPrompt: prompt,
+		Argv: argv, StdinPrompt: stdinPrompt,
 		TimeoutS: timeoutS, FailureSignatures: transport.FailureSignatures, OutputFormat: transport.OutputFormat,
 	}
 	if _, err := core.Dispatch(spec); err != nil {
 		return "", err
 	}
 	return filepath.Join(dispatchDir, "result.json"), nil
+}
+
+// containsToken reports whether tmpl contains the exact placeholder token
+// (e.g. "{prompt_file}"), used to key the aider-specific dispatch branch
+// without hardcoding an agent name.
+func containsToken(tmpl []string, token string) bool {
+	for _, t := range tmpl {
+		if t == token {
+			return true
+		}
+	}
+	return false
+}
+
+// assembleAiderInvocation builds the aider argv for the prompt_file/{files}
+// dispatch branch (FLEET-017): the bundle is materialized to a temp file
+// under taskDir/dispatch/<id> (OUTSIDE the worktree, so it never pollutes the
+// delegate's diff), {files} is sourced from 02-contract.yaml's touch list via
+// core.Contract, and the resulting argv is validated and preflight-checked
+// before the caller ever execs it. StdinPrompt must be set to "" by the
+// caller (aider has no stdin channel).
+func assembleAiderInvocation(taskDirPath, dispatchDir, prompt string, vars map[string]string, argvTemplate []string) ([]string, error) {
+	if err := os.MkdirAll(dispatchDir, 0o755); err != nil {
+		return nil, fmt.Errorf("cannot create dispatch dir for aider message file: %w", err)
+	}
+	messageFile := filepath.Join(dispatchDir, "message.txt")
+	if err := os.WriteFile(messageFile, []byte(prompt), 0o644); err != nil {
+		return nil, fmt.Errorf("cannot write aider message file: %w", err)
+	}
+	contractPath := filepath.Join(taskDirPath, "02-contract.yaml")
+	raw, err := os.ReadFile(contractPath)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read %s for aider {files}: %w", contractPath, err)
+	}
+	var contract core.Contract
+	if err := yaml.Unmarshal(raw, &contract); err != nil {
+		return nil, fmt.Errorf("cannot parse %s: %w", contractPath, err)
+	}
+	if len(contract.Touch) == 0 {
+		return nil, fmt.Errorf("02-contract.yaml touch list is empty; aider requires at least one file")
+	}
+	renderVars := make(map[string]string, len(vars)+1)
+	for k, v := range vars {
+		renderVars[k] = v
+	}
+	renderVars["prompt_file"] = messageFile
+	argv := core.RenderAiderArgv(argvTemplate, renderVars, contract.Touch)
+	if err := core.ValidateAiderArgv(argv); err != nil {
+		return nil, err
+	}
+	if err := core.CheckAiderPreflight(renderVars["model_arg"]); err != nil {
+		return nil, err
+	}
+	return argv, nil
 }
 func loadFleetTransport(projectRoot, agent string) (fleetTransport, error) {
 	path := filepath.Join(projectRoot, ".agents", "fleet", "agents.yaml")
