@@ -1,0 +1,16 @@
+# Level 1 structural contract test for the agy transport (FLEET-007 AC-3).
+# Checks are read-only with respect to .agents/fleet/agents.yaml: they mirror
+# the flags already declared there (argv_template) via a single cheap --help
+# probe per check. No model/LLM invocation happens here.
+transport: agy
+binary: agy
+checks:
+  - name: model_flag
+    probe_args: ["--help"]
+    expect_substring: "--model"
+  - name: print_flag
+    probe_args: ["--help"]
+    expect_substring: "--print "
+  - name: print_timeout_flag
+    probe_args: ["--help"]
+    expect_substring: "--print-timeout"

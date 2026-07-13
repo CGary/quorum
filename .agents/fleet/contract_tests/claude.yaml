@@ -1,0 +1,16 @@
+# Level 1 structural contract test for the claude transport (FLEET-007 AC-3).
+# claude stays inactive (agents.yaml transports.claude.active: false) but its
+# contract test is declared for symmetry, mirroring argv_template flags via a
+# single cheap --help probe per check. No model/LLM invocation happens here.
+transport: claude
+binary: claude
+checks:
+  - name: print_flag
+    probe_args: ["--help"]
+    expect_substring: "-p"
+  - name: model_flag
+    probe_args: ["--help"]
+    expect_substring: "--model"
+  - name: output_format_flag
+    probe_args: ["--help"]
+    expect_substring: "--output-format"
