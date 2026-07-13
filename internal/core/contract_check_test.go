@@ -121,6 +121,58 @@ func TestCheckContract(t *testing.T) {
 		}
 	})
 
+	t.Run("AC-9 max_files_changed equality passes, limit+1 fails", func(t *testing.T) {
+		c := Contract{
+			Touch:  []string{"a.go", "b.go", "c.go"},
+			Limits: &ContractLimits{MaxDiffLines: intPtr(600), MaxFilesChanged: intPtr(3)},
+		}
+		atLimit := CheckContract(c, []string{"a.go", "b.go", "c.go"}, DiffStat{Insertions: 1})
+		for _, v := range atLimit.Violations {
+			if v.Type == "max_files_changed" {
+				t.Fatalf("expected no max_files_changed violation at exactly the limit, got %+v", v)
+			}
+		}
+
+		overLimitTouch := Contract{
+			Touch:  []string{"a.go", "b.go", "c.go", "d.go"},
+			Limits: &ContractLimits{MaxDiffLines: intPtr(600), MaxFilesChanged: intPtr(3)},
+		}
+		overLimit := CheckContract(overLimitTouch, []string{"a.go", "b.go", "c.go", "d.go"}, DiffStat{Insertions: 1})
+		found := false
+		for _, v := range overLimit.Violations {
+			if v.Type == "max_files_changed" {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("expected max_files_changed violation at limit+1, got %+v", overLimit.Violations)
+		}
+	})
+
+	t.Run("AC-9 max_diff_lines equality passes, limit+1 fails", func(t *testing.T) {
+		c := Contract{
+			Touch:  []string{"internal/core/risk.go"},
+			Limits: &ContractLimits{MaxDiffLines: intPtr(10), MaxFilesChanged: intPtr(5)},
+		}
+		atLimit := CheckContract(c, []string{"internal/core/risk.go"}, DiffStat{Insertions: 6, Deletions: 4})
+		for _, v := range atLimit.Violations {
+			if v.Type == "max_diff_lines" {
+				t.Fatalf("expected no max_diff_lines violation at exactly the limit, got %+v", v)
+			}
+		}
+
+		overLimit := CheckContract(c, []string{"internal/core/risk.go"}, DiffStat{Insertions: 6, Deletions: 5})
+		found := false
+		for _, v := range overLimit.Violations {
+			if v.Type == "max_diff_lines" {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("expected max_diff_lines violation at limit+1, got %+v", overLimit.Violations)
+		}
+	})
+
 	t.Run("AC-8 fully compliant reports ok=true with empty violations", func(t *testing.T) {
 		c := Contract{
 			Touch:  []string{"internal/core/*.go"},
