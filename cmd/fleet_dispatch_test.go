@@ -53,7 +53,7 @@ func setupFleetDispatchProject(t *testing.T) (string, string) {
 	if err := os.MkdirAll(agentsDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	agents := "transports:\n  fake:\n    binary: " + script + "\n    argv_template: []\n    output_format: text\n    timeouts:\n      default_s: 30\n    failure_signatures: []\n    models:\n      test/model-a:\n        model_arg: model-a\n"
+	agents := "transports:\n  fake:\n    binary: " + script + "\n    argv_template: []\n    output_format: text\n    timeouts:\n      default_s: 30\n    failure_signatures: []\n    active: true\n    models:\n      test/model-a:\n        model_arg: model-a\n  fake-inactive:\n    binary: " + script + "\n    argv_template: []\n    output_format: text\n    timeouts:\n      default_s: 30\n    failure_signatures: []\n    active: false\n    models:\n      test/model-a:\n        model_arg: model-a\n"
 	if err := os.WriteFile(filepath.Join(agentsDir, "agents.yaml"), []byte(agents), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -81,6 +81,19 @@ func TestFleetDispatchCommandHappyPath(t *testing.T) {
 	}
 	if _, e := os.Stat(filepath.Join(root, "worktrees", taskID, "delegate_made_this.txt")); e != nil {
 		t.Fatalf("delegate diff not present in worktree: %v", e)
+	}
+}
+
+func TestFleetDispatchCommandInactiveTransport(t *testing.T) {
+	root, taskID := setupFleetDispatchProject(t)
+	_, err := runFleetDispatch(core.NewTaskStore(root), fleetDispatchRequest{
+		TaskID: taskID, Agent: "fake-inactive", Model: "test/model-a", DispatchID: "abc123", TimeoutS: 30,
+	})
+	if err == nil || !strings.Contains(err.Error(), "inactive") {
+		t.Fatalf("want inactive-transport error, got %v", err)
+	}
+	if _, e := os.Stat(filepath.Join(root, "worktrees", taskID, "delegate_made_this.txt")); e == nil {
+		t.Fatalf("delegate binary must not execute for an inactive transport")
 	}
 }
 

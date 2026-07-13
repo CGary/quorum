@@ -32,6 +32,7 @@ type fleetTransport struct {
 		DefaultS int `yaml:"default_s"`
 	} `yaml:"timeouts"`
 	Models map[string]map[string]any `yaml:"models"`
+	Active bool                      `yaml:"active"`
 }
 
 var fleetDispatchCmd = &cobra.Command{
@@ -76,6 +77,9 @@ func runFleetDispatch(store core.TaskStore, req fleetDispatchRequest) (string, e
 	transport, err := loadFleetTransport(store.ProjectRoot, req.Agent)
 	if err != nil {
 		return "", err
+	}
+	if !transport.Active {
+		return "", fmt.Errorf("fleet transport %q is inactive (active:false in agents.yaml); not dispatchable", req.Agent)
 	}
 	worktree := filepath.Join(store.ProjectRoot, "worktrees", req.TaskID)
 	if _, statErr := os.Stat(worktree); statErr != nil {

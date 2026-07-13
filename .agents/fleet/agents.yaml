@@ -63,7 +63,10 @@ transports:
       # gpt-5.6-sol intentionally absent: temporarily unavailable, not obsolete
       # (Fase 0a §9 addendum). Reintroducing it only requires editing this map.
     contract_test: .agents/fleet/contract_tests/codex.yaml
-    active: true
+    # Deactivated 2026-07-13: the OpenAI/Codex subscription is currently
+    # unpaid, so this transport is not dispatchable. Revert by flipping
+    # this back to true once the subscription is restored.
+    active: false
 
   agy:
     # No -C/--cd flag exists for agy (Fase 0a §3): the wrapper MUST launch
