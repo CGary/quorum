@@ -89,6 +89,7 @@ If examples inside older skill documents disagree with this section, the Go CLI 
 
 ```bash
 quorum fleet bundle <ID>  # writes a deterministic dispatch context bundle + manifest under .ai/tasks/active/<ID>/dispatch/<dispatch_id>/ (internal/core/fleet_bundle.go)
+quorum fleet dispatch     # stdin JSON {task_id, agent, model, bundle_path, timeout_s?, dispatch_id} -> runs a delegated CLI in the task worktree with lock, process-group-kill timeout, forensic ref, ADR 0011 outcome class, and a normalized result.json (internal/core/fleet_dispatch.go)
 ```
 
 ## High-level architecture
