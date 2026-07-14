@@ -104,12 +104,23 @@ func runFleetRun(p fleetRunParams, stdout, stderr io.Writer) int {
 			perr.Error(), "input", p.Input, false, ""))
 	}
 
+	// Effective timeout is computed BEFORE the vars map (FLEET-019): agy's
+	// argv_template now references {print_timeout}, which must carry this
+	// same effective value, so the ordering below is load-bearing.
+	timeoutS := p.TimeoutS
+	if timeoutS <= 0 {
+		timeoutS = transport.Timeouts.DefaultS
+	}
+
 	// Substitute the transport argv template. agy uses {model_arg} and {prompt};
-	// {reasoning_effort} resolves to empty for single-tier models.
+	// {reasoning_effort} resolves to empty for single-tier models. {print_timeout}
+	// carries the same effective timeoutS used for the process-group hard-kill
+	// below, so agy's own internal budget always matches the wrapper's.
 	vars := map[string]string{
 		"prompt":           prompt,
 		"model_arg":        stringField(transport.Models[p.Model], "model_arg"),
 		"reasoning_effort": stringField(transport.Models[p.Model], "reasoning_effort"),
+		"print_timeout":    formatPrintTimeout(timeoutS),
 	}
 	argv := substituteFleetArgv(transport.ArgvTemplate, vars)
 
@@ -127,11 +138,6 @@ func runFleetRun(p fleetRunParams, stdout, stderr io.Writer) int {
 			return fail(fleetAgentError(fleetRunCommand, errCodeInvalidArgument,
 				err.Error(), "argv", "", false, ""))
 		}
-	}
-
-	timeoutS := p.TimeoutS
-	if timeoutS <= 0 {
-		timeoutS = transport.Timeouts.DefaultS
 	}
 
 	if p.DryRun {

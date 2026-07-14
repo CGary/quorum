@@ -35,6 +35,24 @@ func TestFleetSmokeCommandHappyPath(t *testing.T) {
 	}
 }
 
+// TestFleetSmokePrintTimeoutMatchesTransportDefault is FLEET-019 AC-4 (smoke
+// half): smoke's effective timeout is always transport.Timeouts.DefaultS
+// (300s here), so the substituted argv must carry "--print-timeout" "5m0s".
+func TestFleetSmokePrintTimeoutMatchesTransportDefault(t *testing.T) {
+	root, taskID := setupPrintTimeoutFakeProject(t)
+	if _, err := runFleetSmoke(core.NewTaskStore(root), "agy-fake", taskID); err != nil {
+		t.Fatalf("runFleetSmoke: %v", err)
+	}
+	raw, err := os.ReadFile(filepath.Join(root, "worktrees", taskID, "args.txt"))
+	if err != nil {
+		t.Fatalf("read args.txt: %v", err)
+	}
+	argv := strings.Split(strings.TrimRight(string(raw), "\n"), "\n")
+	if got := argAfter(argv, "--print-timeout"); got != "5m0s" {
+		t.Fatalf("want --print-timeout 5m0s in substituted argv, got argv=%v", argv)
+	}
+}
+
 func TestFleetSmokeCommandUnknownAgent(t *testing.T) {
 	root, taskID := setupFleetDispatchProject(t)
 	_, err := runFleetSmoke(core.NewTaskStore(root), "ghost", taskID)

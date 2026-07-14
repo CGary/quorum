@@ -75,11 +75,14 @@ transports:
     # token, or the next flag is swallowed as the prompt (false-success trap,
     # Fase 0a §8.1). All other flags go first.
     binary: agy
+    # {print_timeout} carries the SAME effective timeout_s used for the
+    # wrapper's hard-kill at each call site (dispatch/run/smoke), formatted as
+    # a Go duration string (FLEET-019); it is no longer a fixed 5m0s literal.
     argv_template:
       - --model
       - "{model_arg}"
       - --print-timeout
-      - 5m0s
+      - "{print_timeout}"
       - --print
       - "{prompt}"
     input_channel: prompt_arg
