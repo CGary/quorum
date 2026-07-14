@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
@@ -161,6 +162,101 @@ func TestFleetDispatchCommandUnknownAgent(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "unknown fleet transport") {
 		t.Fatalf("want unknown-transport error, got %v", err)
+	}
+}
+
+// setupPrintTimeoutFakeProject is an agy-shaped fake transport (argv_template
+// references {print_timeout} right after --print-timeout, like the real agy
+// block). The fake binary records its full argv, one token per line, to
+// args.txt so tests assert the actual SUBSTITUTED argv (FLEET-019 AC-2/AC-3).
+func setupPrintTimeoutFakeProject(t *testing.T) (string, string) {
+	t.Helper()
+	root, taskID := setupFleetDispatchProject(t)
+	script := filepath.Join(root, "fake-agy.sh")
+	body := "#!/bin/sh\nprintf 'delegate change\\n' > delegate_made_this.txt\nprintf '%s\\n' \"$@\" > args.txt\necho done\n"
+	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	agentsPath := filepath.Join(root, ".agents", "fleet", "agents.yaml")
+	raw, err := os.ReadFile(agentsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	extra := "  agy-fake:\n    binary: " + script + "\n    argv_template:\n      - --model\n      - \"{model_arg}\"\n      - --print-timeout\n      - \"{print_timeout}\"\n      - --print\n      - \"{prompt}\"\n    output_format: text\n    timeouts:\n      default_s: 300\n    failure_signatures: []\n    active: true\n    models:\n      test/model-a:\n        model_arg: model-a\n"
+	if err := os.WriteFile(agentsPath, append(raw, []byte(extra)...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return root, taskID
+}
+
+// argAfter returns the argv token right after flag, or "" if absent/last.
+func argAfter(argv []string, flag string) string {
+	for i, tok := range argv {
+		if tok == flag && i+1 < len(argv) {
+			return argv[i+1]
+		}
+	}
+	return ""
+}
+
+// TestFleetDispatchPrintTimeout is FLEET-019 AC-2/AC-3: dispatch's
+// substituted argv must carry "--print-timeout" set to the SAME effective
+// timeout as the wrapper's hard-kill (explicit timeout_s, or the transport
+// default when absent) -- not agy's own hardcoded 5m0s.
+func TestFleetDispatchPrintTimeout(t *testing.T) {
+	cases := []struct {
+		name     string
+		timeoutS int
+		want     string
+	}{
+		{"explicit-900s", 900, "15m0s"},
+		{"default-300s", 0, "5m0s"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root, taskID := setupPrintTimeoutFakeProject(t)
+			if _, err := runFleetDispatch(core.NewTaskStore(root), fleetDispatchRequest{
+				TaskID: taskID, Agent: "agy-fake", Model: "test/model-a", DispatchID: "pt", TimeoutS: tc.timeoutS,
+			}); err != nil {
+				t.Fatalf("runFleetDispatch: %v", err)
+			}
+			raw, err := os.ReadFile(filepath.Join(root, "worktrees", taskID, "args.txt"))
+			if err != nil {
+				t.Fatalf("read args.txt: %v", err)
+			}
+			argv := strings.Split(strings.TrimRight(string(raw), "\n"), "\n")
+			if got := argAfter(argv, "--print-timeout"); got != tc.want {
+				t.Fatalf("want --print-timeout %s in substituted argv, got argv=%v", tc.want, argv)
+			}
+		})
+	}
+}
+
+// TestFleetPrintTimeoutDoesNotLeakIntoCodexOrAider is FLEET-019 AC-5: adding
+// print_timeout to the shared vars map is additive. The REAL codex/aider
+// argv_templates never declare {print_timeout}, so substitution with/without
+// it must render byte-for-byte identical argv.
+func TestFleetPrintTimeoutDoesNotLeakIntoCodexOrAider(t *testing.T) {
+	_, file, _, _ := runtime.Caller(0)
+	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(file), ".."))
+	base := map[string]string{
+		"model_arg": "gpt-5.5", "reasoning_effort": "none",
+		"worktree": "/tmp/worktree", "out": "/tmp/out.jsonl", "prompt_file": "/tmp/msg.txt", "files": "seed.txt",
+	}
+	withPT := map[string]string{"print_timeout": formatPrintTimeout(900)}
+	for k, v := range base {
+		withPT[k] = v
+	}
+	for _, agent := range []string{"codex", "aider"} {
+		transport, err := loadFleetTransport(repoRoot, agent)
+		if err != nil {
+			t.Fatalf("loadFleetTransport(%s): %v", agent, err)
+		}
+		before := substituteFleetArgv(transport.ArgvTemplate, base)
+		after := substituteFleetArgv(transport.ArgvTemplate, withPT)
+		if !reflect.DeepEqual(before, after) {
+			t.Fatalf("%s argv changed by adding print_timeout var: before=%v after=%v", agent, before, after)
+		}
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -104,6 +105,7 @@ func runFleetDispatch(store core.TaskStore, req fleetDispatchRequest) (string, e
 		"out":              filepath.Join(dispatchDir, "delegate-out.jsonl"),
 		"model_arg":        stringField(transport.Models[req.Model], "model_arg"),
 		"reasoning_effort": stringField(transport.Models[req.Model], "reasoning_effort"),
+		"print_timeout":    formatPrintTimeout(timeoutS),
 	}
 	argv := substituteFleetArgv(transport.ArgvTemplate, vars)
 	stdinPrompt := prompt
@@ -238,6 +240,15 @@ func substituteFleetArgv(tmpl []string, vars map[string]string) []string {
 	}
 	return out
 }
+// formatPrintTimeout renders an effective timeout_s (seconds) as the Go
+// duration string agy's --print-timeout flag expects (e.g. 900 -> "15m0s"),
+// so agy's own internal response budget always equals the same effective
+// timeout that governs the wrapper's process-group hard-kill at that call
+// site (FLEET-019).
+func formatPrintTimeout(effectiveTimeoutS int) string {
+	return (time.Duration(effectiveTimeoutS) * time.Second).String()
+}
+
 func stringField(m map[string]any, key string) string {
 	if m != nil {
 		if v, ok := m[key].(string); ok {

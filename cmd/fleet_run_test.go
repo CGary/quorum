@@ -193,6 +193,50 @@ func TestFleetRunTimeout(t *testing.T) {
 	}
 }
 
+// TestFleetRunPrintTimeout is FLEET-019 AC-4 (run half): --dry-run's
+// returned argv must carry "--print-timeout" set to the effective timeout
+// (--timeout if set, else the transport default), same formatting as dispatch.
+func TestFleetRunPrintTimeout(t *testing.T) {
+	root := t.TempDir()
+	agentsDir := filepath.Join(root, ".agents", "fleet")
+	if err := os.MkdirAll(agentsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	agents := "transports:\n  agy-fake:\n    binary: /bin/true\n    argv_template:\n      - --model\n      - \"{model_arg}\"\n      - --print-timeout\n      - \"{print_timeout}\"\n      - --print\n      - \"{prompt}\"\n    output_format: text\n    timeouts:\n      default_s: 300\n    failure_signatures: []\n    active: true\n    models:\n      anthropic/claude-sonnet-4-6:\n        model_arg: Claude Sonnet 4.6 (Thinking)\n"
+	if err := os.WriteFile(filepath.Join(agentsDir, "agents.yaml"), []byte(agents), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cases := []struct {
+		name     string
+		timeoutS int
+		want     string
+	}{
+		{"timeout-flag-900s", 900, "15m0s"},
+		{"default-300s", 0, "5m0s"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var out, errW bytes.Buffer
+			code := runFleetRun(fleetRunParams{
+				Agent: "agy-fake", Model: "anthropic/claude-sonnet-4-6", Cwd: t.TempDir(),
+				Input: writePromptFile(t, root), TimeoutS: tc.timeoutS, DryRun: true, JSON: true, ProjectRoot: root,
+			}, &out, &errW)
+			if code != 0 {
+				t.Fatalf("--dry-run must exit 0, got %d\nstdout=%s\nstderr=%s", code, out.String(), errW.String())
+			}
+			data, _ := decodeEnvelope(t, out.Bytes())["data"].(map[string]any)
+			rawArgv, _ := data["argv"].([]any)
+			argv := make([]string, len(rawArgv))
+			for i, v := range rawArgv {
+				argv[i], _ = v.(string)
+			}
+			if got := argAfter(argv, "--print-timeout"); got != tc.want {
+				t.Fatalf("want --print-timeout %s in rendered argv, got argv=%v", tc.want, argv)
+			}
+		})
+	}
+}
+
 func TestFleetRunDryRun(t *testing.T) {
 	root, marker := setupFleetRunProject(t)
 	cwd := t.TempDir()

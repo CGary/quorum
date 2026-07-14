@@ -86,6 +86,7 @@ func runFleetSmoke(store core.TaskStore, agent, taskID string) (string, error) {
 		"out":              filepath.Join(dispatchDir, "delegate-out.jsonl"),
 		"model_arg":        stringField(transport.Models[model], "model_arg"),
 		"reasoning_effort": stringField(transport.Models[model], "reasoning_effort"),
+		"print_timeout":    formatPrintTimeout(timeoutS),
 	}
 	argv := substituteFleetArgv(transport.ArgvTemplate, vars)
 	stdinPrompt := fleetSmokePrompt
