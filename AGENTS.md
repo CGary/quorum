@@ -121,6 +121,17 @@ quorum fleet run --agent agy --model anthropic/claude-sonnet-4-6 --cwd . --input
 quorum fleet run --agent agy --model anthropic/claude-opus-4-6 --cwd /repo --input prompt.txt --dry-run --json
 ```
 
+For $0 delegate runs, the `opencode` transport pins six OpenRouter free models validated
+agentically on 2026-07-15 (hidden-test 9/9 each) plus the `openrouter/free` auto-router as the
+availability fallback; canonical keys substitute `-free` for OpenRouter's `:free` suffix (the
+agents.schema.json key pattern forbids `:`), the authoritative list is
+`quorum fleet run --agent opencode --schema`, and the evidence plus re-validation recipe live in
+`docs/fleet-run-for-agents.md` §7. `nvidia/nemotron-nano-9b-v2-free` is a last-resort (slowest)
+entry. OpenRouter free-tier limits bind every `:free` call: 20 req/min shared account-wide,
+1000 req/day on this account (≥ $10 lifetime purchased credits; 50/day otherwise), and 429s
+COUNT against the daily quota — space probes, never retry-loop a 429, and avoid concurrent
+agentic runs on free models.
+
 ## High-level architecture
 
 ### Lifecycle artifacts (`00`→`07`)

@@ -213,6 +213,43 @@ transports:
       # the aider precedent (FLEET-017).
       openrouter/free:
         model_arg: openrouter/openrouter/free
+      # Validated agentic 2026-07-15 (empirical OpenRouter free-model
+      # evaluation, docs/fleet-run-for-agents.md section 7): hidden,
+      # independent 9-case Go test suite the model never saw, single-shot
+      # codegen PASS 9/9 in 3.8s, then the SAME grading driven through
+      # opencode's own tool-use loop PASS 9/9 in 18s -- one of six free
+      # models in that evaluation validated end-to-end for agentic use (the
+      # other five are grouped below with a shared note). No
+      # expiration_date at validation time, but free-tier models decay
+      # (saturation/removal) without notice -- re-check expiration_date and
+      # re-probe latency before relying on this entry (see docs section 7.7).
+      # Canonical key swaps the OpenRouter ":free" suffix for "-free":
+      # agents.schema.json's models propertyNames pattern
+      # ("^[a-z0-9_.-]+/[a-z0-9_.-]+$") allows exactly one "/" but excludes
+      # ":" from its character class, so the raw OpenRouter model id
+      # "nvidia/nemotron-3-ultra-550b-a55b:free" cannot be used verbatim as a
+      # map key (same doubled-string precedent as openrouter/free above:
+      # model_arg carries the exact, colon-preserving string opencode's -m
+      # flag needs; the canonical key only has to be schema-valid).
+      nvidia/nemotron-3-ultra-550b-a55b-free:
+        model_arg: openrouter/nvidia/nemotron-3-ultra-550b-a55b:free
+      # The five entries below were validated agentic 2026-07-15 in the same
+      # evaluation (hidden 9-case test via opencode tool-use loop, PASS 9/9
+      # each; see docs/fleet-run-for-agents.md section 7). Same ":free" ->
+      # "-free" canonical-key transform documented on the ultra entry above;
+      # re-validate periodically (docs section 7.7). Ordered by measured
+      # agentic speed (11s / 12s / 14s / 19s / 72s).
+      nvidia/nemotron-3-nano-omni-30b-a3b-reasoning-free:
+        model_arg: openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
+      poolside/laguna-xs-2.1-free:
+        model_arg: openrouter/poolside/laguna-xs-2.1:free
+      cohere/north-mini-code-free:
+        model_arg: openrouter/cohere/north-mini-code:free
+      poolside/laguna-m.1-free:
+        model_arg: openrouter/poolside/laguna-m.1:free
+      # Last-resort: slowest validated entry (57.6s single-shot / 72s agentic on a trivial task); prefer the five faster entries above.
+      nvidia/nemotron-nano-9b-v2-free:
+        model_arg: openrouter/nvidia/nemotron-nano-9b-v2:free
     contract_test: .agents/fleet/contract_tests/opencode.yaml
     active: true
 
