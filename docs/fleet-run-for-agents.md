@@ -24,9 +24,10 @@ export QUORUM_FLEET_AGENTS=/path/to/quorum/.agents/fleet/agents.yaml
 ```
 
 If `QUORUM_FLEET_AGENTS` is unset, `quorum fleet run` falls back to
-`<repo-of-the-quorum-binary>/.agents/fleet/agents.yaml`, which only works
-when you are running `quorum` from inside the Quorum repo itself. Setting the
-env var is what makes the command usable from any other project.
+`<git-root-of-your-current-directory>/.agents/fleet/agents.yaml` (resolved via
+`git rev-parse` from wherever you run the command), which only works when your
+current directory is inside the Quorum repo itself. Setting the env var is what
+makes the command usable from any other project.
 
 ### 1.2 Credentials
 

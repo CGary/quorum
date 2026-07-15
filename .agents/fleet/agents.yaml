@@ -195,10 +195,9 @@ transports:
     # relying on whatever the caller happens to pipe.
     stdin_empty: true
     timeouts:
-      # Provisional by analogy with aider's own provisional default (no
-      # opencode-native default empirically measured this session); validate
-      # via `quorum fleet smoke opencode <task_id>` before trusting a real
-      # dispatch.
+      # Provisional: no opencode-native default was empirically measured this
+      # session; validate via `quorum fleet smoke opencode <task_id>` before
+      # trusting a real dispatch.
       default_s: 300
     failure_signatures: []
     quota_class: api
