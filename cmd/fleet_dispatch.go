@@ -34,6 +34,27 @@ type fleetTransport struct {
 	} `yaml:"timeouts"`
 	Models map[string]map[string]any `yaml:"models"`
 	Active bool                      `yaml:"active"`
+	// Env holds optional extra environment variables (e.g. opencode's
+	// OPENCODE_DISABLE_AUTOUPDATE) applied via os.Setenv at the cmd layer
+	// before invoking this transport (FLEET-020). Absent for agy/aider/codex,
+	// so their behavior is unchanged.
+	Env map[string]string `yaml:"env"`
+	// StdinEmpty, when true, forces an explicitly empty stdin for this
+	// transport instead of the prompt (FLEET-020). Absent (zero-value false)
+	// for agy/aider/codex preserves their existing stdin behavior exactly.
+	StdinEmpty bool `yaml:"stdin_empty"`
+}
+
+// applyFleetTransportEnv applies every transport.Env pair via os.Setenv
+// before the delegate is invoked, so the child process inherits it via the
+// engine's existing nil cmd.Env (core.Dispatch/core.RunDelegate are
+// untouched). This is process-global for the lifetime of this short-lived
+// CLI invocation (FLEET-020 risk note), never a new DispatchSpec/
+// RunDelegateInput field.
+func applyFleetTransportEnv(env map[string]string) {
+	for k, v := range env {
+		os.Setenv(k, v)
+	}
 }
 
 var fleetDispatchCmd = &cobra.Command{
@@ -82,6 +103,7 @@ func runFleetDispatch(store core.TaskStore, req fleetDispatchRequest) (string, e
 	if !transport.Active {
 		return "", fmt.Errorf("fleet transport %q is inactive (active:false in agents.yaml); not dispatchable", req.Agent)
 	}
+	applyFleetTransportEnv(transport.Env)
 	worktree := filepath.Join(store.ProjectRoot, "worktrees", req.TaskID)
 	if _, statErr := os.Stat(worktree); statErr != nil {
 		return "", fmt.Errorf("worktree for %s not found (run quorum task start): %w", req.TaskID, statErr)
@@ -101,6 +123,7 @@ func runFleetDispatch(store core.TaskStore, req fleetDispatchRequest) (string, e
 	dispatchDir := filepath.Join(taskDir.Path, "dispatch", req.DispatchID)
 	vars := map[string]string{
 		"worktree":         worktree,
+		"cwd":              worktree,
 		"prompt":           prompt,
 		"out":              filepath.Join(dispatchDir, "delegate-out.jsonl"),
 		"model_arg":        stringField(transport.Models[req.Model], "model_arg"),
@@ -116,6 +139,9 @@ func runFleetDispatch(store core.TaskStore, req fleetDispatchRequest) (string, e
 		}
 		argv = aiderArgv
 		stdinPrompt = "" // aider has no stdin channel (input_channel: prompt_file)
+	}
+	if transport.StdinEmpty {
+		stdinPrompt = ""
 	}
 	spec := core.DispatchSpec{
 		TaskID: req.TaskID, TaskDir: taskDir.Path, Agent: req.Agent, Model: req.Model,
@@ -212,8 +238,21 @@ func assembleAiderInvocation(taskDirPath, dispatchDir, prompt string, vars map[s
 	}
 	return argv, nil
 }
+// fleetAgentsPath resolves the agents.yaml location: QUORUM_FLEET_AGENTS
+// first (so 'quorum fleet run' can be used from another project without
+// copying config, pointing at the live file to avoid drift), falling back to
+// <projectRoot>/.agents/fleet/agents.yaml otherwise, mirroring the
+// env-first-then-fallback precedent of internal/core/schema.go's SchemasDir
+// (QUORUM_SCHEMAS_DIR).
+func fleetAgentsPath(projectRoot string) string {
+	if env := os.Getenv("QUORUM_FLEET_AGENTS"); env != "" {
+		return env
+	}
+	return filepath.Join(projectRoot, ".agents", "fleet", "agents.yaml")
+}
+
 func loadFleetTransport(projectRoot, agent string) (fleetTransport, error) {
-	path := filepath.Join(projectRoot, ".agents", "fleet", "agents.yaml")
+	path := fleetAgentsPath(projectRoot)
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return fleetTransport{}, fmt.Errorf("cannot read %s: %w", path, err)

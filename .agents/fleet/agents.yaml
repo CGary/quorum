@@ -165,6 +165,57 @@ transports:
     contract_test: .agents/fleet/contract_tests/aider.yaml
     active: true
 
+  opencode:
+    # Wired transport (FLEET-020). Implement-only, mirrors the aider adapter
+    # pattern (FLEET-017): backed by OpenRouter's free auto-router, so this is
+    # a second quota_class:api transport. Unlike aider, opencode gets its own
+    # {cwd} agentic-directory flag (--dir) instead of a {prompt_file}, and its
+    # prompt is passed inline as a trailing argv token (input_channel:
+    # prompt_arg) with stdin explicitly closed (stdin_empty) rather than piped.
+    binary: opencode
+    # OPENCODE_DISABLE_AUTOUPDATE=true avoids the documented network
+    # auto-update hang in headless/non-interactive runs (GH #9954/#3503); it is
+    # always set for this transport, never conditionally.
+    env:
+      OPENCODE_DISABLE_AUTOUPDATE: "true"
+    argv_template:
+      - run
+      - "{prompt}"
+      - -m
+      - "{model_arg}"
+      - --format
+      - json
+      - --dir
+      - "{cwd}"
+      - --auto
+    input_channel: prompt_arg
+    output_format: json
+    # stdin is not the input channel for opencode (the prompt is a trailing
+    # argv token); stdin_empty forces an explicitly empty stdin rather than
+    # relying on whatever the caller happens to pipe.
+    stdin_empty: true
+    timeouts:
+      # Provisional: no opencode-native default was empirically measured this
+      # session; validate via `quorum fleet smoke opencode <task_id>` before
+      # trusting a real dispatch.
+      default_s: 300
+    failure_signatures: []
+    quota_class: api
+    models:
+      # Canonical key matches aider's own openrouter/free entry: the
+      # agents.schema.json models propertyNames pattern
+      # ("^[a-z0-9_.-]+/[a-z0-9_.-]+$") allows exactly one "/", so the
+      # doubled "openrouter/openrouter/free" string can only ever be the
+      # model_arg value opencode's own --model flag expects, never the
+      # canonical key. 00-spec.yaml's AC-2 example uses the doubled string
+      # loosely; the schema-valid canonical name is this shorter
+      # "openrouter/free", consistent with the blueprint's AC-1 statement and
+      # the aider precedent (FLEET-017).
+      openrouter/free:
+        model_arg: openrouter/openrouter/free
+    contract_test: .agents/fleet/contract_tests/opencode.yaml
+    active: true
+
   claude:
     # Inactive in v1 (ADR 0010 section 5). No level routes to this transport:
     # the "Claude frontier" referenced by config.yaml.levels[2].primary is the

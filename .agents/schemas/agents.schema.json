@@ -99,6 +99,15 @@
         "active": {
           "type": "boolean",
           "description": "Whether config.yaml.levels may route to this transport in v1. false means declared-but-inactive (e.g. claude in v1)."
+        },
+        "env": {
+          "type": "object",
+          "description": "Optional extra environment variables applied (via os.Setenv at the cmd layer) before invoking this transport. Absent means no extra env is set; existing transports omit this field and are unaffected.",
+          "additionalProperties": { "type": "string" }
+        },
+        "stdin_empty": {
+          "type": "boolean",
+          "description": "Optional: when true, the wrapper passes an explicitly empty stdin to this transport instead of the prompt. Absent (the zero-value false) preserves today's stdin behavior exactly; only transports whose prompt travels via argv (input_channel: prompt_arg) set this to true."
         }
       },
       "allOf": [
