@@ -229,7 +229,7 @@ These pass the hidden 9-case suite single-shot (direct completion) but are
 | `cognitivecomputations/dolphin-mistral-24b-venice-edition:free` | expires 2026-07-19; 429 on 2/2 attempts |
 | `tencent/hy3:free` | expires 2026-07-21 (launch promo, 9 days old at eval time) |
 | `google/gemma-4-31b-it:free` | no `expiration_date`, but 429 on 2/2 attempts |
-| `nvidia/nemotron-3-super-120b-a12b:free` | no `expiration_date`; 200 OK on the trivial probe (1.0s) but 429 on 2/3 probes (persistent saturation) |
+| `nvidia/nemotron-3-super-120b-a12b:free` | no `expiration_date`; 200 OK on the trivial probe (1.0s) but 429 on 2/3 probes; re-probed 2026-07-15 (2 attempts, 60s apart): 429 on both — persistent saturation confirmed, stays discarded |
 | `google/gemma-4-26b-a4b-it:free` | emitted invalid Go (stray `?` character, syntax garbage) |
 | `nvidia/nemotron-nano-12b-v2-vl:free` | hallucinated `strings.Split` with 3 arguments |
 | `nvidia/nemotron-3.5-content-safety:free` | safety classifier, not a general-purpose model |
