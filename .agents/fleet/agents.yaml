@@ -136,6 +136,10 @@ transports:
       - --no-attribute-author
       - --no-attribute-committer
       - --no-dirty-commits
+      # --no-gitignore stops aider's default first-run edit of .gitignore
+      # (it auto-adds ".aider*", auto-accepted by --yes-always), which lands
+      # outside the contract touch list (live dispatch finding, 2026-07-15).
+      - --no-gitignore
       - --no-auto-lint
       - --no-auto-test
       - --yes-always
