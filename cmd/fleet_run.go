@@ -66,6 +66,7 @@ func runFleetRun(p fleetRunParams, stdout, stderr io.Writer) int {
 		return fail(fleetAgentError(fleetRunCommand, errCodeInvalidArgument,
 			fmt.Sprintf("cannot load transport %q: %v", agent, terr), "agent", agent, false, ""))
 	}
+	applyFleetTransportEnv(transport.Env)
 
 	// Required flags (mk-cli MISSING_REQUIRED_FLAG).
 	if p.Model == "" {
@@ -115,9 +116,13 @@ func runFleetRun(p fleetRunParams, stdout, stderr io.Writer) int {
 	// Substitute the transport argv template. agy uses {model_arg} and {prompt};
 	// {reasoning_effort} resolves to empty for single-tier models. {print_timeout}
 	// carries the same effective timeoutS used for the process-group hard-kill
-	// below, so agy's own internal budget always matches the wrapper's.
+	// below, so agy's own internal budget always matches the wrapper's. {cwd}
+	// resolves to p.Cwd (FLEET-020) so opencode's --dir flag works identically
+	// here and on the task-bound dispatch/smoke paths, unlike the dispatch-only
+	// {worktree}/{out} tokens residualPlaceholder rejects below.
 	vars := map[string]string{
 		"prompt":           prompt,
+		"cwd":              p.Cwd,
 		"model_arg":        stringField(transport.Models[p.Model], "model_arg"),
 		"reasoning_effort": stringField(transport.Models[p.Model], "reasoning_effort"),
 		"print_timeout":    formatPrintTimeout(timeoutS),
@@ -154,8 +159,12 @@ func runFleetRun(p fleetRunParams, stdout, stderr io.Writer) int {
 	}
 
 	// Execute via the policy-free primitive; NO git/task/trace/result.json.
+	stdinPrompt := prompt
+	if transport.StdinEmpty {
+		stdinPrompt = ""
+	}
 	res := core.RunDelegate(core.RunDelegateInput{
-		Binary: transport.Binary, Argv: argv, Cwd: p.Cwd, StdinPrompt: prompt,
+		Binary: transport.Binary, Argv: argv, Cwd: p.Cwd, StdinPrompt: stdinPrompt,
 		TimeoutS: timeoutS, FailureSignatures: transport.FailureSignatures, OutputFormat: transport.OutputFormat,
 	})
 

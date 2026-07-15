@@ -79,6 +79,42 @@ func TestFleetSmokeCommandRequiresAgentAndTaskID(t *testing.T) {
 	}
 }
 
+// TestFleetSmokeOpencodeCwdEnvAndStdinEmpty is FLEET-020 AC-1/AC-4 (smoke
+// half): {cwd} resolves to the worktree, transport.Env is applied before
+// exec, and stdin_empty forces an empty stdin, mirroring the dispatch-path
+// coverage in fleet_dispatch_test.go.
+func TestFleetSmokeOpencodeCwdEnvAndStdinEmpty(t *testing.T) {
+	os.Unsetenv("FLEET_TEST_ENV_MARKER")
+	t.Cleanup(func() { os.Unsetenv("FLEET_TEST_ENV_MARKER") })
+	root, taskID := setupFleetOpencodeFakeProject(t)
+	if _, err := runFleetSmoke(core.NewTaskStore(root), "opencode-fake", taskID); err != nil {
+		t.Fatalf("runFleetSmoke: %v", err)
+	}
+	worktree := filepath.Join(root, "worktrees", taskID)
+	argvRaw, err := os.ReadFile(filepath.Join(worktree, "args.txt"))
+	if err != nil {
+		t.Fatalf("read args.txt: %v", err)
+	}
+	argv := strings.Split(strings.TrimRight(string(argvRaw), "\n"), "\n")
+	if got := argAfter(argv, "--dir"); got != worktree {
+		t.Fatalf("want --dir %s (cwd substituted to worktree), got argv=%v", worktree, argv)
+	}
+	envRaw, err := os.ReadFile(filepath.Join(worktree, "env.txt"))
+	if err != nil {
+		t.Fatalf("read env.txt: %v", err)
+	}
+	if string(envRaw) != "marker-value" {
+		t.Fatalf("want transport.Env applied before exec, got env.txt=%q", envRaw)
+	}
+	stdinRaw, err := os.ReadFile(filepath.Join(worktree, "stdin.txt"))
+	if err != nil {
+		t.Fatalf("read stdin.txt: %v", err)
+	}
+	if len(stdinRaw) != 0 {
+		t.Fatalf("want empty stdin for stdin_empty:true transport, got stdin.txt=%q", stdinRaw)
+	}
+}
+
 func TestFleetSmokeCommandRegisteredManualOnly(t *testing.T) {
 	// AC-4/D8: the smoke subcommand must exist and be reachable only via
 	// explicit CLI invocation -- this test only asserts registration under

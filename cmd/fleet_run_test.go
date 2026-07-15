@@ -237,6 +237,93 @@ func TestFleetRunPrintTimeout(t *testing.T) {
 	}
 }
 
+// setupFleetRunOpencodeProject builds an opencode-shaped fake transport for
+// 'fleet run': prompt travels as a trailing argv token, {cwd} resolves to
+// p.Cwd (FLEET-020), env carries a marker var, and stdin_empty is true. The
+// fake binary records its argv, stdin, and the marker env var to files under
+// its cwd so tests can assert all three.
+func setupFleetRunOpencodeProject(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	script := filepath.Join(root, "fake-opencode.sh")
+	body := "#!/bin/sh\nprintf '%s\\n' \"$@\" > args.txt\ncat > stdin.txt\nprintf '%s' \"$FLEET_TEST_ENV_MARKER\" > env.txt\n"
+	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	agentsDir := filepath.Join(root, ".agents", "fleet")
+	if err := os.MkdirAll(agentsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	agents := "transports:\n" +
+		"  opencode-fake:\n" +
+		"    binary: " + script + "\n" +
+		"    env:\n" +
+		"      FLEET_TEST_ENV_MARKER: marker-value\n" +
+		"    argv_template:\n" +
+		"      - run\n" +
+		"      - \"{prompt}\"\n" +
+		"      - -m\n" +
+		"      - \"{model_arg}\"\n" +
+		"      - --dir\n" +
+		"      - \"{cwd}\"\n" +
+		"    input_channel: prompt_arg\n" +
+		"    output_format: json\n" +
+		"    stdin_empty: true\n" +
+		"    timeouts:\n" +
+		"      default_s: 30\n" +
+		"    failure_signatures: []\n" +
+		"    active: true\n" +
+		"    models:\n" +
+		"      openrouter/free:\n" +
+		"        model_arg: openrouter/openrouter/free\n"
+	if err := os.WriteFile(filepath.Join(agentsDir, "agents.yaml"), []byte(agents), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return root
+}
+
+// TestFleetRunOpencodeCwdEnvAndStdinEmpty is FLEET-020 AC-2: the {cwd}
+// placeholder substitutes to --cwd on the standalone 'fleet run' path too
+// (not just dispatch/smoke), transport.Env is applied before exec, and
+// stdin_empty forces an empty stdin even though the prompt still arrives via
+// argv.
+func TestFleetRunOpencodeCwdEnvAndStdinEmpty(t *testing.T) {
+	os.Unsetenv("FLEET_TEST_ENV_MARKER")
+	t.Cleanup(func() { os.Unsetenv("FLEET_TEST_ENV_MARKER") })
+	root := setupFleetRunOpencodeProject(t)
+	cwd := t.TempDir()
+	var out, errW bytes.Buffer
+	code := runFleetRun(fleetRunParams{
+		Agent: "opencode-fake", Model: "openrouter/free", Cwd: cwd,
+		Input: writePromptFile(t, root), JSON: true, ProjectRoot: root,
+	}, &out, &errW)
+	if code != 0 {
+		t.Fatalf("want exit 0, got %d\nstdout=%s\nstderr=%s", code, out.String(), errW.String())
+	}
+	argvRaw, err := os.ReadFile(filepath.Join(cwd, "args.txt"))
+	if err != nil {
+		t.Fatalf("read args.txt: %v", err)
+	}
+	argv := strings.Split(strings.TrimRight(string(argvRaw), "\n"), "\n")
+	if got := argAfter(argv, "--dir"); got != cwd {
+		t.Fatalf("want --dir %s (cwd substituted), got argv=%v", cwd, argv)
+	}
+	envRaw, err := os.ReadFile(filepath.Join(cwd, "env.txt"))
+	if err != nil {
+		t.Fatalf("read env.txt: %v", err)
+	}
+	if string(envRaw) != "marker-value" {
+		t.Fatalf("want transport.Env applied before exec, got env.txt=%q", envRaw)
+	}
+	stdinRaw, err := os.ReadFile(filepath.Join(cwd, "stdin.txt"))
+	if err != nil {
+		t.Fatalf("read stdin.txt: %v", err)
+	}
+	if len(stdinRaw) != 0 {
+		t.Fatalf("want empty stdin for stdin_empty:true transport, got stdin.txt=%q", stdinRaw)
+	}
+}
+
 func TestFleetRunDryRun(t *testing.T) {
 	root, marker := setupFleetRunProject(t)
 	cwd := t.TempDir()

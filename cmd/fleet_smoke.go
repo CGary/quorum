@@ -69,6 +69,7 @@ func runFleetSmoke(store core.TaskStore, agent, taskID string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	applyFleetTransportEnv(transport.Env)
 	worktree := filepath.Join(store.ProjectRoot, "worktrees", taskID)
 	if _, statErr := os.Stat(worktree); statErr != nil {
 		return "", fmt.Errorf("worktree for %s not found (run quorum task start): %w", taskID, statErr)
@@ -82,6 +83,7 @@ func runFleetSmoke(store core.TaskStore, agent, taskID string) (string, error) {
 	dispatchDir := filepath.Join(taskDir.Path, "dispatch", dispatchID)
 	vars := map[string]string{
 		"worktree":         worktree,
+		"cwd":              worktree,
 		"prompt":           fleetSmokePrompt,
 		"out":              filepath.Join(dispatchDir, "delegate-out.jsonl"),
 		"model_arg":        stringField(transport.Models[model], "model_arg"),
@@ -97,6 +99,9 @@ func runFleetSmoke(store core.TaskStore, agent, taskID string) (string, error) {
 		}
 		argv = aiderArgv
 		stdinPrompt = "" // aider has no stdin channel (input_channel: prompt_file)
+	}
+	if transport.StdinEmpty {
+		stdinPrompt = ""
 	}
 	spec := core.DispatchSpec{
 		TaskID: taskID, TaskDir: taskDir.Path, Agent: agent, Model: model,

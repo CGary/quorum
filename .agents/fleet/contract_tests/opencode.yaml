@@ -1,0 +1,23 @@
+# Level 1 structural contract test for the opencode transport (FLEET-020).
+# Checks are read-only with respect to .agents/fleet/agents.yaml: they mirror
+# the flags already declared there (argv_template) via a single cheap
+# `opencode run --help` probe per check. No model/LLM invocation happens
+# here; it skips gracefully when opencode is absent from PATH, same
+# auto-discovery contract as agy.yaml/aider.yaml.
+# Level 2 (real dispatch, consumes OpenRouter free-tier quota) is manual only:
+# `quorum fleet smoke opencode <task_id>`.
+transport: opencode
+binary: opencode
+checks:
+  - name: model_flag
+    probe_args: ["run", "--help"]
+    expect_substring: "-m, --model"
+  - name: format_flag
+    probe_args: ["run", "--help"]
+    expect_substring: "--format"
+  - name: dir_flag
+    probe_args: ["run", "--help"]
+    expect_substring: "--dir"
+  - name: auto_flag
+    probe_args: ["run", "--help"]
+    expect_substring: "--auto"

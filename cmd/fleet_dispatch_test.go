@@ -448,3 +448,220 @@ func TestFleetDispatchAiderCostUnderCeilingDoesNotAlert(t *testing.T) {
 		t.Fatalf("want no cost_exceeded alert for a 0.10 session cost under a 0.5 ceiling, got stderr=%q", stderr)
 	}
 }
+
+// TestFleetCwdVarDoesNotLeakIntoAgyAiderCodex is FLEET-020 AC-4: adding the
+// new "cwd" key to the shared vars map is additive. The REAL agy/aider/codex
+// argv_templates never declare {cwd}, so substitution with/without it must
+// render byte-for-byte identical argv (same idiom as
+// TestFleetPrintTimeoutDoesNotLeakIntoCodexOrAider for {print_timeout}).
+func TestFleetCwdVarDoesNotLeakIntoAgyAiderCodex(t *testing.T) {
+	_, file, _, _ := runtime.Caller(0)
+	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(file), ".."))
+	base := map[string]string{
+		"model_arg": "gpt-5.5", "reasoning_effort": "none", "print_timeout": "5m0s",
+		"worktree": "/tmp/worktree", "out": "/tmp/out.jsonl", "prompt_file": "/tmp/msg.txt", "files": "seed.txt",
+	}
+	withCwd := map[string]string{"cwd": "/tmp/some-cwd"}
+	for k, v := range base {
+		withCwd[k] = v
+	}
+	for _, agent := range []string{"codex", "agy", "aider"} {
+		transport, err := loadFleetTransport(repoRoot, agent)
+		if err != nil {
+			t.Fatalf("loadFleetTransport(%s): %v", agent, err)
+		}
+		before := substituteFleetArgv(transport.ArgvTemplate, base)
+		after := substituteFleetArgv(transport.ArgvTemplate, withCwd)
+		if !reflect.DeepEqual(before, after) {
+			t.Fatalf("%s argv changed by adding cwd var: before=%v after=%v", agent, before, after)
+		}
+	}
+}
+
+// TestRealAgyAiderTransportsUnaffectedByEnvAndStdinEmptyFields is FLEET-020
+// AC-4: loading the real repo agents.yaml, agy/aider/codex must have zero-value
+// Env (nil/empty) and StdinEmpty (false), proving the new optional schema
+// fields are no-ops for transports that omit them.
+func TestRealAgyAiderTransportsUnaffectedByEnvAndStdinEmptyFields(t *testing.T) {
+	_, file, _, _ := runtime.Caller(0)
+	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(file), ".."))
+	for _, agent := range []string{"codex", "agy", "aider", "claude"} {
+		transport, err := loadFleetTransport(repoRoot, agent)
+		if err != nil {
+			t.Fatalf("loadFleetTransport(%s): %v", agent, err)
+		}
+		if len(transport.Env) != 0 {
+			t.Fatalf("%s: want no env vars declared, got %v", agent, transport.Env)
+		}
+		if transport.StdinEmpty {
+			t.Fatalf("%s: want stdin_empty absent (false), got true", agent)
+		}
+	}
+}
+
+// TestRealOpencodeTransportLoadsExpectedShape is FLEET-020 AC-1: the real
+// opencode block in .agents/fleet/agents.yaml loads with the validated
+// headless recipe.
+func TestRealOpencodeTransportLoadsExpectedShape(t *testing.T) {
+	_, file, _, _ := runtime.Caller(0)
+	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(file), ".."))
+	transport, err := loadFleetTransport(repoRoot, "opencode")
+	if err != nil {
+		t.Fatalf("loadFleetTransport(opencode): %v", err)
+	}
+	if transport.Binary != "opencode" {
+		t.Fatalf("want binary opencode, got %q", transport.Binary)
+	}
+	if !transport.Active {
+		t.Fatal("want opencode active:true")
+	}
+	if transport.Env["OPENCODE_DISABLE_AUTOUPDATE"] != "true" {
+		t.Fatalf("want env OPENCODE_DISABLE_AUTOUPDATE=true, got %v", transport.Env)
+	}
+	if !transport.StdinEmpty {
+		t.Fatal("want stdin_empty true for opencode")
+	}
+	model, ok := transport.Models["openrouter/free"]
+	if !ok {
+		t.Fatalf("want model openrouter/free declared, got %v", transport.Models)
+	}
+	if stringField(model, "model_arg") != "openrouter/openrouter/free" {
+		t.Fatalf("want model_arg openrouter/openrouter/free, got %v", model)
+	}
+	wantArgv := []string{"run", "{prompt}", "-m", "{model_arg}", "--format", "json", "--dir", "{cwd}", "--auto"}
+	if !reflect.DeepEqual(transport.ArgvTemplate, wantArgv) {
+		t.Fatalf("want argv_template %v, got %v", wantArgv, transport.ArgvTemplate)
+	}
+}
+
+// setupFleetOpencodeFakeProject extends setupFleetDispatchProject with an
+// opencode-shaped fake transport: prompt travels as a trailing argv token
+// ({prompt}), {cwd} substitutes to the worktree, env carries a marker var,
+// and stdin_empty is true. The fake binary records its argv and its stdin
+// content to files so tests can assert both.
+func setupFleetOpencodeFakeProject(t *testing.T) (string, string) {
+	t.Helper()
+	root, taskID := setupFleetDispatchProject(t)
+	script := filepath.Join(root, "fake-opencode.sh")
+	body := "#!/bin/sh\nprintf '%s\\n' \"$@\" > args.txt\ncat > stdin.txt\nprintf '%s' \"$FLEET_TEST_ENV_MARKER\" > env.txt\nprintf 'delegate change\\n' > delegate_made_this.txt\necho done\n"
+	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	agentsPath := filepath.Join(root, ".agents", "fleet", "agents.yaml")
+	raw, err := os.ReadFile(agentsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	extra := "  opencode-fake:\n" +
+		"    binary: " + script + "\n" +
+		"    env:\n" +
+		"      FLEET_TEST_ENV_MARKER: marker-value\n" +
+		"    argv_template:\n" +
+		"      - run\n" +
+		"      - \"{prompt}\"\n" +
+		"      - -m\n" +
+		"      - \"{model_arg}\"\n" +
+		"      - --dir\n" +
+		"      - \"{cwd}\"\n" +
+		"    input_channel: prompt_arg\n" +
+		"    output_format: json\n" +
+		"    stdin_empty: true\n" +
+		"    timeouts:\n" +
+		"      default_s: 30\n" +
+		"    failure_signatures: []\n" +
+		"    active: true\n" +
+		"    models:\n" +
+		"      test/model-a:\n" +
+		"        model_arg: model-a\n"
+	if err := os.WriteFile(agentsPath, append(raw, []byte(extra)...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return root, taskID
+}
+
+// TestFleetDispatchOpencodeCwdEnvAndStdinEmpty is FLEET-020 AC-1/AC-4: the
+// {cwd} placeholder resolves to the worktree, transport.Env is applied to the
+// process environment before exec (observed by the fake binary), and
+// stdin_empty forces an empty stdin even though the prompt still arrives via
+// argv.
+func TestFleetDispatchOpencodeCwdEnvAndStdinEmpty(t *testing.T) {
+	os.Unsetenv("FLEET_TEST_ENV_MARKER")
+	t.Cleanup(func() { os.Unsetenv("FLEET_TEST_ENV_MARKER") })
+	root, taskID := setupFleetOpencodeFakeProject(t)
+	bundlePath := filepath.Join(t.TempDir(), "bundle.md")
+	if err := os.WriteFile(bundlePath, []byte("do the mechanical edit"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runFleetDispatch(core.NewTaskStore(root), fleetDispatchRequest{
+		TaskID: taskID, Agent: "opencode-fake", Model: "test/model-a", DispatchID: "oc1", TimeoutS: 30,
+		BundlePath: bundlePath,
+	}); err != nil {
+		t.Fatalf("runFleetDispatch: %v", err)
+	}
+	worktree := filepath.Join(root, "worktrees", taskID)
+	argvRaw, err := os.ReadFile(filepath.Join(worktree, "args.txt"))
+	if err != nil {
+		t.Fatalf("read args.txt: %v", err)
+	}
+	argv := strings.Split(strings.TrimRight(string(argvRaw), "\n"), "\n")
+	if got := argAfter(argv, "--dir"); got != worktree {
+		t.Fatalf("want --dir %s (cwd substituted to worktree), got argv=%v", worktree, argv)
+	}
+	envRaw, err := os.ReadFile(filepath.Join(worktree, "env.txt"))
+	if err != nil {
+		t.Fatalf("read env.txt: %v", err)
+	}
+	if string(envRaw) != "marker-value" {
+		t.Fatalf("want transport.Env applied before exec, got env.txt=%q", envRaw)
+	}
+	stdinRaw, err := os.ReadFile(filepath.Join(worktree, "stdin.txt"))
+	if err != nil {
+		t.Fatalf("read stdin.txt: %v", err)
+	}
+	if len(stdinRaw) != 0 {
+		t.Fatalf("want empty stdin for stdin_empty:true transport, got stdin.txt=%q", stdinRaw)
+	}
+}
+
+// TestQuorumFleetAgentsEnvOverride is FLEET-020 AC-3: QUORUM_FLEET_AGENTS,
+// when set, overrides the agents.yaml path loadFleetTransport reads; when
+// unset, it falls back to <projectRoot>/.agents/fleet/agents.yaml (mirroring
+// internal/core/schema.go's SchemasDir env-first-then-fallback precedent).
+func TestQuorumFleetAgentsEnvOverride(t *testing.T) {
+	root, _ := setupFleetDispatchProject(t)
+
+	t.Run("unset falls back to project root agents.yaml", func(t *testing.T) {
+		t.Setenv("QUORUM_FLEET_AGENTS", "")
+		transport, err := loadFleetTransport(root, "fake")
+		if err != nil {
+			t.Fatalf("loadFleetTransport: %v", err)
+		}
+		if transport.Binary == "" {
+			t.Fatal("want the project-root fake transport to load")
+		}
+	})
+
+	t.Run("set overrides the path", func(t *testing.T) {
+		altDir := t.TempDir()
+		altAgentsDir := filepath.Join(altDir, "somewhere-else")
+		if err := os.MkdirAll(altAgentsDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		altPath := filepath.Join(altAgentsDir, "agents.yaml")
+		alt := "transports:\n  only-here:\n    binary: /bin/true\n    argv_template: []\n    output_format: text\n    timeouts:\n      default_s: 30\n    failure_signatures: []\n    active: true\n    models: {}\n"
+		if err := os.WriteFile(altPath, []byte(alt), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("QUORUM_FLEET_AGENTS", altPath)
+		// A project root that has NO .agents/fleet/agents.yaml of its own:
+		// the override must still resolve "only-here", proving the env var
+		// wins over the project-root default rather than merely supplementing it.
+		emptyRoot := t.TempDir()
+		if _, err := loadFleetTransport(emptyRoot, "only-here"); err != nil {
+			t.Fatalf("loadFleetTransport with QUORUM_FLEET_AGENTS set: %v", err)
+		}
+		if _, err := loadFleetTransport(emptyRoot, "fake"); err == nil {
+			t.Fatal("want the project-root's own (nonexistent) agents.yaml to NOT be consulted when QUORUM_FLEET_AGENTS is set")
+		}
+	})
+}
