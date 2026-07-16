@@ -156,15 +156,38 @@ transports:
     failure_signatures: []
     quota_class: api
     models:
-      # openrouter/free is OpenRouter's free auto-router: it dynamically
-      # selects among free-tier models, so provider_trust is a property of
-      # the OpenRouter gateway itself, not a fixed model (classified
-      # external_standard for v1, D13). litellm doubles the "openrouter/"
-      # prefix -- the model_arg value MUST stay "openrouter/openrouter/free"
-      # (a bare "openrouter/free" silently mis-routes); verify this at
-      # `quorum fleet smoke aider` before trusting any real dispatch.
-      openrouter/free:
-        model_arg: openrouter/openrouter/free
+      # Pinned OpenRouter free-tier models -- the same six validated entries
+      # as the opencode transport (evidence + methodology:
+      # docs/fleet-run-for-agents.md section 7). Canonical keys substitute
+      # "-free" for OpenRouter's ":free" suffix (agents.schema.json key
+      # pattern forbids ":"); aider reaches OpenRouter through litellm, so
+      # every model_arg carries the "openrouter/" provider prefix in front of
+      # the literal OpenRouter model ID (colon preserved). The openrouter/free
+      # auto-router was REMOVED from this transport on 2026-07-15 (ratified):
+      # aider cells are pinned-only; the auto-router availability fallback
+      # lives on the opencode transport. Note: the six were validated via
+      # opencode (agentic) and single-shot codegen; aider-specific pass rates
+      # are pending their own validation round.
+      nvidia/nemotron-3-ultra-550b-a55b-free:
+        model_arg: openrouter/nvidia/nemotron-3-ultra-550b-a55b:free
+        max_cost_per_call_usd: 0.5
+      nvidia/nemotron-3-nano-omni-30b-a3b-reasoning-free:
+        model_arg: openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
+        max_cost_per_call_usd: 0.5
+      poolside/laguna-xs-2.1-free:
+        model_arg: openrouter/poolside/laguna-xs-2.1:free
+        max_cost_per_call_usd: 0.5
+      cohere/north-mini-code-free:
+        model_arg: openrouter/cohere/north-mini-code:free
+        max_cost_per_call_usd: 0.5
+      poolside/laguna-m.1-free:
+        model_arg: openrouter/poolside/laguna-m.1:free
+        max_cost_per_call_usd: 0.5
+      # Slowest cell (32-154s/call) but measured 9/10 via real dispatch
+      # (pass@10 campaign 2026-07-15). aider-only: removed from the opencode
+      # transport, where its agentic tool-use scored 3/10.
+      nvidia/nemotron-nano-9b-v2-free:
+        model_arg: openrouter/nvidia/nemotron-nano-9b-v2:free
         max_cost_per_call_usd: 0.5
     contract_test: .agents/fleet/contract_tests/aider.yaml
     active: true
@@ -251,9 +274,6 @@ transports:
         model_arg: openrouter/cohere/north-mini-code:free
       poolside/laguna-m.1-free:
         model_arg: openrouter/poolside/laguna-m.1:free
-      # Last-resort: slowest validated entry (57.6s single-shot / 72s agentic on a trivial task); prefer the five faster entries above.
-      nvidia/nemotron-nano-9b-v2-free:
-        model_arg: openrouter/nvidia/nemotron-nano-9b-v2:free
     contract_test: .agents/fleet/contract_tests/opencode.yaml
     active: true
 
