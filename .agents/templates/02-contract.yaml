@@ -24,6 +24,16 @@ limits:
   max_files_changed: 6
   max_diff_lines: 500
   max_cost_usd: 1.0
+  # Optional: budget diff size per file category instead of only the
+  # global max_diff_lines above. Evaluated in declaration order,
+  # first-glob-match-wins; files matching no glob fall back to
+  # max_diff_lines. Author-estimated per contract, never a framework
+  # constant (see docs/adr/0012-per-class-diff-limits.md).
+  per_class:
+    - glob: "*_test.py"
+      max_diff_lines: 300
+    - glob: src/pos/sale.py
+      max_diff_lines: 80
 execution:
   mode: patch_only
 retry_policy:

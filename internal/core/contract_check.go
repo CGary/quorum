@@ -7,8 +7,28 @@ import "fmt"
 // and 4 can be skipped without error when the contract does not define
 // limits at all (00-spec.yaml invariant, AC-6).
 type ContractLimits struct {
-	MaxFilesChanged *int `json:"max_files_changed,omitempty" yaml:"max_files_changed"`
-	MaxDiffLines    *int `json:"max_diff_lines,omitempty" yaml:"max_diff_lines"`
+	MaxFilesChanged *int            `json:"max_files_changed,omitempty" yaml:"max_files_changed"`
+	MaxDiffLines    *int            `json:"max_diff_lines,omitempty" yaml:"max_diff_lines"`
+	PerClass        []PerClassLimit `json:"per_class,omitempty" yaml:"per_class,omitempty"`
+}
+
+// PerClassLimit is one optional per-file-category diff budget. Glob is
+// matched via safeGlobMatch (internal/core/risk.go) against each changed
+// file's path, in declaration order; the first match wins (FEAT-014 AC-2).
+type PerClassLimit struct {
+	Glob         string `json:"glob" yaml:"glob"`
+	MaxDiffLines int    `json:"max_diff_lines" yaml:"max_diff_lines"`
+}
+
+// FileDiff carries per-file line counts for one changed file, so
+// CheckContract can evaluate limits.per_class budgets. It is optional: a
+// caller without per-file data (e.g. only an aggregate DiffStat) omits
+// FileDiffs entirely, and CheckContract degrades to global-limit-only
+// checking (FEAT-014 AC-4).
+type FileDiff struct {
+	Path       string `json:"path"`
+	Insertions int    `json:"insertions"`
+	Deletions  int    `json:"deletions"`
 }
 
 // ContractForbid mirrors the forbid block of 02-contract.yaml.
@@ -56,7 +76,13 @@ type ContractCheckResult struct {
 // caller's decision). forbid.behaviors is a semantic judgment left to
 // q-review, so it is always surfaced via not_checked, never silently
 // evaluated or omitted.
-func CheckContract(contract Contract, changedFiles []string, diffStat DiffStat) ContractCheckResult {
+//
+// fileDiffs is optional and variadic so existing three-argument callers
+// keep compiling unchanged (FEAT-014's additive request evolution). When
+// fileDiffs is empty, or contract.Limits.PerClass is empty, per-class
+// evaluation is skipped entirely and only the existing aggregate
+// max_diff_lines check runs (AC-4).
+func CheckContract(contract Contract, changedFiles []string, diffStat DiffStat, fileDiffs ...FileDiff) ContractCheckResult {
 	violations := []ContractViolation{}
 
 	// Rule 1: every changed file (including newly created files) must match
@@ -90,6 +116,38 @@ func CheckContract(contract Contract, changedFiles []string, diffStat DiffStat) 
 					Rule:   "forbid.files",
 					Detail: fmt.Sprintf("file %q matches forbidden pattern %q", f, g),
 				})
+				break
+			}
+		}
+	}
+
+	// Rule 2.5 (per-class diff limits, FEAT-014): only runs when the caller
+	// supplied per-file diff data AND the contract declares per_class
+	// budgets; otherwise this is a no-op and behavior is byte-identical to
+	// before per_class existed (AC-4, AC-5). For each file with a matching
+	// glob (first declared match wins, AC-2), its own line count is checked
+	// against that class's budget instead of the aggregate global check
+	// (AC-1). Files matching no per_class glob are left to the existing
+	// aggregate limits.max_diff_lines check below (AC-3) -- no second
+	// per-file global check is introduced.
+	if contract.Limits != nil && len(contract.Limits.PerClass) > 0 && len(fileDiffs) > 0 {
+		for _, fd := range fileDiffs {
+			for _, class := range contract.Limits.PerClass {
+				if !safeGlobMatch(fd.Path, class.Glob) {
+					continue
+				}
+				lines := fd.Insertions + fd.Deletions
+				if lines > class.MaxDiffLines {
+					violations = append(violations, ContractViolation{
+						Type: "max_diff_lines_per_class",
+						File: fd.Path,
+						Rule: "limits.per_class",
+						Detail: fmt.Sprintf(
+							"file %q (%d lines) exceeds per_class budget for glob %q: max_diff_lines=%d",
+							fd.Path, lines, class.Glob, class.MaxDiffLines,
+						),
+					})
+				}
 				break
 			}
 		}

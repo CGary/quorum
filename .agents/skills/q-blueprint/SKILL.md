@@ -116,6 +116,21 @@ strategy:
 - `acceptance.bdd_suite`: optional slower human merge gate
 - `limits`, `execution`, and `retry_policy`
 
+## 📏 Sizing Guidance (advisory, for `limits` in `02-contract.yaml`)
+
+`limits.max_diff_lines`/`max_files_changed` are per-contract author
+estimates, never framework-fixed constants (`quorum.md`'s signal-based
+governance -- no universal size cap). Measured test/code line ratios from
+merged tasks: FLEET-020 59/340, FLEET-019 30/158, MAINT-001 19/83 (small
+fixes, ~0.2-0.25x here but tests run 4-6x the *fix itself* once scaffold is
+excluded), FLEET-004 168/169 (~1x), FLEET-006-a 734/560 (~1.3x). Rule of
+thumb: features run tests at **1.5-2x** code lines; small fixes run
+**4-6x** the fix lines, with a **~100-150 line test floor** for scaffold.
+When tests should legitimately dwarf the fix but production code should
+stay tight, use `limits.per_class` (see the template and
+`docs/adr/0012-per-class-diff-limits.md`) instead of loosening
+`max_diff_lines` globally.
+
 ## 🚫 Rules
 - Do NOT write implementation code.
 - Do NOT modify source code files.

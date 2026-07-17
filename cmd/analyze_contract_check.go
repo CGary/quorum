@@ -15,10 +15,15 @@ import (
 // caller-computed changed_files and diff_stat. This shim owns all
 // filesystem I/O (reading and parsing contract_path); core.CheckContract
 // itself stays a pure function over the already-decoded contract.
+//
+// FileDiffs is optional (FEAT-014): callers without per-file diff data omit
+// it, and the request behaves exactly as before -- CheckContract degrades
+// to global-limit-only checking (00-spec.yaml AC-4).
 type contractCheckRequest struct {
-	ContractPath string        `json:"contract_path"`
-	ChangedFiles []string      `json:"changed_files"`
-	DiffStat     core.DiffStat `json:"diff_stat"`
+	ContractPath string          `json:"contract_path"`
+	ChangedFiles []string        `json:"changed_files"`
+	DiffStat     core.DiffStat   `json:"diff_stat"`
+	FileDiffs    []core.FileDiff `json:"file_diffs,omitempty"`
 }
 
 var analyzeContractCheckCmd = &cobra.Command{
@@ -44,7 +49,7 @@ var analyzeContractCheckCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		result := core.CheckContract(contract, req.ChangedFiles, req.DiffStat)
+		result := core.CheckContract(contract, req.ChangedFiles, req.DiffStat, req.FileDiffs...)
 
 		if err := printStdoutJSON(result); err != nil {
 			fmt.Fprintf(os.Stderr, "Error printing JSON: %v\n", err)

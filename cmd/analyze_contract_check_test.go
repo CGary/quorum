@@ -94,6 +94,83 @@ limits:
 		}
 	})
 
+	perClassContractYAML := `
+touch:
+  - internal/core/*.go
+forbid:
+  files:
+    - quorum.md
+  behaviors:
+    - Do not do the bad thing.
+limits:
+  max_files_changed: 5
+  max_diff_lines: 600
+  per_class:
+    - glob: "*_test.go"
+      max_diff_lines: 300
+    - glob: internal/core/contract_check.go
+      max_diff_lines: 20
+`
+	perClassContractPath := filepath.Join(dir, "02-contract-per-class.yaml")
+	if err := os.WriteFile(perClassContractPath, []byte(perClassContractYAML), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("FEAT-014 FileDiffsPresentAppliesPerClassBudget", func(t *testing.T) {
+		stdin := `{"contract_path": "` + perClassContractPath + `", "changed_files": ["internal/core/contract_check.go"], "diff_stat": {"insertions": 15, "deletions": 10}, "file_diffs": [{"path": "internal/core/contract_check.go", "insertions": 15, "deletions": 10}]}`
+		out, err := runAnalyzeCmdErr(t, dir, bin, stdin, "analyze", "contract-check")
+		if err != nil {
+			t.Fatalf("expected success, got err=%v out=%q", err, out)
+		}
+
+		var result struct {
+			Ok         bool             `json:"ok"`
+			Violations []map[string]any `json:"violations"`
+		}
+		if err := json.Unmarshal([]byte(out), &result); err != nil {
+			t.Fatalf("failed to unmarshal stdout: %v, out=%q", err, out)
+		}
+		if result.Ok {
+			t.Fatalf("expected ok=false: 25 lines exceeds the per_class budget of 20 for internal/core/contract_check.go, got %v", result.Violations)
+		}
+		found := false
+		for _, v := range result.Violations {
+			if v["type"] == "max_diff_lines_per_class" {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("expected a max_diff_lines_per_class violation, got %v", result.Violations)
+		}
+	})
+
+	t.Run("FEAT-014 LegacyRequestWithoutFileDiffsDegradesGracefully", func(t *testing.T) {
+		// Same per_class contract, but the stdin request omits file_diffs
+		// entirely (the pre-existing shape) -- must not error and must not
+		// attempt per-class evaluation (AC-4).
+		stdin := `{"contract_path": "` + perClassContractPath + `", "changed_files": ["internal/core/contract_check.go"], "diff_stat": {"insertions": 15, "deletions": 10}}`
+		out, err := runAnalyzeCmdErr(t, dir, bin, stdin, "analyze", "contract-check")
+		if err != nil {
+			t.Fatalf("expected success, got err=%v out=%q", err, out)
+		}
+
+		var result struct {
+			Ok         bool             `json:"ok"`
+			Violations []map[string]any `json:"violations"`
+		}
+		if err := json.Unmarshal([]byte(out), &result); err != nil {
+			t.Fatalf("failed to unmarshal stdout: %v, out=%q", err, out)
+		}
+		if !result.Ok {
+			t.Fatalf("expected ok=true (aggregate 25 <= 600, no per-class eval without file_diffs), got %v", result.Violations)
+		}
+		for _, v := range result.Violations {
+			if v["type"] == "max_diff_lines_per_class" {
+				t.Fatalf("did not expect per-class evaluation without file_diffs, got %v", result.Violations)
+			}
+		}
+	})
+
 	t.Run("MissingContractPath", func(t *testing.T) {
 		stdin := `{"contract_path": "` + filepath.Join(dir, "does-not-exist.yaml") + `", "changed_files": [], "diff_stat": {}}`
 		out, err := runAnalyzeCmdErr(t, dir, bin, stdin, "analyze", "contract-check")
