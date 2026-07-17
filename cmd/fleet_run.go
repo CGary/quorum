@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -127,15 +128,19 @@ func runFleetRun(p fleetRunParams, stdout, stderr io.Writer) int {
 		"reasoning_effort": stringField(transport.Models[p.Model], "reasoning_effort"),
 		"print_timeout":    formatPrintTimeout(timeoutS),
 	}
-	argv := substituteFleetArgv(transport.ArgvTemplate, vars)
-
-	// Reject any residual dispatch-only placeholder ({worktree}/{out}, etc.):
-	// those transports are not runnable task-less, so we must not exec them.
-	if resid := residualPlaceholder(argv); resid != "" {
+	// Reject any dispatch-only placeholder ({worktree}/{out}/{files}, etc.) by
+	// scanning the RAW template BEFORE substitution: the prompt is user
+	// content and may legitimately contain literal '{'/'}' (e.g. any Go/JS/C
+	// code snippet), so scanning the substituted argv would false-positive on
+	// prompt text. Any {name} token in the template that isn't a key in vars
+	// is a placeholder 'fleet run' cannot resolve, so the transport is not
+	// runnable task-less.
+	if resid := residualTemplatePlaceholder(transport.ArgvTemplate, vars); resid != "" {
 		return fail(fleetAgentError(fleetRunCommand, errCodeInvalidArgument,
 			fmt.Sprintf("transport %q argv references dispatch-only placeholder %q; not runnable via 'fleet run'", agent, resid),
 			"agent", agent, false, ""))
 	}
+	argv := substituteFleetArgv(transport.ArgvTemplate, vars)
 
 	// agy greedy --print/-p trap guard (reused unchanged from core).
 	if agent == "agy" {
@@ -242,12 +247,24 @@ func readPrompt(input string, stdin io.Reader) (string, error) {
 	return string(b), nil
 }
 
-// residualPlaceholder returns the first argv token still holding a {name}
-// placeholder after substitution, or "" when none remain.
-func residualPlaceholder(argv []string) string {
-	for _, tok := range argv {
-		if i := strings.IndexByte(tok, '{'); i >= 0 && strings.IndexByte(tok[i:], '}') > 0 {
-			return tok
+// templatePlaceholderRE matches the actual placeholder grammar used by fleet
+// argv templates: word-like names such as {prompt}, {model_arg}, {cwd},
+// {print_timeout}, {worktree}, {out}, {prompt_file}, {files}.
+var templatePlaceholderRE = regexp.MustCompile(`\{([a-z0-9_]+)\}`)
+
+// residualTemplatePlaceholder scans the RAW argv_template (before
+// substitution) for a {name} placeholder that has no matching entry in vars,
+// returning the first such name, or "" when every placeholder in the
+// template is resolvable. Must be called before substituteFleetArgv so that
+// substituted user content (e.g. a prompt containing literal braces) is
+// never mistaken for an unresolved placeholder.
+func residualTemplatePlaceholder(tmpl []string, vars map[string]string) string {
+	for _, tok := range tmpl {
+		for _, m := range templatePlaceholderRE.FindAllStringSubmatch(tok, -1) {
+			name := m[1]
+			if _, ok := vars[name]; !ok {
+				return name
+			}
 		}
 	}
 	return ""

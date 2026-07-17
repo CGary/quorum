@@ -324,6 +324,138 @@ func TestFleetRunOpencodeCwdEnvAndStdinEmpty(t *testing.T) {
 	}
 }
 
+// TestFleetRunPromptWithLiteralBracesPasses is the regression test for the
+// false-positive placeholder rejection: a prompt_arg transport (agy-like)
+// whose prompt contains literal '{'/'}' (e.g. Go code) must not be rejected
+// as an unresolved dispatch-only placeholder, because the residual check now
+// scans the raw argv_template before {prompt} substitution, not the argv
+// after the user's prompt has been substituted in.
+func TestFleetRunPromptWithLiteralBracesPasses(t *testing.T) {
+	root, _ := setupFleetRunProject(t)
+	cwd := t.TempDir()
+	promptPath := filepath.Join(root, "code-prompt.txt")
+	codePrompt := `func main() { fmt.Println("{}") }`
+	if err := os.WriteFile(promptPath, []byte(codePrompt), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errW bytes.Buffer
+	code := runFleetRun(fleetRunParams{
+		Agent: "fake", Model: "anthropic/claude-sonnet-4-6", Cwd: cwd,
+		Input: promptPath, DryRun: true, JSON: true, ProjectRoot: root,
+	}, &out, &errW)
+	if code != 0 {
+		t.Fatalf("prompt with literal braces must pass validation under --dry-run, got exit %d\nstdout=%s\nstderr=%s", code, out.String(), errW.String())
+	}
+	env := decodeEnvelope(t, out.Bytes())
+	if env["ok"] != true {
+		t.Fatalf("want ok:true, got %v", env)
+	}
+	data, _ := env["data"].(map[string]any)
+	rawArgv, _ := data["argv"].([]any)
+	found := false
+	for _, v := range rawArgv {
+		if s, _ := v.(string); s == codePrompt {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("want the code prompt substituted verbatim into argv, got argv=%v", rawArgv)
+	}
+}
+
+// TestFleetRunDispatchOnlyPlaceholderWorktreeRejected asserts a template
+// referencing the dispatch-only {worktree} placeholder is still rejected by
+// 'fleet run' (it is not in the vars map fleet run builds), naming the
+// placeholder itself in the error message.
+func TestFleetRunDispatchOnlyPlaceholderWorktreeRejected(t *testing.T) {
+	root := t.TempDir()
+	agentsDir := filepath.Join(root, ".agents", "fleet")
+	if err := os.MkdirAll(agentsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	agents := "transports:\n" +
+		"  worktree-only:\n" +
+		"    binary: /bin/true\n" +
+		"    argv_template:\n" +
+		"      - --model\n" +
+		"      - \"{model_arg}\"\n" +
+		"      - --worktree\n" +
+		"      - \"{worktree}\"\n" +
+		"      - \"{prompt}\"\n" +
+		"    output_format: text\n" +
+		"    timeouts:\n" +
+		"      default_s: 30\n" +
+		"    failure_signatures: []\n" +
+		"    active: true\n" +
+		"    models:\n" +
+		"      anthropic/claude-sonnet-4-6:\n" +
+		"        model_arg: x\n"
+	if err := os.WriteFile(filepath.Join(agentsDir, "agents.yaml"), []byte(agents), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errW bytes.Buffer
+	code := runFleetRun(fleetRunParams{
+		Agent: "worktree-only", Model: "anthropic/claude-sonnet-4-6", Cwd: t.TempDir(),
+		Input: writePromptFile(t, root), JSON: true, ProjectRoot: root,
+	}, &out, &errW)
+	if code == 0 {
+		t.Fatal("template referencing {worktree} must be rejected by fleet run")
+	}
+	e, _ := decodeEnvelope(t, out.Bytes())["error"].(map[string]any)
+	if e["code"] != "INVALID_ARGUMENT" {
+		t.Fatalf("bad error code: %v", e)
+	}
+	if msg, _ := e["message"].(string); !strings.Contains(msg, "worktree") {
+		t.Fatalf("message must name the offending placeholder %q, got %v", "worktree", e["message"])
+	}
+}
+
+// TestFleetRunUnknownPlaceholderRejected asserts an unrecognized {bogus}
+// placeholder in the template is rejected exactly like a known
+// dispatch-only one.
+func TestFleetRunUnknownPlaceholderRejected(t *testing.T) {
+	root := t.TempDir()
+	agentsDir := filepath.Join(root, ".agents", "fleet")
+	if err := os.MkdirAll(agentsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	agents := "transports:\n" +
+		"  bogus-only:\n" +
+		"    binary: /bin/true\n" +
+		"    argv_template:\n" +
+		"      - --model\n" +
+		"      - \"{model_arg}\"\n" +
+		"      - --bogus\n" +
+		"      - \"{bogus}\"\n" +
+		"      - \"{prompt}\"\n" +
+		"    output_format: text\n" +
+		"    timeouts:\n" +
+		"      default_s: 30\n" +
+		"    failure_signatures: []\n" +
+		"    active: true\n" +
+		"    models:\n" +
+		"      anthropic/claude-sonnet-4-6:\n" +
+		"        model_arg: x\n"
+	if err := os.WriteFile(filepath.Join(agentsDir, "agents.yaml"), []byte(agents), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errW bytes.Buffer
+	code := runFleetRun(fleetRunParams{
+		Agent: "bogus-only", Model: "anthropic/claude-sonnet-4-6", Cwd: t.TempDir(),
+		Input: writePromptFile(t, root), JSON: true, ProjectRoot: root,
+	}, &out, &errW)
+	if code == 0 {
+		t.Fatal("template referencing an unknown {bogus} placeholder must be rejected by fleet run")
+	}
+	e, _ := decodeEnvelope(t, out.Bytes())["error"].(map[string]any)
+	if e["code"] != "INVALID_ARGUMENT" {
+		t.Fatalf("bad error code: %v", e)
+	}
+	if msg, _ := e["message"].(string); !strings.Contains(msg, "bogus") {
+		t.Fatalf("message must name the offending placeholder %q, got %v", "bogus", e["message"])
+	}
+}
+
 func TestFleetRunDryRun(t *testing.T) {
 	root, marker := setupFleetRunProject(t)
 	cwd := t.TempDir()
