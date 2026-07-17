@@ -117,6 +117,27 @@
         "max_cost_usd": {
           "type": "number",
           "minimum": 0
+        },
+        "per_class": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "glob",
+              "max_diff_lines"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "glob": {
+                "type": "string",
+                "minLength": 1
+              },
+              "max_diff_lines": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
         }
       }
     },

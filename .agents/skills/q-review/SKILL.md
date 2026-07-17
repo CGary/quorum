@@ -50,7 +50,7 @@ Check:
 - Invariants remain protected.
 - Tests exist for new behavior when appropriate.
 - `05-validation.json.overall_result` is `passed`.
-- Diff is within `limits.max_files_changed` and `limits.max_diff_lines` when measurable.
+- Diff is within `limits.max_files_changed` and `limits.max_diff_lines` when measurable, including any optional `limits.per_class` per-file-category budgets the contract declares.
 
 ### 3. Write `06-review.json`
 

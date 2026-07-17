@@ -1,8 +1,23 @@
 package core
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func intPtr(v int) *int { return &v }
+
+// containsAll reports whether s contains every substring in subs, used to
+// assert violation Detail strings name expected fragments without pinning
+// to exact wording.
+func containsAll(s string, subs ...string) bool {
+	for _, sub := range subs {
+		if !strings.Contains(s, sub) {
+			return false
+		}
+	}
+	return true
+}
 
 func TestCheckContract(t *testing.T) {
 	t.Run("AC-1 touch violation for uncovered file", func(t *testing.T) {
@@ -185,6 +200,138 @@ func TestCheckContract(t *testing.T) {
 		}
 		if len(res.Violations) != 0 {
 			t.Fatalf("expected empty violations, got %+v", res.Violations)
+		}
+	})
+}
+
+// TestCheckContractPerClass covers FEAT-014's optional limits.per_class
+// evaluation: table-driven for the per-file cases (AC-1/2/3/4/6), plus two
+// standalone cases for AC-5 (legacy byte-identity) and the documented
+// safeGlobMatch depth limitation.
+func TestCheckContractPerClass(t *testing.T) {
+	cases := []struct {
+		name         string
+		limits       *ContractLimits
+		changedFiles []string
+		diffStat     DiffStat
+		fileDiffs    []FileDiff
+		wantOk       bool
+		wantPerClass bool
+		wantDetail   []string
+	}{
+		{
+			name:         "AC-1 matched file checked against class budget, not global",
+			limits:       &ContractLimits{MaxDiffLines: intPtr(10), PerClass: []PerClassLimit{{Glob: "*_test.go", MaxDiffLines: 300}}},
+			changedFiles: []string{"internal/core/contract_check_test.go"},
+			diffStat:     DiffStat{Insertions: 200, Deletions: 50},
+			fileDiffs:    []FileDiff{{Path: "internal/core/contract_check_test.go", Insertions: 200, Deletions: 50}},
+			wantOk:       false, // pre-existing aggregate check still fails: 250 > 10
+			wantPerClass: false, // but 250 <= 300 test budget, so no per-class violation
+		},
+		{
+			name:         "AC-2 first declared per_class match wins",
+			limits:       &ContractLimits{MaxDiffLines: intPtr(600), PerClass: []PerClassLimit{{Glob: "*_test.go", MaxDiffLines: 5}, {Glob: "contract_check_test.go", MaxDiffLines: 300}}},
+			changedFiles: []string{"internal/core/contract_check_test.go"},
+			diffStat:     DiffStat{Insertions: 50, Deletions: 10},
+			fileDiffs:    []FileDiff{{Path: "internal/core/contract_check_test.go", Insertions: 50, Deletions: 10}},
+			wantOk:       false,
+			wantPerClass: true,
+			wantDetail:   []string{"*_test.go"},
+		},
+		{
+			name:         "AC-3 unmatched file falls back to global aggregate check",
+			limits:       &ContractLimits{MaxDiffLines: intPtr(600), PerClass: []PerClassLimit{{Glob: "*_test.go", MaxDiffLines: 5}}},
+			changedFiles: []string{"internal/core/contract_check.go"},
+			diffStat:     DiffStat{Insertions: 50, Deletions: 10},
+			fileDiffs:    []FileDiff{{Path: "internal/core/contract_check.go", Insertions: 50, Deletions: 10}},
+			wantOk:       true,
+			wantPerClass: false,
+		},
+		{
+			name:         "AC-4 missing file_diffs degrades to global-limit-only, no error",
+			limits:       &ContractLimits{MaxDiffLines: intPtr(600), PerClass: []PerClassLimit{{Glob: "*_test.go", MaxDiffLines: 5}}},
+			changedFiles: []string{"internal/core/contract_check_test.go"},
+			diffStat:     DiffStat{Insertions: 50, Deletions: 10},
+			fileDiffs:    nil,
+			wantOk:       true,
+			wantPerClass: false,
+		},
+		{
+			name:         "AC-6 violation names glob and measured-vs-budgeted lines",
+			limits:       &ContractLimits{MaxDiffLines: intPtr(600), PerClass: []PerClassLimit{{Glob: "*.go", MaxDiffLines: 20}}},
+			changedFiles: []string{"src/prod.go"},
+			diffStat:     DiffStat{Insertions: 15, Deletions: 10},
+			fileDiffs:    []FileDiff{{Path: "src/prod.go", Insertions: 15, Deletions: 10}},
+			wantOk:       false,
+			wantPerClass: true,
+			wantDetail:   []string{"*.go", "25", "20"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := Contract{Touch: []string{"**"}, Limits: tc.limits}
+			res := CheckContract(c, tc.changedFiles, tc.diffStat, tc.fileDiffs...)
+			if res.Ok != tc.wantOk {
+				t.Fatalf("Ok=%v, want %v (violations=%+v)", res.Ok, tc.wantOk, res.Violations)
+			}
+			var pc *ContractViolation
+			for i := range res.Violations {
+				if res.Violations[i].Type == "max_diff_lines_per_class" {
+					pc = &res.Violations[i]
+				}
+			}
+			if tc.wantPerClass != (pc != nil) {
+				t.Fatalf("max_diff_lines_per_class present=%v, want %v (violations=%+v)", pc != nil, tc.wantPerClass, res.Violations)
+			}
+			if pc != nil {
+				if pc.Rule != "limits.per_class" {
+					t.Fatalf("expected rule=limits.per_class, got %q", pc.Rule)
+				}
+				if !containsAll(pc.Detail, tc.wantDetail...) {
+					t.Fatalf("expected detail to contain %v, got %q", tc.wantDetail, pc.Detail)
+				}
+			}
+		})
+	}
+
+	t.Run("AC-5 legacy contract without per_class is byte-identical regardless of file_diffs", func(t *testing.T) {
+		c := Contract{Touch: []string{"**"}, Limits: &ContractLimits{MaxDiffLines: intPtr(10), MaxFilesChanged: intPtr(5)}}
+		fd := []FileDiff{{Path: "internal/core/contract_check.go", Insertions: 8, Deletions: 5}}
+		with := CheckContract(c, []string{"internal/core/contract_check.go"}, DiffStat{Insertions: 8, Deletions: 5}, fd...)
+		without := CheckContract(c, []string{"internal/core/contract_check.go"}, DiffStat{Insertions: 8, Deletions: 5})
+		if with.Ok != without.Ok || len(with.Violations) != len(without.Violations) {
+			t.Fatalf("expected identical results, got %+v vs %+v", with, without)
+		}
+	})
+
+	t.Run("safeGlobMatch depth limitation: leading **/X and bare *_test.go match at depth, trailing dir/** does not", func(t *testing.T) {
+		perClass := func(glob string, budget int) *ContractLimits {
+			return &ContractLimits{MaxDiffLines: intPtr(600), PerClass: []PerClassLimit{{Glob: glob, MaxDiffLines: budget}}}
+		}
+		fd := []FileDiff{{Path: "a/b/c/deep_test.go", Insertions: 4, Deletions: 4}}
+		hasPerClass := func(res ContractCheckResult) bool {
+			for _, v := range res.Violations {
+				if v.Type == "max_diff_lines_per_class" {
+					return true
+				}
+			}
+			return false
+		}
+
+		leading := CheckContract(Contract{Touch: []string{"**"}, Limits: perClass("**/deep_test.go", 5)}, []string{"a/b/c/deep_test.go"}, DiffStat{}, fd...)
+		if !hasPerClass(leading) {
+			t.Fatalf("expected leading **/X glob to match at depth, got %+v", leading.Violations)
+		}
+
+		bare := CheckContract(Contract{Touch: []string{"**"}, Limits: perClass("*_test.go", 5)}, []string{"a/b/c/deep_test.go"}, DiffStat{}, fd...)
+		if !hasPerClass(bare) {
+			t.Fatalf("expected bare *_test.go glob to match at depth via filepath.Base, got %+v", bare.Violations)
+		}
+
+		trailing := CheckContract(Contract{Touch: []string{"**"}, Limits: perClass("a/**", 1)}, []string{"a/b/c/deep_test.go"}, DiffStat{}, fd...)
+		if hasPerClass(trailing) {
+			t.Fatalf("did not expect trailing dir/** to match beyond one directory level, got %+v", trailing.Violations)
 		}
 	})
 }
