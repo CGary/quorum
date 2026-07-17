@@ -109,12 +109,23 @@ func runFleetDispatch(store core.TaskStore, req fleetDispatchRequest) (string, e
 		return "", fmt.Errorf("worktree for %s not found (run quorum task start): %w", req.TaskID, statErr)
 	}
 	var prompt string
+	var bundleHash string
 	if req.BundlePath != "" {
 		b, rerr := os.ReadFile(req.BundlePath)
 		if rerr != nil {
 			return "", fmt.Errorf("cannot read bundle_path %s: %w", req.BundlePath, rerr)
 		}
 		prompt = string(b)
+
+		manifestPath := filepath.Join(filepath.Dir(req.BundlePath), "manifest.json")
+		if mBytes, merr := os.ReadFile(manifestPath); merr == nil {
+			var manifest struct {
+				BundleHash string `json:"bundle_hash"`
+			}
+			if merr2 := json.Unmarshal(mBytes, &manifest); merr2 == nil {
+				bundleHash = manifest.BundleHash
+			}
+		}
 	}
 	timeoutS := req.TimeoutS
 	if timeoutS <= 0 {
@@ -145,7 +156,7 @@ func runFleetDispatch(store core.TaskStore, req fleetDispatchRequest) (string, e
 	}
 	spec := core.DispatchSpec{
 		TaskID: req.TaskID, TaskDir: taskDir.Path, Agent: req.Agent, Model: req.Model,
-		DispatchID: req.DispatchID, Worktree: worktree, Binary: transport.Binary,
+		DispatchID: req.DispatchID, BundleHash: bundleHash, Worktree: worktree, Binary: transport.Binary,
 		Argv: argv, StdinPrompt: stdinPrompt,
 		TimeoutS: timeoutS, FailureSignatures: transport.FailureSignatures, OutputFormat: transport.OutputFormat,
 	}
