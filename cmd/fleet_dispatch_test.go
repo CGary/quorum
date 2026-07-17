@@ -631,6 +631,7 @@ func TestQuorumFleetAgentsEnvOverride(t *testing.T) {
 	root, _ := setupFleetDispatchProject(t)
 
 	t.Run("unset falls back to project root agents.yaml", func(t *testing.T) {
+		t.Setenv("QUORUM_FLEET_AGENTS", "")
 		transport, err := loadFleetTransport(root, "fake")
 		if err != nil {
 			t.Fatalf("loadFleetTransport: %v", err)
