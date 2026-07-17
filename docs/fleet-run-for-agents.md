@@ -100,19 +100,31 @@ on the OpenRouter free tier — prefer them for routine edits. Use `agy` when
 you need a specific higher-capability model and already have quota on your
 Gemini subscription.
 
+**Transport choice by task difficulty (measured, §7.2):** reserve `aider`
+for trivial, mechanical, single-file edits — the 2026-07-16 M-difficulty
+layer measured two aider cells at **0/10** on a two-file task (§7.2), because
+its single-shot whole-file edit format has no compiler feedback loop inside
+Quorum. Prefer `opencode` or `agy` for anything at M difficulty or harder;
+both retained an agentic/interactive edge that showed up clearly once the
+task stopped being trivial.
+
 ### 4.1 Measured agy reliability (pass@10, 2026-07-15/16 campaign)
 
-Measured through `quorum fleet run` (agy, subscription quota) with the same
-N=10-trial, hidden-9-case-test methodology as the OpenRouter cells in §7.2 —
-an upper bound on harness reliability, not real-feature capability (§7.1).
+Measured through `quorum fleet run` (agy, subscription quota) — trivial
+layer via the CLI itself; see the M-layer note below for why the M cells
+were measured differently — with the same N=10-trial methodology as the
+OpenRouter cells in §7.2: trivial layer graded by a hidden 9-case test
+(2026-07-15), M layer graded by a hidden, independent 14-subtest suite on a
+harder two-file task (2026-07-16, stage 6 of §7.1). Both are an upper bound
+on harness reliability, not real-feature capability (§7.1).
 
-| Model | pass@10 | Notes |
-|---|---|---|
-| Gemini 3.5 Flash (low / medium / high) | 10/10 each | |
-| Gemini 3.1 Pro (low / high) | 10/10 each | |
-| Claude Sonnet 4.6 | 10/10 (14–18s) | |
-| Claude Opus 4.6 | 10/10 (16–19s) | |
-| GPT-OSS 120B | 5/10 | all 5 failures: the model refuses to write outside agy's artifact directory citing sandbox policy, inconsistently run to run — a harness-policy failure, not a codegen failure |
+| Model | Trivial pass@10 | M pass@10 | Notes |
+|---|---|---|---|
+| Gemini 3.5 Flash (low / medium / high) | 10/10 each | 10/10 each | |
+| Gemini 3.1 Pro (low / high) | 10/10 each | 10/10 each | |
+| Claude Sonnet 4.6 | 10/10 (14–18s) | 9/10 | M: all failures were "Individual quota reached" errors from Antigravity — availability, not capability; 9/9 when it actually ran (see the quota-bucket finding below) |
+| Claude Opus 4.6 | 10/10 (16–19s) | 8/10 | M: same quota-exhaustion cause as Sonnet; 8/8 when it actually ran |
+| GPT-OSS 120B | 5/10 | 3/10 | Trivial: all 5 failures were the model refusing to write outside agy's artifact directory citing sandbox policy — a harness-policy failure, not a codegen failure. M: same systematic sandbox-policy-refusal pattern (5 of the 7 failures) plus 2 more quota-exhaustion failures |
 
 **agy absolute-path trap**: with a small, fresh `--cwd` repo, agy may ignore
 the process cwd, resolve its own workspace, and write to
@@ -124,6 +136,27 @@ task-bound `quorum fleet dispatch` runs into git worktrees are unaffected.
 prompts; the opencode/aider cells in §7.2 used a plain "current directory"
 prompt instead — keep that asymmetry in mind when comparing numbers across
 transports.)
+
+**Antigravity quota is bucketed per model family**: during the M-layer
+campaign, roughly 150 agy calls in one day exhausted the PREMIUM (Claude/GPT)
+individual quota ("Individual quota reached... Resets in ~2h") while the
+Gemini cells kept running unaffected — Gemini and Claude/GPT draw from
+separate quota pools. Plan measurement or reroute budgets accordingly:
+exhausting one family's quota says nothing about the other's remaining
+budget.
+
+**Open bug — `quorum fleet run`'s residual-placeholder guard false-positives
+on brace-containing prompts**: on `prompt_arg` transports (agy), the guard
+meant to reject un-substituted dispatch-only placeholders also matches
+literal braces that appear inside the prompt text itself (e.g. a Go code
+block), and fails instantly with `INVALID_ARGUMENT` ("argv references
+dispatch-only placeholder", quoting the entire prompt back in the error)
+before any process starts. This is why the M-layer agy cells in the table
+above were measured by **invoking the transport binary directly** with the
+same argv `quorum fleet run` would have used, rather than through
+`quorum fleet run` itself. Workaround until this is fixed: invoke the
+transport binary directly, or keep prompts free of literal `{`/`}`
+characters. The fix is tracked in the backlog, not yet shipped.
 
 ## 5. End-to-end example (opencode, dry-run then real)
 
@@ -235,6 +268,27 @@ Five narrowing stages, all measured live — no number below is estimated:
    for the file to create; the opencode/aider cells below used a plain
    "current directory" prompt instead — see the agy absolute-path trap in
    §4.1.
+6. **M-difficulty layer** (2026-07-16) — a second, harder difficulty tier,
+   same **N=10**-per-cell methodology as stage 5, graded by a hidden,
+   independent Go test suite of **14 subtests** the model never saw. Task:
+   implement a small in-memory inventory store split across **two files**
+   (`store.go` + `report.go`, package `store`) — `Add`/`Remove`/`Get`/`Len`
+   with trim/error semantics, delete-on-zero-quantity, and a sorted
+   `name=qty` `Report()`. The two-file structure plus the int→string
+   formatting it requires is deliberately harder than the trivial
+   single-function `ParsePairs` task in stage 5 — it is designed to separate
+   "can follow one clean edit" from "can reason about a small multi-file API
+   surface." OpenRouter cells (opencode/aider) again ran serially, 8s apart
+   (§7.7), and aider cells again ran through the real `quorum fleet dispatch`
+   forensic pipeline against a live task + contract (worktree reset between
+   trials) — same protocol as stage 5, just a harder task. `agy` cells were
+   measured via **direct invocation of the transport binary**, bypassing
+   `quorum fleet run`, because this campaign surfaced an open
+   `quorum fleet run` bug: its residual-placeholder guard false-positives
+   when the prompt itself contains literal braces (this M task's prompt
+   necessarily includes Go code with `{`/`}`), rejecting the call instantly
+   with `INVALID_ARGUMENT` before a process is even started — see the
+   workaround in §4.1. Results: §7.2 (opencode/aider) and §4.1 (agy).
 
 ### 7.2 Tier A — validated pinned models (measured pass@10 per cell)
 
@@ -244,6 +298,8 @@ with **N=10 measured pass@10 per cell**, split by transport. Read every
 number below as an upper bound on reliability, not a real-feature capability
 score — see §7.1. Ordered by measured reliability (the two leaders pass
 10/10 on both transports):
+
+**Trivial layer (`ParsePairs`, 2026-07-15):**
 
 | Model ID | opencode pass@10 | aider pass@10 | Failure causes |
 |---|---|---|---|
@@ -257,6 +313,52 @@ score — see §7.1. Ordered by measured reliability (the two leaders pass
 
 Reliability is a property of the **cell** (transport, model), not the model
 alone — see the divergence in the last three rows, and §7.3.
+
+**M layer (two-file inventory store, 2026-07-16; see stage 6, §7.1):**
+
+> **The trivial→M ordering is NOT preserved.** Two aider cells that were
+> reliable on the trivial task collapsed to **0/10** on the M task
+> (`nemotron-3-ultra-550b-a55b` 10/10 → 0/10, `nemotron-nano-9b-v2` 9/10 →
+> 0/10). A pass@10 result on the trivial layer alone is **insufficient
+> evidence for a routing decision** — the M layer is where a gate like G1
+> should actually bind, not the trivial layer.
+
+| Model ID | opencode M pass@10 | aider M pass@10 | M failure causes |
+|---|---|---|---|
+| `nvidia/nemotron-3-ultra-550b-a55b:free` | 10/10 | **0/10** | aider: the model narrates its own edit ("Let me correct report.go") and aider's whole-edit-format parser treats that narration text as a **filename**, creating a junk file `Let me correct report.go.report.go` with duplicate method declarations → build fails, on all 10 runs |
+| `poolside/laguna-m.1:free` | 10/10 | 9/10 | aider: 1 failure (cause not itemized in this pass) |
+| `poolside/laguna-xs-2.1:free` | 10/10 | 4/10 | aider: classic Go `string(rune(n))` conversion bug — `Report()` emitted `"apple=\x02"` instead of `"apple=2"` |
+| `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` | 4/10 | 6/10 | opencode: failure **cause flipped** vs. the trivial layer — there, all 3 failures were provider 502s (availability); here, failures are capability (`TEST_FAIL`s and runs that never created the files). aider: 4 failures not itemized |
+| `cohere/north-mini-code:free` | 6/10 | 5/10 | opencode: failures not itemized. aider: 3 of the 5 failures timed out at the 300s cap; the remaining 2 not itemized |
+| `openrouter/free` (auto-router) | 8/10 | not wired to aider | opencode only; failures not itemized — per-call random routing means this varies with the day's pool health |
+| `nvidia/nemotron-nano-9b-v2:free` | not wired to opencode | **0/10** | aider: hallucinated API `strings.Itoa` (the real API is `strconv.Itoa`) plus unused imports → build fails, on all 10 runs |
+
+Two findings the M layer adds on top of the reliability point above:
+
+- **The agentic loop earns its value at M difficulty.** For the same
+  models, opencode cells (agentic — can inspect/build/self-correct via
+  tools) beat aider cells (single-shot whole-file edit, no compiler
+  feedback) at M: `nemotron-3-ultra-550b-a55b` is 10/10 opencode-M vs. 0/10
+  aider-M. This is a direct, now-quantified consequence of a Quorum design
+  choice: the aider transport deliberately disables aider's own
+  auto-lint/auto-test loop for forensic purity (`q-verify` is the only
+  validation truth in the SDC lifecycle), which also trades away aider's
+  built-in self-correction.
+- **Practical guidance**: use `aider` only for trivial, mechanical,
+  single-file edits; use `opencode` or `agy` for anything at M difficulty or
+  harder. Across both layers, `agy` Gemini (all five effort tiers measured
+  in §4.1) is the only model family that scored 10/10 on **both** — Gemini
+  3.5 Flash (low effort) remains the champion cheap cell.
+- **Composing a pass@≤1-reroute policy**: from the measured marginals above,
+  any cell backed by a single reroute to a 10/10 target (an `agy` Gemini
+  tier, or opencode `ultra-550b`/`laguna-m.1`) clears a 70% reliability
+  threshold trivially — the real design constraints are reroute cost and
+  provider correlation, not raw pass rate. A reroute should cross providers
+  (e.g. a saturated OpenRouter free-tier cell rerouting to `agy`, not to
+  another OpenRouter cell) so that an OpenRouter-wide saturation event
+  doesn't take out both the primary and the reroute at once. This assumes
+  the two attempts' failures are independent, which only holds when they
+  don't share a provider/quota pool.
 
 ### 7.3 Tier B — single-shot codegen only (agentic FAIL)
 

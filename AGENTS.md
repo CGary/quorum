@@ -129,6 +129,12 @@ pattern forbids `:`), the authoritative list is `quorum fleet run --agent openco
 (or `--agent aider --schema`). A 2026-07-15/16 pass@10 campaign (N=10/cell, hidden test, 21
 cells) found `nano-9b-v2` reliable under aider's edit harness (9/10) but unreliable agentically
 (3/10, why it was dropped from opencode) — full evidence in `docs/fleet-run-for-agents.md` §7.
+A second, harder M-difficulty layer of that campaign (2026-07-16, same N=10/cell methodology)
+found aider unreliable at M difficulty — two cells scored **0/10** on a two-file task — while
+opencode and agy (Gemini) stayed reliable; prefer opencode/agy over aider for anything beyond
+trivial single-file edits (§7.2/§4.1). That M layer also surfaced an open `quorum fleet run`
+bug: its placeholder guard false-positives when the prompt itself contains literal braces
+(e.g. Go code); workaround is to invoke the transport binary directly (§4.1), fix pending.
 OpenRouter free-tier limits bind every `:free` call: 20 req/min shared account-wide, 1000
 req/day on this account (≥ $10 lifetime purchased credits; 50/day otherwise), and 429s COUNT
 against the daily quota — space probes, never retry-loop a 429, and avoid concurrent agentic
