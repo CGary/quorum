@@ -665,3 +665,146 @@ func TestQuorumFleetAgentsEnvOverride(t *testing.T) {
 		}
 	})
 }
+
+func TestFleetDispatchBundleHashFromManifest(t *testing.T) {
+	t.Run("happy path - valid manifest", func(t *testing.T) {
+		root, taskID := setupFleetDispatchProject(t)
+		dispatchID := "happy123"
+		dispatchDir := filepath.Join(root, ".ai", "tasks", "active", taskID, "dispatch", dispatchID)
+		if err := os.MkdirAll(dispatchDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+
+		promptPath := filepath.Join(dispatchDir, "prompt.md")
+		if err := os.WriteFile(promptPath, []byte("test prompt"), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		manifestJSON := `{"bundle_hash": "abc123def456hash"}`
+		manifestPath := filepath.Join(dispatchDir, "manifest.json")
+		if err := os.WriteFile(manifestPath, []byte(manifestJSON), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		_, err := runFleetDispatch(core.NewTaskStore(root), fleetDispatchRequest{
+			TaskID: taskID, Agent: "fake", Model: "test/model-a", DispatchID: dispatchID, TimeoutS: 30,
+			BundlePath: promptPath,
+		})
+		if err != nil {
+			t.Fatalf("runFleetDispatch: %v", err)
+		}
+
+		tracePath := filepath.Join(root, ".ai", "tasks", "active", taskID, "07-trace.json")
+		payload, err := core.LoadArtifactPayload(tracePath)
+		if err != nil {
+			t.Fatalf("LoadArtifactPayload: %v", err)
+		}
+		traceMap, ok := payload.(map[string]any)
+		if !ok {
+			t.Fatal("trace payload is not map")
+		}
+		events, ok := traceMap["events"].([]any)
+		if !ok {
+			t.Fatal("events is not a slice")
+		}
+
+		found := false
+		for _, ev := range events {
+			m, ok := ev.(map[string]any)
+			if !ok {
+				continue
+			}
+			if m["type"] == "dispatch_started" && m["dispatch_id"] == dispatchID {
+				found = true
+				if m["bundle_hash"] != "abc123def456hash" {
+					t.Errorf("want bundle_hash 'abc123def456hash', got %v", m["bundle_hash"])
+				}
+			}
+		}
+		if !found {
+			t.Errorf("dispatch_started event for %s not found in trace", dispatchID)
+		}
+	})
+
+	// "degrades gracefully" is a table-driven consolidation (AC-3/AC-4) of what
+	// were three separate near-identical subtests: missing manifest.json,
+	// empty BundlePath, and malformed/incomplete manifest JSON. All four cases
+	// below share the same scaffold and only vary how (or whether) the
+	// manifest is written and what BundlePath is passed; every case must
+	// still produce a dispatch_started event with an empty bundle_hash and
+	// runFleetDispatch must never error. This does not remove coverage --
+	// each original scenario is still exercised as its own t.Run case.
+	t.Run("degrades gracefully", func(t *testing.T) {
+		cases := []struct {
+			name            string
+			writeManifest   bool
+			manifestBody    string
+			emptyBundlePath bool
+		}{
+			{name: "missing manifest", writeManifest: false},
+			{name: "empty BundlePath", writeManifest: false, emptyBundlePath: true},
+			{name: "malformed json", writeManifest: true, manifestBody: `{"bundle_hash":`},
+			{name: "missing key", writeManifest: true, manifestBody: `{"other_key": "val"}`},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				root, taskID := setupFleetDispatchProject(t)
+				dispatchID := "degrade-" + strings.ReplaceAll(tc.name, " ", "-")
+				dispatchDir := filepath.Join(root, ".ai", "tasks", "active", taskID, "dispatch", dispatchID)
+				if err := os.MkdirAll(dispatchDir, 0755); err != nil {
+					t.Fatal(err)
+				}
+
+				bundlePath := ""
+				if !tc.emptyBundlePath {
+					promptPath := filepath.Join(dispatchDir, "prompt.md")
+					if err := os.WriteFile(promptPath, []byte("test prompt"), 0644); err != nil {
+						t.Fatal(err)
+					}
+					bundlePath = promptPath
+				}
+				if tc.writeManifest {
+					manifestPath := filepath.Join(dispatchDir, "manifest.json")
+					if err := os.WriteFile(manifestPath, []byte(tc.manifestBody), 0644); err != nil {
+						t.Fatal(err)
+					}
+				}
+
+				_, err := runFleetDispatch(core.NewTaskStore(root), fleetDispatchRequest{
+					TaskID: taskID, Agent: "fake", Model: "test/model-a", DispatchID: dispatchID, TimeoutS: 30,
+					BundlePath: bundlePath,
+				})
+				if err != nil {
+					t.Fatalf("runFleetDispatch: %v", err)
+				}
+
+				tracePath := filepath.Join(root, ".ai", "tasks", "active", taskID, "07-trace.json")
+				payload, err := core.LoadArtifactPayload(tracePath)
+				if err != nil {
+					t.Fatalf("LoadArtifactPayload: %v", err)
+				}
+				traceMap, ok := payload.(map[string]any)
+				if !ok {
+					t.Fatal("trace payload is not map")
+				}
+				events := traceMap["events"].([]any)
+				found := false
+				for _, ev := range events {
+					m, ok := ev.(map[string]any)
+					if !ok {
+						continue
+					}
+					if m["type"] == "dispatch_started" && m["dispatch_id"] == dispatchID {
+						found = true
+						if m["bundle_hash"] != "" {
+							t.Errorf("want empty bundle_hash, got %v", m["bundle_hash"])
+						}
+					}
+				}
+				if !found {
+					t.Errorf("dispatch_started event for %s not found in trace", dispatchID)
+				}
+			})
+		}
+	})
+}
