@@ -52,3 +52,5 @@ quorum
 Thumbs.db
 .aider*
 .tmp/
+# Compiled binary (build with: go build -o quorum .)
+/quorum
