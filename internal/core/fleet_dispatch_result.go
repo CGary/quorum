@@ -50,6 +50,7 @@ type DispatchResult struct {
 	Usage          DispatchUsage    `json:"usage"`
 	NotesPath      string           `json:"notes_path"`
 	TraceEvents    []string         `json:"trace_events"`
+	ResetError     *string          `json:"reset_error"`
 }
 
 func normalizeResult(resultPath string, result DispatchResult) error {

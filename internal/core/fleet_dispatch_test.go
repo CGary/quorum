@@ -124,6 +124,57 @@ func TestFleetDispatchSuccessAppliesDiffAndForensicRef(t *testing.T) {
 	}
 }
 
+// TestFleetDispatchStagingFailurePreservesWorktree covers the data-loss bug:
+// when stageAndDiffStat cannot even complete (here, a live index.lock
+// simulating disk-full/permission-denied style infra failures), Dispatch must
+// NOT treat the resulting Empty:true diff stat as a legitimate empty diff, must
+// NOT run `git reset --hard`, and must classify the outcome distinctly so the
+// delegate's on-disk work survives for forensics.
+func TestFleetDispatchStagingFailurePreservesWorktree(t *testing.T) {
+	env := setupDispatchEnv(t)
+	t.Setenv("FLEET_FAKE_MODE", "success_diff")
+	spec := env.fakeSpec("d1")
+
+	gitDir := strings.TrimSpace(run(t, env.worktree, "git", "rev-parse", "--git-dir"))
+	if !filepath.IsAbs(gitDir) {
+		gitDir = filepath.Join(env.worktree, gitDir)
+	}
+	lockPath := filepath.Join(gitDir, "index.lock")
+	if err := os.WriteFile(lockPath, []byte("held by another process\n"), 0o644); err != nil {
+		t.Fatalf("seed index.lock: %v", err)
+	}
+
+	res, err := Dispatch(spec)
+	if err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	if err := os.Remove(lockPath); err != nil {
+		t.Fatalf("cleanup index.lock: %v", err)
+	}
+
+	if res.Outcome.Class != "staging_failed" {
+		t.Fatalf("outcome class = %q, want staging_failed", res.Outcome.Class)
+	}
+	if res.Outcome.Cause == nil || *res.Outcome.Cause == "" {
+		t.Fatalf("expected outcome.cause to carry the staging error, got %v", res.Outcome.Cause)
+	}
+	if res.Applied {
+		t.Fatal("staging failure must never be marked applied")
+	}
+	if !res.Diff.Empty {
+		t.Fatal("diff stat is expected Empty:true on staging failure (indeterminate, not authoritative)")
+	}
+	if _, e := os.Stat(filepath.Join(env.worktree, "delegate_change.txt")); e != nil {
+		t.Fatalf("delegate work must survive an aborted staging step: %v", e)
+	}
+	if strings.TrimSpace(run(t, env.worktree, "git", "status", "--porcelain")) == "" {
+		t.Fatal("worktree must NOT be reset --hard when staging itself failed")
+	}
+	if loadResult(t, filepath.Join(env.dispatchDir("d1"), "result.json")).Outcome.Class != "staging_failed" {
+		t.Fatal("result.json class should be staging_failed")
+	}
+}
+
 func TestFleetDispatchKilledProcessGroup(t *testing.T) {
 	env := setupDispatchEnv(t)
 	pidFile := filepath.Join(env.taskDir, "grandchild.pid")

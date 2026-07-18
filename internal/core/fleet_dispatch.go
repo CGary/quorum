@@ -81,28 +81,52 @@ func Dispatch(spec DispatchSpec) (DispatchResult, error) {
 	_ = os.WriteFile(notesPath, []byte(run.output), 0o644)
 	endedAt := time.Now().UTC()
 	notesTrim := strings.TrimSpace(run.output)
-	diffStat, _ := stageAndDiffStat(spec.Worktree, baseline)
-	var blockedSig *BlockedSignal
-	if bs, perr := ParseBlockedSignal(notesTrim); perr == nil {
-		blockedSig = bs
+	diffStat, diffErr := stageAndDiffStat(spec.Worktree, baseline)
+	var outcome classifiedOutcome
+	if diffErr != nil {
+		// Staging or diff computation failed (disk full, index.lock, permissions,
+		// etc). diffStat.Empty is INDETERMINATE here, not a legitimate empty diff:
+		// never treat it as one, and never reset --hard on this path unless a
+		// forensic snapshot below actually preserves whatever got staged first.
+		msg := diffErr.Error()
+		outcome = classifiedOutcome{class: "staging_failed", cause: &msg}
+	} else {
+		var blockedSig *BlockedSignal
+		if bs, perr := ParseBlockedSignal(notesTrim); perr == nil {
+			blockedSig = bs
+		}
+		outcome = classifyOutcome(classifyInput{
+			exitCode: run.exitCode, timedOut: run.timedOut, killed: run.killed,
+			diffEmpty: diffStat.Empty, notesEmpty: notesTrim == "", blocked: blockedSig,
+			quotaMatched:  matchesAnySignature(run.output, spec.FailureSignatures),
+			outputParseOK: outputParses(spec.OutputFormat, run.output),
+		})
 	}
-	outcome := classifyOutcome(classifyInput{
-		exitCode: run.exitCode, timedOut: run.timedOut, killed: run.killed,
-		diffEmpty: diffStat.Empty, notesEmpty: notesTrim == "", blocked: blockedSig,
-		quotaMatched:  matchesAnySignature(run.output, spec.FailureSignatures),
-		outputParseOK: outputParses(spec.OutputFormat, run.output),
-	})
-	applied := outcome.class == "attempt" && run.exitCode == 0 && !run.timedOut && !run.killed && !diffStat.Empty
+	applied := diffErr == nil && outcome.class == "attempt" && run.exitCode == 0 && !run.timedOut && !run.killed && !diffStat.Empty
 	var forensicRef *string
-	if !diffStat.Empty {
+	forensicCaptured := false
+	if diffErr != nil || !diffStat.Empty {
 		if ref, ferr := captureForensicRef(spec, baseline); ferr == nil {
 			forensicRef = &ref
+			forensicCaptured = true
 		}
 	}
-	if applied {
-		_ = gitRun(spec.Worktree, "reset", "--mixed", baseline)
-	} else {
-		_ = gitRun(spec.Worktree, "reset", "--hard", baseline)
+	diffConfirmedEmpty := diffErr == nil && diffStat.Empty
+	var resetErr error
+	switch {
+	case applied:
+		resetErr = gitRun(spec.Worktree, "reset", "--mixed", baseline)
+	case diffConfirmedEmpty || forensicCaptured:
+		resetErr = gitRun(spec.Worktree, "reset", "--hard", baseline)
+	default:
+		// Diff state is unknown and no forensic snapshot could be captured
+		// either: leave the worktree untouched rather than risk destroying
+		// unrecoverable delegate work with reset --hard.
+	}
+	var resetErrMsg *string
+	if resetErr != nil {
+		msg := resetErr.Error()
+		resetErrMsg = &msg
 	}
 	res := newBaseResult(spec, startedAt, baseline, notesRel)
 	res.EndedAt = endedAt.Format(time.RFC3339)
@@ -114,6 +138,7 @@ func Dispatch(spec DispatchSpec) (DispatchResult, error) {
 	res.TimedOut, res.Killed = run.timedOut, run.killed
 	res.Outcome = DispatchOutcome{Class: outcome.class, Noop: outcome.noop, Cause: outcome.cause, Blocked: outcome.blocked}
 	res.Diff, res.ForensicRef, res.Applied = diffStat, forensicRef, applied
+	res.ResetError = resetErrMsg
 	res.TraceEvents = traceEventTypes(outcome)
 	if err := normalizeResult(resultPath, res); err != nil {
 		return res, err
