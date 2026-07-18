@@ -45,6 +45,24 @@ A task is ready only if:
    - still-failing evidence: `green_exit_code not 0`.
    - unreliable evidence: validation/review context indicates `error_category == flaky` or flaky attempts in trace; mark the TDD evidence as unreliable.
    - valid advisory evidence: `red_exit_code != 0` and `green_exit_code == 0` for that acceptance id.
+10. Contract Gate (hard block): re-run `quorum analyze contract-check` with the identical construction q-review used in its Contract Gate step (base-branch-scoped `--name-only`/`--shortstat`/`--numstat` diff against `02-contract.yaml`). Any violation in the result forces `not_ready`, regardless of what `06-review.json` already recorded; this is additive to, never a replacement for, checks 1-4 above. Surface every `not_checked` entry (e.g. `forbid.behaviors`) as advisory human context, never silently.
+
+```bash
+git -C worktrees/<TASK_ID> diff --name-only <BASE_BRANCH>...HEAD
+git -C worktrees/<TASK_ID> diff --shortstat <BASE_BRANCH>...HEAD
+git -C worktrees/<TASK_ID> diff --numstat <BASE_BRANCH>...HEAD
+```
+
+```bash
+cat << 'EOF' | quorum analyze contract-check
+{
+  "contract_path": ".ai/tasks/active/<TASK_ID>-<slug>/02-contract.yaml",
+  "changed_files": ["path/to/file.go"],
+  "diff_stat": {"insertions": 0, "deletions": 0},
+  "file_diffs": [{"path": "path/to/file.go", "insertions": 0, "deletions": 0}]
+}
+EOF
+```
 
 ## Output
 
@@ -53,6 +71,7 @@ This mini-report is user-visible: emit it in Spanish and do not copy English lab
 ```text
 Aceptación: ready|not_ready
 Tarea: <TASK_ID>
+Contract-check: ok|violations — not_checked: <lista o none>
 Acción humana requerida:
 - Correr compuerta BDD: <comando o none>
 - Revisar evidencia TDD advisory: <missing/invalid/still-failing/unreliable/valid por acceptance id>
@@ -114,6 +133,8 @@ Pasos siguientes (los despacha el orquestador, NO yo):
   1. [Obligatorio] /q-implement <TASK_ID> con los fix_tasks → /q-verify <TASK_ID> → /q-review <TASK_ID>.
 - Si hay archivos prohibidos tocados o refactor no pedido:
   1. [Obligatorio] /q-implement <TASK_ID> revirtiendo los cambios fuera de scope.
+- Si el bloqueo es del Contract Gate (contract-check violations):
+  1. [Obligatorio] /q-implement <TASK_ID> revirtiendo los cambios fuera del touch/forbid del contrato.
 
 ```
 
