@@ -56,6 +56,12 @@ under `properties.limits.properties` (an array of objects, each requiring
 it to `limits.required`, so every contract written before this task
 validates unchanged (AC-5).
 
+`limits.max_diff_lines` remains a required aggregate backstop applying to
+the whole diff, over every changed file, even when each individual file
+already satisfies its own `per_class` budget: `per_class` only reassigns
+which budget a matched file's own line count is checked against, it never
+removes that file from the aggregate total checked below.
+
 Per-class evaluation is **first-match-wins in declaration order**: for each
 file with per-file diff data, `CheckContract` walks `per_class` in the
 order the contract author wrote it and applies the first glob (via

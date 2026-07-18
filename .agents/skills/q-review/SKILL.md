@@ -52,9 +52,39 @@ Check:
 - `05-validation.json.overall_result` is `passed`.
 - Diff is within `limits.max_files_changed` and `limits.max_diff_lines` when measurable, including any optional `limits.per_class` per-file-category budgets the contract declares.
 
-### 3. Write `06-review.json`
+### 3. Contract Gate
 
-Write `.ai/tasks/active/<TASK>/06-review.json` matching `.agents/schemas/review.schema.json`:
+The step-2 diff commands have no revision range, so they cannot feed
+`contract-check`. Build a separate base-branch-scoped diff for that purpose,
+from the repo root (`02-contract.yaml` lives in `.ai/tasks/active/<TASK>/`,
+outside the worktree):
+
+```bash
+git -C worktrees/<TASK_ID> diff --name-only <BASE_BRANCH>...HEAD
+git -C worktrees/<TASK_ID> diff --shortstat <BASE_BRANCH>...HEAD
+git -C worktrees/<TASK_ID> diff --numstat <BASE_BRANCH>...HEAD
+```
+
+Transcribe those plain-text outputs into a stdin JSON request:
+
+```bash
+cat << 'EOF' | quorum analyze contract-check
+{
+  "contract_path": ".ai/tasks/active/<TASK_ID>-<slug>/02-contract.yaml",
+  "changed_files": ["path/to/file.go"],
+  "diff_stat": {"insertions": 0, "deletions": 0},
+  "file_diffs": [{"path": "path/to/file.go", "insertions": 0, "deletions": 0}]
+}
+EOF
+```
+
+`changed_files` comes from `--name-only`, `diff_stat` from `--shortstat`, and
+`file_diffs` from `--numstat` (one entry per changed file). The result is
+`{ok, violations, not_checked}`.
+
+### 4. Write `06-review.json`
+
+Write `.ai/tasks/active/<TASK>/06-review.json` matching `.agents/schemas/review.schema.json`. Map the contract-check result onto existing fields (no new schema field, `additionalProperties: false`): `contract_compliance` = `result.ok`; any `touch`/`forbid_files` violation's `file` is appended to `forbidden_files_touched`; every violation's `detail` and every `not_checked` entry (e.g. `forbid.behaviors`) is appended to `notes` so nothing is silently dropped (AC-4).
 
 ```json
 {
@@ -66,7 +96,7 @@ Write `.ai/tasks/active/<TASK>/06-review.json` matching `.agents/schemas/review.
   "unrequested_refactor": false,
   "missing_tests": [],
   "functional_risk": "low",
-  "notes": [],
+  "notes": ["contract-check ok=true; not_checked: forbid.behaviors"],
   "fix_tasks": []
 }
 ```
@@ -77,7 +107,7 @@ Verdicts:
 - `revise`: fixable issues exist; populate `fix_tasks`.
 - `reject`: fundamental contract breach or unsafe functional risk.
 
-### 4. Validate JSON
+### 5. Validate JSON
 
 If possible:
 
@@ -92,6 +122,7 @@ This mini-report is user-visible: emit it in Spanish. Verdict values may keep th
 ```text
 Revisión: approve|revise|reject
 Artefacto: .ai/tasks/active/<TASK>/06-review.json
+Contract-check: ok|violations — not_checked: <lista o none>
 Bloqueantes: <none o lista>
 ```
 
