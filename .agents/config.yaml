@@ -6,13 +6,18 @@ levels:
       - docs
       - mechanical_refactor
     primary: google/gemini-3.5-flash-low
-    fallback: openai/gpt-oss-120b
-    # G1-ratified cross-provider secondaries (opencode-backed, $0 OpenRouter
-    # free tier); reached only as level-0 reroute fallbacks after primary and
-    # fallback are excluded.
+    # G1-ratified: reroute is always cross-provider free-to-agy. core.Route
+    # enumerates primary, then fallback, then secondary[...] in that fixed
+    # order (internal/core/fleet_route.go enumerateCandidates) -- so the
+    # FIRST reroute candidate after primary is excluded MUST be a
+    # cross-provider (opencode-backed, $0 OpenRouter free tier) cell, never
+    # another agy-provided model. fallback therefore holds the cross-provider
+    # secondary; the agy-provided openai/gpt-oss-120b fallback moves into
+    # secondary, reached only after both cross-provider cells are excluded.
+    fallback: nvidia/nemotron-3-ultra-550b-a55b-free
     secondary:
-      - nvidia/nemotron-3-ultra-550b-a55b-free
       - poolside/laguna-m.1-free
+      - openai/gpt-oss-120b
     # max_cost_per_call_usd only binds transports with quota_class: api (ADR-A).
     max_cost_per_call_usd: 0.15
 

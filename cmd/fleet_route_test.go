@@ -313,6 +313,82 @@ func g1CellModelNames(t *testing.T, repo string) (string, []string) {
 	return l0.Primary, names
 }
 
+// fleetRouteAgentsProviderOf reads .agents/fleet/agents.yaml and returns the
+// provider declared for agent/model, so a test can assert cross-provider
+// without hardcoding any provider or model literal.
+func fleetRouteAgentsProviderOf(t *testing.T, repo, agent, model string) string {
+	t.Helper()
+	raw, err := os.ReadFile(fleetAgentsPath(repo))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var agents fleetRouteAgentsFile
+	if err := yaml.Unmarshal(raw, &agents); err != nil {
+		t.Fatal(err)
+	}
+	tr, ok := agents.Transports[agent]
+	if !ok {
+		t.Fatalf("transport %q not found in agents.yaml", agent)
+	}
+	m, ok := tr.Models[model]
+	if !ok {
+		t.Fatalf("model %q not found on transport %q in agents.yaml", model, agent)
+	}
+	return m.Provider
+}
+
+// TestFleetRouteRerouteAfterPrimaryExcludedIsCrossProvider is the ratified G1
+// decision under test (2026-07-17 adversarial review finding): "reroute always
+// cross-provider free-to-agy" -- after the level-0 agy primary fails, the FIRST
+// reroute candidate must come from a different provider than the excluded
+// primary, never another agy-provided cell. This exercises the REAL on-disk
+// .agents/config.yaml and .agents/fleet/agents.yaml end-to-end (no fixture),
+// so a future data change that regresses the ratified order fails this test.
+func TestFleetRouteRerouteAfterPrimaryExcludedIsCrossProvider(t *testing.T) {
+	repo := fleetRouteRepoRoot(t)
+
+	first, out1, errOut1 := runRoute(t, repo, `{"phase":"implement","risk":"low","complexity_band":"S"}`)
+	if first != 0 {
+		t.Fatalf("primary run exit %d: %s", first, errOut1)
+	}
+	var res1 core.RouteResult
+	if err := json.Unmarshal([]byte(out1), &res1); err != nil {
+		t.Fatalf("unmarshal primary result: %v", err)
+	}
+	if res1.Candidate == nil {
+		t.Fatalf("want a primary candidate, got blocked=%q reasons=%v", res1.Blocked, res1.Reasons)
+	}
+	primaryProvider := fleetRouteAgentsProviderOf(t, repo, res1.Candidate.Agent, res1.Candidate.Model)
+
+	exclusions, err := json.Marshal([]core.Candidate{*res1.Candidate})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reqJSON := `{"phase":"implement","risk":"low","complexity_band":"S","exclusions":` + string(exclusions) + `}`
+
+	second, out2, errOut2 := runRoute(t, repo, reqJSON)
+	if second != 0 {
+		t.Fatalf("reroute run exit %d: %s", second, errOut2)
+	}
+	var res2 core.RouteResult
+	if err := json.Unmarshal([]byte(out2), &res2); err != nil {
+		t.Fatalf("unmarshal reroute result: %v", err)
+	}
+	if res2.Candidate == nil {
+		t.Fatalf("want a reroute candidate, got blocked=%q reasons=%v", res2.Blocked, res2.Reasons)
+	}
+
+	if res2.Candidate.Agent == res1.Candidate.Agent && res2.Candidate.Model == res1.Candidate.Model {
+		t.Fatalf("reroute returned the excluded candidate unchanged: %v", res2.Candidate)
+	}
+	rerouteProvider := fleetRouteAgentsProviderOf(t, repo, res2.Candidate.Agent, res2.Candidate.Model)
+	if rerouteProvider == primaryProvider {
+		t.Errorf("G1 ratified reroute order violated: first reroute after excluding primary %s/%s (provider %q) picked %s/%s, same provider %q; want a cross-provider cell",
+			res1.Candidate.Agent, res1.Candidate.Model, primaryProvider,
+			res2.Candidate.Agent, res2.Candidate.Model, rerouteProvider)
+	}
+}
+
 // TestFleetRouteAgentsSchemaValidatesRealFile is AC-6: the real agents.yaml
 // validates against the real agents.schema.json (exercised via the existing
 // fleet-preflight schema path), and every model entry retains model_arg while
