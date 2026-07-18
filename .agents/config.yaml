@@ -7,6 +7,12 @@ levels:
       - mechanical_refactor
     primary: google/gemini-3.5-flash-low
     fallback: openai/gpt-oss-120b
+    # G1-ratified cross-provider secondaries (opencode-backed, $0 OpenRouter
+    # free tier); reached only as level-0 reroute fallbacks after primary and
+    # fallback are excluded.
+    secondary:
+      - nvidia/nemotron-3-ultra-550b-a55b-free
+      - poolside/laguna-m.1-free
     # max_cost_per_call_usd only binds transports with quota_class: api (ADR-A).
     max_cost_per_call_usd: 0.15
 
@@ -36,3 +42,15 @@ policies:
   cost_bounded_by_dispatcher: true
   system_commits: true
   human_merges: true
+  # Deterministic transport preference order consumed by `quorum fleet route`
+  # when building the ordered candidate transport slice. Expresses the
+  # cross-provider reroute preference as DATA (not Go): agy first (primary cheap
+  # cell's own transport), opencode before aider (cross-provider before the
+  # mechanical-single-file fallback), codex/claude last (both inactive in v1).
+  # A transport absent from this list is unreachable via `fleet route`.
+  fleet_transport_order:
+    - agy
+    - opencode
+    - aider
+    - codex
+    - claude

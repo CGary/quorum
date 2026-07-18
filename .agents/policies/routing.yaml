@@ -1,18 +1,61 @@
-# Routing rules: one ceremony level for complex-feature tasks.
+# Routing rules for phase=implement, expressed as an explicit {risk x band}
+# matrix (max-severity: level = max(risk_level, band_level); low/S=0,
+# medium/M=1, high/L=2). Every (risk, band) pair matches exactly one cell, so
+# rule order is irrelevant within the matrix. A trailing catch-all rule (empty
+# match) is the safe default for any non-implement phase or unanticipated value,
+# so core.Route never hits its structural "no matching rule" error.
 # Cost, retries, and escalation are dispatcher-controlled, not agent-controlled.
 rules:
-  - match: {risk: low}
+  # low/S -> level 0 (the ratified G1 cheap cell).
+  - match: {phase: implement, risk: low, band: S}
     executor_level: 0
     reviewer_required: true
     max_attempts: 2
 
-  - match: {risk: medium}
-    executor_level: 0
+  # medium-or-M cells -> level 1.
+  - match: {phase: implement, risk: low, band: M}
+    executor_level: 1
+    reviewer_required: true
+    max_attempts: 2
+  - match: {phase: implement, risk: medium, band: S}
+    executor_level: 1
+    reviewer_required: true
+    max_attempts: 2
+  - match: {phase: implement, risk: medium, band: M}
+    executor_level: 1
     reviewer_required: true
     max_attempts: 2
 
-  - match: {risk: high}
-    executor_level: 0
+  # high-or-L cells -> level 2, gated.
+  - match: {phase: implement, risk: low, band: L}
+    executor_level: 2
+    reviewer_required: true
+    max_attempts: 1
+    human_gate_required: true
+  - match: {phase: implement, risk: medium, band: L}
+    executor_level: 2
+    reviewer_required: true
+    max_attempts: 1
+    human_gate_required: true
+  - match: {phase: implement, risk: high, band: S}
+    executor_level: 2
+    reviewer_required: true
+    max_attempts: 1
+    human_gate_required: true
+  - match: {phase: implement, risk: high, band: M}
+    executor_level: 2
+    reviewer_required: true
+    max_attempts: 1
+    human_gate_required: true
+  - match: {phase: implement, risk: high, band: L}
+    executor_level: 2
+    reviewer_required: true
+    max_attempts: 1
+    human_gate_required: true
+
+  # Catch-all safe default (any non-implement phase or unanticipated value).
+  - match: {}
+    executor_level: 2
     reviewer_required: true
     max_attempts: 1
     human_gate_required: true

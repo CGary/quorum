@@ -111,14 +111,15 @@ type RoutePolicy struct {
 // carries the policy content hashes, the control snapshot, risk, band, phase,
 // resolved level, exclusions, and the router version.
 type InputsSnapshot struct {
-	RouterVersion  string       `json:"router_version" yaml:"router_version"`
-	Risk           string       `json:"risk" yaml:"risk"`
-	ComplexityBand string       `json:"complexity_band" yaml:"complexity_band"`
-	Phase          string       `json:"phase" yaml:"phase"`
-	Level          int          `json:"level" yaml:"level"`
-	Exclusions     []Candidate  `json:"exclusions" yaml:"exclusions"`
-	Control        ControlState `json:"control" yaml:"control"`
-	Hashes         PolicyHashes `json:"hashes" yaml:"hashes"`
+	RouterVersion   string       `json:"router_version" yaml:"router_version"`
+	Risk            string       `json:"risk" yaml:"risk"`
+	ComplexityBand  string       `json:"complexity_band" yaml:"complexity_band"`
+	Phase           string       `json:"phase" yaml:"phase"`
+	Level           int          `json:"level" yaml:"level"`
+	IncumbentFamily string       `json:"incumbent_family" yaml:"incumbent_family"`
+	Exclusions      []Candidate  `json:"exclusions" yaml:"exclusions"`
+	Control         ControlState `json:"control" yaml:"control"`
+	Hashes          PolicyHashes `json:"hashes" yaml:"hashes"`
 }
 
 // RouteResult is the router output. On a pick Candidate is non-nil and Blocked
@@ -163,14 +164,15 @@ func Route(req RouteRequest, policy RoutePolicy) (RouteResult, error) {
 		version = RouterVersion
 	}
 	snapshot := InputsSnapshot{
-		RouterVersion:  version,
-		Risk:           req.Risk,
-		ComplexityBand: req.ComplexityBand,
-		Phase:          req.Phase,
-		Level:          level,
-		Exclusions:     req.Exclusions,
-		Control:        req.Control,
-		Hashes:         policy.Hashes,
+		RouterVersion:   version,
+		Risk:            req.Risk,
+		ComplexityBand:  req.ComplexityBand,
+		Phase:           req.Phase,
+		Level:           level,
+		IncumbentFamily: req.IncumbentFamily,
+		Exclusions:      req.Exclusions,
+		Control:         req.Control,
+		Hashes:          policy.Hashes,
 	}
 
 	enumerated := enumerateCandidates(level, models, policy.Transports)
