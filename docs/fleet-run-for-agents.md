@@ -145,18 +145,21 @@ separate quota pools. Plan measurement or reroute budgets accordingly:
 exhausting one family's quota says nothing about the other's remaining
 budget.
 
-**Open bug — `quorum fleet run`'s residual-placeholder guard false-positives
+**Fixed bug — `quorum fleet run`'s residual-placeholder guard false-positived
 on brace-containing prompts**: on `prompt_arg` transports (agy), the guard
-meant to reject un-substituted dispatch-only placeholders also matches
-literal braces that appear inside the prompt text itself (e.g. a Go code
-block), and fails instantly with `INVALID_ARGUMENT` ("argv references
+meant to reject un-substituted dispatch-only placeholders used to also match
+literal braces that appeared inside the prompt text itself (e.g. a Go code
+block), failing instantly with `INVALID_ARGUMENT` ("argv references
 dispatch-only placeholder", quoting the entire prompt back in the error)
-before any process starts. This is why the M-layer agy cells in the table
+before any process started. This is why the M-layer agy cells in the table
 above were measured by **invoking the transport binary directly** with the
 same argv `quorum fleet run` would have used, rather than through
-`quorum fleet run` itself. Workaround until this is fixed: invoke the
-transport binary directly, or keep prompts free of literal `{`/`}`
-characters. The fix is tracked in the backlog, not yet shipped.
+`quorum fleet run` itself — that campaign predates the fix. The guard now
+scans only the raw argv template tokens read from `agents.yaml` **before**
+variable substitution, so it only ever rejects a genuine unresolved
+`{name}` placeholder in the template; prompt/`--input` content containing
+literal `{`/`}` (Go code, JSON, etc.) passes through untouched. No
+workaround is needed on current builds.
 
 ## 5. End-to-end example (opencode, dry-run then real)
 
