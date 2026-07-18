@@ -175,6 +175,121 @@ func TestFleetDispatchStagingFailurePreservesWorktree(t *testing.T) {
 	}
 }
 
+// TestFleetDispatchStagingFailureWithForensicCaptureStillSkipsReset covers the
+// residual false-safety edge: even when a staging error (diffErr != nil) is
+// paired with a forensic ref that DID get captured, reset --hard must still
+// never run. write-tree only snapshots whatever made it into the index before
+// `git add -A` failed, so a successful capture on this path does not prove the
+// working tree is safe to discard -- it may be missing the very files that
+// tripped the staging error.
+func TestFleetDispatchStagingFailureWithForensicCaptureStillSkipsReset(t *testing.T) {
+	env := setupDispatchEnv(t)
+	t.Setenv("FLEET_FAKE_MODE", "success_diff_unreadable")
+	spec := env.fakeSpec("d1")
+
+	res, err := Dispatch(spec)
+	if err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	// Cleanup: the unreadable file would otherwise block worktree teardown.
+	_ = os.Chmod(filepath.Join(env.worktree, "delegate_unreadable.txt"), 0o644)
+
+	if res.Outcome.Class != "staging_failed" {
+		t.Fatalf("outcome class = %q, want staging_failed", res.Outcome.Class)
+	}
+	if res.ForensicRef == nil {
+		t.Fatal("expected forensic capture to succeed on this path (write-tree only reads the index)")
+	}
+	if res.ResetError != nil {
+		t.Fatalf("resetErr = %v, want nil (reset must never even be attempted)", *res.ResetError)
+	}
+	if _, e := os.Stat(filepath.Join(env.worktree, "delegate_change.txt")); e != nil {
+		t.Fatalf("delegate work must survive a staging failure even with a captured forensic ref: %v", e)
+	}
+	if strings.TrimSpace(run(t, env.worktree, "git", "status", "--porcelain")) == "" {
+		t.Fatal("worktree must NOT be reset --hard just because a forensic ref was captured on a staging_failed path")
+	}
+}
+
+// TestFleetDispatchNonEmptyDiffForensicCaptureFailsPreservesWorktree covers the
+// diffErr == nil branch: staging and diffing succeed, the diff is genuinely
+// non-empty, but the forensic snapshot itself fails to write (e.g. refs
+// directory unwritable). Dispatch must not reset --hard without a forensic
+// safety net, leaving the staged, uncommitted delegate work in place.
+func TestFleetDispatchNonEmptyDiffForensicCaptureFailsPreservesWorktree(t *testing.T) {
+	env := setupDispatchEnv(t)
+	commonDir := strings.TrimSpace(run(t, env.worktree, "git", "rev-parse", "--git-common-dir"))
+	if !filepath.IsAbs(commonDir) {
+		commonDir = filepath.Join(env.worktree, commonDir)
+	}
+	refsDir := filepath.Join(commonDir, "refs", "fleet", env.taskID)
+	if err := os.MkdirAll(refsDir, 0o755); err != nil {
+		t.Fatalf("seed refs/fleet dir: %v", err)
+	}
+	if err := os.Chmod(refsDir, 0o555); err != nil {
+		t.Fatalf("lock refs/fleet dir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(refsDir, 0o755) })
+
+	// diff_then_fail: exit 1 with a real (non-empty) diff, so `applied` is
+	// false and the outcome must fall through to the forensicCaptured branch
+	// of the reset switch -- which must now fail to capture.
+	t.Setenv("FLEET_FAKE_MODE", "diff_then_fail")
+	res, err := Dispatch(env.fakeSpec("d1"))
+	if err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+
+	if res.Diff.Empty {
+		t.Fatal("expected a genuinely non-empty diff for this scenario")
+	}
+	if res.ForensicRef != nil {
+		t.Fatalf("expected forensic capture to fail (refs/fleet dir is read-only), got ref = %v", res.ForensicRef)
+	}
+	if res.ResetError != nil {
+		t.Fatalf("resetErr = %v, want nil (reset must never even be attempted)", *res.ResetError)
+	}
+	if _, e := os.Stat(filepath.Join(env.worktree, "delegate_partial.txt")); e != nil {
+		t.Fatalf("delegate work must survive a failed forensic capture: %v", e)
+	}
+	if strings.TrimSpace(run(t, env.worktree, "git", "status", "--porcelain")) == "" {
+		t.Fatal("worktree must NOT be reset --hard when the forensic capture itself failed")
+	}
+}
+
+// TestFleetDispatchResetHardFailurePopulatesResetError forces `git reset
+// --hard` itself to fail on the one path that is allowed to run it
+// (diffErr == nil, forensic ref captured, not applied): the delegate modifies
+// an existing tracked file and then makes the worktree directory read-only,
+// so staging/diff/forensic-capture (which never write into the working tree)
+// still succeed, but the reset's unlink+recreate of that tracked file cannot.
+// Dispatch must surface this as res.ResetError rather than silently losing it.
+func TestFleetDispatchResetHardFailurePopulatesResetError(t *testing.T) {
+	env := setupDispatchEnv(t)
+	t.Setenv("FLEET_FAKE_MODE", "diff_then_fail_readonly_wt")
+	spec := env.fakeSpec("d1")
+
+	res, err := Dispatch(spec)
+	if err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	// Restore write access so t.TempDir() cleanup can remove the worktree.
+	t.Cleanup(func() { _ = os.Chmod(env.worktree, 0o755) })
+
+	if res.ForensicRef == nil {
+		t.Fatal("expected forensic capture to succeed (only the working tree, not the git dir, is read-only)")
+	}
+	if res.ResetError == nil {
+		t.Fatal("expected reset --hard to fail and populate res.ResetError, got nil")
+	}
+	if !strings.Contains(*res.ResetError, "seed.txt") && !strings.Contains(*res.ResetError, "Permission denied") {
+		t.Fatalf("resetErr = %q, want it to reference the permission failure on seed.txt", *res.ResetError)
+	}
+	if loadResult(t, filepath.Join(env.dispatchDir("d1"), "result.json")).ResetError == nil {
+		t.Fatal("result.json must also carry the reset error")
+	}
+}
+
 func TestFleetDispatchKilledProcessGroup(t *testing.T) {
 	env := setupDispatchEnv(t)
 	pidFile := filepath.Join(env.taskDir, "grandchild.pid")

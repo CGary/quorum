@@ -116,12 +116,15 @@ func Dispatch(spec DispatchSpec) (DispatchResult, error) {
 	switch {
 	case applied:
 		resetErr = gitRun(spec.Worktree, "reset", "--mixed", baseline)
-	case diffConfirmedEmpty || forensicCaptured:
+	case diffErr == nil && (diffConfirmedEmpty || forensicCaptured):
 		resetErr = gitRun(spec.Worktree, "reset", "--hard", baseline)
 	default:
-		// Diff state is unknown and no forensic snapshot could be captured
-		// either: leave the worktree untouched rather than risk destroying
-		// unrecoverable delegate work with reset --hard.
+		// Diff state is unknown (diffErr != nil) or no forensic snapshot could
+		// be captured: leave the worktree untouched rather than risk destroying
+		// unrecoverable delegate work with reset --hard. A successful forensic
+		// capture on the diffErr != nil path is best-effort only -- write-tree
+		// snapshots the index, which `git add -A` may have only partially
+		// populated, so it does not prove the working tree is safe to discard.
 	}
 	var resetErrMsg *string
 	if resetErr != nil {

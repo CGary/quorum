@@ -54,3 +54,59 @@ Este es un cambio de función pequeño y aditivo, más tests que reflejan los te
 - **Positivas**: el manejo de reroute/blocked del dispatcher tiene un contrato fijo y auditable contra el cual implementar; la inestabilidad de infraestructura (quota, crash, wrapper roto) nunca puede consumir silenciosamente el `max_attempts` de un contrato; el bloqueo human-in-the-loop es explícitamente gratuito para la tarea.
 - **Negativas**: el clasificador debe implementarse con cuidado para mantenerse basado en señales (no en interpretación), o la garantía de determinismo de la taxonomía se erosiona con el tiempo; el crecimiento sin límite de `events[]` en tareas de vida larga es un tradeoff aceptado del historial append-only (refleja el mismo tradeoff ya existente en `attempts[]`).
 - **Neutrales**: esta ADR no implementa el motor de dispatch, el router, los adapters ni el kill-switch; solo fija la semántica y cierra el hueco de append-only para que esas tareas futuras construyan sobre una base estable. El valor default de `reroute_budget` (2) se acepta tal cual según las restricciones de la spec y no se relitiga aquí.
+
+## Amendment (2026-07-18): a fourth outcome class, `staging_failed`
+
+Implementation of the fleet dispatch engine (`internal/core/fleet_dispatch.go`) surfaced a
+failure mode the original taxonomy in Decision §1 did not anticipate: `git add -A` (or the
+subsequent `git diff --cached --numstat`) itself failing before any classification of the
+delegate's work is even possible — an `index.lock` left over from another process, a full disk,
+or a permissions problem on the worktree. This is not a vendor/model failure and not a wrapper
+failure; it is local infrastructure breaking before the dispatch has a chance to observe
+anything about the delegate's output. Retrofitting it into `attempt` or `reroute` would either
+burn a contract attempt the model never got a fair shot at, or burn a reroute budget slot that
+implies the *delegate* misbehaved, when the delegate may have done nothing wrong at all.
+
+This amendment adds `staging_failed` as a fourth, disjoint outcome class, governed by the same
+signal-based discipline as Decision §1:
+
+| Signal at dispatch end | Class | Consumes | Record |
+|---|---|---|---|
+| Staging/diff computation itself errors (`git add -A` or `git diff --cached` fails) | **staging_failed** | nothing | `events[]` only (`dispatch_started` + `dispatch_finished`) |
+
+Rules, mirroring the reasoning already established for `blocked` in Decision §1:
+
+- **Consumes no reroute budget.** `reroute_budget` exists to bound retries against a delegate/
+  vendor that is misbehaving. Local infra failure says nothing about the delegate, so it must
+  not count against it.
+- **Adds no exclusions.** Nothing about routing, model selection, or the delegate's fitness for
+  this task is implicated — the model was never given the chance to run to a point where its
+  behavior could be judged. No exclusion list, cooldown, or routing signal is written.
+  Reusing `internal/core/fleet_route.go` terminology: `staging_failed` produces no reroute-style
+  candidate exclusion at all, unlike quota/timeout/wrapper_broken reroutes.
+- **Appends no `attempts[]` entry.** Per Decision §2, `attempts[]` records classified work
+  against a contract's `max_attempts`. A staging failure produced no classifiable work.
+- **Emits only `dispatch_started`/`dispatch_finished`.** No new event type is introduced — both
+  already exist in Decision §2's closed vocabulary. The outcome's `class` and `cause` (the
+  underlying git error text) travel in `dispatch_finished`'s existing free-form payload, exactly
+  as `reroute`/`blocked` causes already do.
+- **The worktree is always left untouched for forensics.** Because `diffStat.Empty` from a
+  failed staging call is indeterminate (not a legitimate empty diff), `git reset --hard` must
+  never run on this path — not even when a forensic ref happens to be captured, since
+  `write-tree` only snapshots whatever made it into the index before `add -A` failed, and may be
+  missing the exact working-tree deltas that caused the failure in the first place. Reset --hard
+  remains allowed only when `diffErr == nil` **and** (the diff is confirmed legitimately empty
+  **or** a forensic ref was captured against a diff that staging/diff computation itself
+  succeeded in measuring). Best-effort forensic capture is still attempted on the
+  `staging_failed` path (it is harmless when it fails, and useful when it succeeds), but its
+  success or failure never gates the reset decision.
+- **Orchestrator contract: surface to human, retry is human/orchestrator-initiated.** Consistent
+  with `docs/adr/0001-q-implement-child-retry.md`, a `staging_failed` result is not something a
+  skill or the dispatcher silently retries or reroutes on its own; it is surfaced as-is so a
+  human or the orchestrator can decide whether to retry the dispatch, fix the underlying
+  infrastructure problem, or intervene manually. This keeps `staging_failed` symmetrical with how
+  `blocked` is already handled: a class that consumes neither counter and defers the next action
+  to a human.
+
+No schema change is required: `events[]` already accommodates this via its existing
+`additionalProperties: true` shape, exactly as Decision §2 established for `reroute`/`blocked`.
