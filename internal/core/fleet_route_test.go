@@ -336,6 +336,37 @@ func TestRouteFamilyDiversitySoftPreference(t *testing.T) {
 	})
 }
 
+// TestRouteInputsSnapshotIncumbentFamily (AC-4) asserts the snapshot carries
+// the caller-supplied IncumbentFamily verbatim — the SAME value the request
+// held, independent of which candidate the diversity preference actually
+// picked — and defaults to "" when unset.
+func TestRouteInputsSnapshotIncumbentFamily(t *testing.T) {
+	policy := fixturePolicy()
+	cases := []struct {
+		name      string
+		incumbent string
+		want      string
+	}{
+		// "quill" differs from the level-1 survivor family that ultimately wins
+		// (mL1Fallback is family "nimbus"); the snapshot still echoes "quill".
+		{"non_empty_differs_from_pick_family", "quill", "quill"},
+		{"empty_defaults_to_zero_value", "", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := req("medium", "S") // level 1
+			r.IncumbentFamily = tc.incumbent
+			res, err := Route(r, policy)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if res.InputsSnapshot.IncumbentFamily != tc.want {
+				t.Errorf("snapshot IncumbentFamily: got %q want %q", res.InputsSnapshot.IncumbentFamily, tc.want)
+			}
+		})
+	}
+}
+
 func TestRouteMalformedPolicy(t *testing.T) {
 	t.Run("no_routing_rules", func(t *testing.T) {
 		if _, err := Route(req("low", "S"), RoutePolicy{}); err == nil {

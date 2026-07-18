@@ -132,12 +132,17 @@
     "modelSubscription": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["model_arg"],
+      "required": ["model_arg", "provider"],
       "properties": {
         "model_arg": {
           "type": "string",
           "minLength": 1,
           "description": "Exact string this transport's CLI expects for --model/-m (or equivalent)."
+        },
+        "provider": {
+          "type": "string",
+          "enum": ["google", "openrouter-nvidia", "openrouter-poolside", "openrouter-cohere", "anthropic", "openai"],
+          "description": "Model provider/family, consumed by quorum fleet route as ModelAvailability.Family for soft review-family diversity. Closed enum: an unlisted provider fails validation loudly."
         },
         "reasoning_effort": {
           "type": "string",
@@ -157,12 +162,17 @@
     "modelApi": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["model_arg"],
+      "required": ["model_arg", "provider"],
       "properties": {
         "model_arg": {
           "type": "string",
           "minLength": 1,
           "description": "Exact string this transport's CLI expects for --model/-m (or equivalent)."
+        },
+        "provider": {
+          "type": "string",
+          "enum": ["google", "openrouter-nvidia", "openrouter-poolside", "openrouter-cohere", "anthropic", "openai"],
+          "description": "Model provider/family, consumed by quorum fleet route as ModelAvailability.Family for soft review-family diversity. Closed enum: an unlisted provider fails validation loudly."
         },
         "reasoning_effort": {
           "type": "string",

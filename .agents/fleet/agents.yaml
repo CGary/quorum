@@ -41,22 +41,27 @@ transports:
       # minimal is syntactically valid globally but rejected by this backend;
       # there is no "max" — the former config.toml "max" was exactly this bug.
       openai/gpt-5.5-none:
+        provider: openai
         model_arg: gpt-5.5
         reasoning_effort: none
         effort_whitelist: [none, low, medium, high, xhigh]
       openai/gpt-5.5-low:
+        provider: openai
         model_arg: gpt-5.5
         reasoning_effort: low
         effort_whitelist: [none, low, medium, high, xhigh]
       openai/gpt-5.5-medium:
+        provider: openai
         model_arg: gpt-5.5
         reasoning_effort: medium
         effort_whitelist: [none, low, medium, high, xhigh]
       openai/gpt-5.5-high:
+        provider: openai
         model_arg: gpt-5.5
         reasoning_effort: high
         effort_whitelist: [none, low, medium, high, xhigh]
       openai/gpt-5.5-xhigh:
+        provider: openai
         model_arg: gpt-5.5
         reasoning_effort: xhigh
         effort_whitelist: [none, low, medium, high, xhigh]
@@ -96,16 +101,22 @@ transports:
       # Exact strings from `agy models` (Fase 0a §3), joined by canonical
       # provider/model name. GPT-OSS 120B only ships a single effort tier.
       google/gemini-3.5-flash-low:
+        provider: google
         model_arg: Gemini 3.5 Flash (Low)
       google/gemini-3.5-flash-medium:
+        provider: google
         model_arg: Gemini 3.5 Flash (Medium)
       google/gemini-3.5-flash-high:
+        provider: google
         model_arg: Gemini 3.5 Flash (High)
       google/gemini-3.1-pro-low:
+        provider: google
         model_arg: Gemini 3.1 Pro (Low)
       google/gemini-3.1-pro-high:
+        provider: google
         model_arg: Gemini 3.1 Pro (High)
       openai/gpt-oss-120b:
+        provider: openai
         model_arg: GPT-OSS 120B (Medium)
       # Anthropic Claude 4.6, single-tier "(Thinking)" (no low/medium/high),
       # so the canonical key carries no effort suffix and the entry declares
@@ -114,13 +125,20 @@ transports:
       # (config.yaml.levels[2].primary = anthropic/claude-opus-4-7). Exposed to
       # 'quorum fleet run'; not routed by any config.yaml level (ADR 0010 §5).
       anthropic/claude-sonnet-4-6:
+        provider: anthropic
         model_arg: Claude Sonnet 4.6 (Thinking)
       anthropic/claude-opus-4-6:
+        provider: anthropic
         model_arg: Claude Opus 4.6 (Thinking)
     contract_test: .agents/fleet/contract_tests/agy.yaml
     active: true
 
   aider:
+    # Operational intent (NOT enforced by core.Route): aider is de-prioritized
+    # to the last cross-provider reroute fallback (see config.yaml
+    # policies.fleet_transport_order) and should be used only for MECHANICAL
+    # SINGLE-FILE changes; a 2026-07-16 M-difficulty campaign found it
+    # unreliable on multi-file tasks (docs/fleet-run-for-agents.md 7.2/4.1).
     # Wired transport (FLEET-017; ideas/fleet/17-adapter-aider.md). First
     # quota_class:api transport, backed by OpenRouter's free auto-router.
     # aider auto-commits by default -- the wrapper neutralizes that (and any
@@ -169,24 +187,30 @@ transports:
       # opencode (agentic) and single-shot codegen; aider-specific pass rates
       # are pending their own validation round.
       nvidia/nemotron-3-ultra-550b-a55b-free:
+        provider: openrouter-nvidia
         model_arg: openrouter/nvidia/nemotron-3-ultra-550b-a55b:free
         max_cost_per_call_usd: 0.5
       nvidia/nemotron-3-nano-omni-30b-a3b-reasoning-free:
+        provider: openrouter-nvidia
         model_arg: openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
         max_cost_per_call_usd: 0.5
       poolside/laguna-xs-2.1-free:
+        provider: openrouter-poolside
         model_arg: openrouter/poolside/laguna-xs-2.1:free
         max_cost_per_call_usd: 0.5
       cohere/north-mini-code-free:
+        provider: openrouter-cohere
         model_arg: openrouter/cohere/north-mini-code:free
         max_cost_per_call_usd: 0.5
       poolside/laguna-m.1-free:
+        provider: openrouter-poolside
         model_arg: openrouter/poolside/laguna-m.1:free
         max_cost_per_call_usd: 0.5
       # Slowest cell (32-154s/call) but measured 9/10 via real dispatch
       # (pass@10 campaign 2026-07-15). aider-only: removed from the opencode
       # transport, where its agentic tool-use scored 3/10.
       nvidia/nemotron-nano-9b-v2-free:
+        provider: openrouter-nvidia
         model_arg: openrouter/nvidia/nemotron-nano-9b-v2:free
         max_cost_per_call_usd: 0.5
     contract_test: .agents/fleet/contract_tests/aider.yaml
@@ -239,6 +263,9 @@ transports:
       # "openrouter/free", consistent with the blueprint's AC-1 statement and
       # the aider precedent (FLEET-017).
       openrouter/free:
+        # openrouter-nvidia is the least-wrong bucket: this is OpenRouter's
+        # cross-provider auto-router (FLEET-020), not a single-provider model.
+        provider: openrouter-nvidia
         model_arg: openrouter/openrouter/free
       # Validated agentic 2026-07-15 (empirical OpenRouter free-model
       # evaluation, docs/fleet-run-for-agents.md section 7): hidden,
@@ -259,6 +286,7 @@ transports:
       # model_arg carries the exact, colon-preserving string opencode's -m
       # flag needs; the canonical key only has to be schema-valid).
       nvidia/nemotron-3-ultra-550b-a55b-free:
+        provider: openrouter-nvidia
         model_arg: openrouter/nvidia/nemotron-3-ultra-550b-a55b:free
       # The five entries below were validated agentic 2026-07-15 in the same
       # evaluation (hidden 9-case test via opencode tool-use loop, PASS 9/9
@@ -267,12 +295,16 @@ transports:
       # re-validate periodically (docs section 7.7). Ordered by measured
       # agentic speed (11s / 12s / 14s / 19s / 72s).
       nvidia/nemotron-3-nano-omni-30b-a3b-reasoning-free:
+        provider: openrouter-nvidia
         model_arg: openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
       poolside/laguna-xs-2.1-free:
+        provider: openrouter-poolside
         model_arg: openrouter/poolside/laguna-xs-2.1:free
       cohere/north-mini-code-free:
+        provider: openrouter-cohere
         model_arg: openrouter/cohere/north-mini-code:free
       poolside/laguna-m.1-free:
+        provider: openrouter-poolside
         model_arg: openrouter/poolside/laguna-m.1:free
     contract_test: .agents/fleet/contract_tests/opencode.yaml
     active: true
