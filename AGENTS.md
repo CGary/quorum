@@ -120,8 +120,10 @@ The ratified G1 cell set (see `.agents/config.yaml.levels[0]` and
 `.agents/policies/routing.yaml`) pins `agy` on `google/gemini-3.5-flash-low` as the primary cheap
 cell for level 0 (`low` risk / `S` band), with `opencode`-backed
 `nvidia/nemotron-3-ultra-550b-a55b-free` and `poolside/laguna-m.1-free` as $0 OpenRouter
-cross-provider secondaries; reroute always prefers a cross-provider free cell over re-trying
-`agy`; `aider` stays restricted to mechanical single-file changes and is the last transport in
+cross-provider secondaries; on reroute after an `agy` failure, the level-0 enumeration yields a
+cross-provider free cell first (`nemotron`/`laguna` via `opencode`), with `agy`'s
+`openai/gpt-oss-120b` fallback as a later candidate; `aider` stays restricted to mechanical
+single-file changes and sits mid-order (`[agy, opencode, aider, codex, claude]`) in
 `fleet_transport_order`. This cell set is expressed only as policy data (`config.yaml`,
 `routing.yaml`, `agents.yaml`); `core.Route` never hardcodes any of it.
 
