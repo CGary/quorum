@@ -893,8 +893,8 @@ func TestInitializeProjectFromMovedBinaryCopiesNonEmptyResources(t *testing.T) {
 		count++
 		assertNonEmptyFile(t, filepath.Join(root, ".agents", "skills", entry.Name(), "SKILL.md"))
 	}
-	if count != 12 {
-		t.Fatalf("expected 12 source q-* skills, found %d", count)
+	if count != 13 {
+		t.Fatalf("expected 13 source q-* skills, found %d", count)
 	}
 
 	link := filepath.Join(root, ".claude", "skills")
@@ -1041,8 +1041,8 @@ func TestSkillsMentionContextPrefixInCommunicationProtocol(t *testing.T) {
 			}
 		}
 	}
-	if count != 12 {
-		t.Fatalf("expected 12 q-* skills, found %d", count)
+	if count != 13 {
+		t.Fatalf("expected 13 q-* skills, found %d", count)
 	}
 }
 
