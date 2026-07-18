@@ -132,9 +132,10 @@ cells) found `nano-9b-v2` reliable under aider's edit harness (9/10) but unrelia
 A second, harder M-difficulty layer of that campaign (2026-07-16, same N=10/cell methodology)
 found aider unreliable at M difficulty — two cells scored **0/10** on a two-file task — while
 opencode and agy (Gemini) stayed reliable; prefer opencode/agy over aider for anything beyond
-trivial single-file edits (§7.2/§4.1). That M layer also surfaced an open `quorum fleet run`
-bug: its placeholder guard false-positives when the prompt itself contains literal braces
-(e.g. Go code); workaround is to invoke the transport binary directly (§4.1), fix pending.
+trivial single-file edits (§7.2/§4.1). That M layer also surfaced a `quorum fleet run`
+bug (since fixed): its placeholder guard used to false-positive when the prompt itself
+contained literal braces (e.g. Go code); the guard now scans only the raw argv template
+before substitution, so prompt content with `{`/`}` passes through untouched (§4.1).
 OpenRouter free-tier limits bind every `:free` call: 20 req/min shared account-wide, 1000
 req/day on this account (≥ $10 lifetime purchased credits; 50/day otherwise), and 429s COUNT
 against the daily quota — space probes, never retry-loop a 429, and avoid concurrent agentic
