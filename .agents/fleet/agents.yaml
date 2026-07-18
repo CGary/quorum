@@ -37,6 +37,13 @@ transports:
       - model not supported when using Codex with a ChatGPT account
     quota_class: subscription
     models:
+      # provider is a closed-enum field (agents.schema.json): one of google,
+      # openrouter-nvidia, openrouter-poolside, openrouter-cohere, anthropic,
+      # openai. `quorum fleet route` reads it as ModelAvailability.Family
+      # (internal/core/fleet_route.go) -- a soft review-family diversity
+      # signal only, never a hard filter: when no candidate of a different
+      # family survives control/exclusion filtering, Route() still returns a
+      # candidate and marks ReviewFamilyDegraded instead of blocking.
       # gpt-5.5 whitelist per Fase 0a §9: {none, low, medium, high, xhigh}.
       # minimal is syntactically valid globally but rejected by this backend;
       # there is no "max" — the former config.toml "max" was exactly this bug.

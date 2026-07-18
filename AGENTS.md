@@ -88,10 +88,42 @@ If examples inside older skill documents disagree with this section, the Go CLI 
 `quorum fleet` is a new command group for headless-delegate dispatch helpers, distinct from `quorum analyze` (`quorum analyze fleet-preflight` is untouched and stays under `analyze`):
 
 ```bash
+quorum fleet route        # stdin JSON {task_id?, phase, risk, complexity_band, incumbent_family?, exclusions?, dispatch_id?} -> resolves an executor Candidate strictly from .agents/config.yaml + .agents/policies/routing.yaml + .agents/fleet/agents.yaml + .ai/fleet-control.json (internal/core/fleet_route.go, cmd/fleet_route.go)
 quorum fleet bundle <ID>  # writes a deterministic dispatch context bundle + manifest under .ai/tasks/active/<ID>/dispatch/<dispatch_id>/ (internal/core/fleet_bundle.go)
 quorum fleet dispatch     # stdin JSON {task_id, agent, model, bundle_path, timeout_s?, dispatch_id} -> runs a delegated CLI in the task worktree with lock, process-group-kill timeout, forensic ref, ADR 0011 outcome class, and a normalized result.json (internal/core/fleet_dispatch.go)
 quorum fleet run          # NON-LIFECYCLE: runs a transport in an explicit --cwd via core.RunDelegate; no task, worktree, git, forensic ref, 07-trace, or result.json (cmd/fleet_run.go)
 ```
+
+`quorum fleet route` is the pure decision step (`internal/core/fleet_route.go`, `core.Route`):
+zero hardcoded model/agent names, first-match-wins against `routing.yaml`'s `{phase, risk, band}`
+matrix, deterministic candidate enumeration (`primary` -> `fallback` -> `secondary`, in
+`config.yaml.policies.fleet_transport_order`), and disabled/excluded filtering before a soft
+review-family diversity preference picks the final `Candidate`. When the request carries a
+`task_id`, `quorum fleet route` also appends one `routing_decision` event to that task's
+`07-trace.json` (a reserved ADR 0011 event type) carrying a full `inputs_snapshot` — policy file
+hashes, control-state snapshot, risk, complexity band, exclusions, and router version — sufficient
+to reconstruct the decision later without re-reading policy state.
+
+`/q-dispatch` (`.agents/skills/q-dispatch/SKILL.md`) is the single-phase human face that drives
+one implement-phase delegation cycle end to end: it checks preconditions (task in `active/` with a
+worktree, `01-blueprint.yaml` and `02-contract.yaml` present), calls `quorum fleet route`, always
+shows the router's decision (agent, model, level, signals) to the human and waits for explicit
+confirmation before calling `quorum fleet bundle` then `quorum fleet dispatch`, and reports the
+outcome per the ADR 0011 taxonomy (`attempt_done` marks `/q-verify` as `[Obligatorio]`; `reroute`
+re-invokes `quorum fleet route` with the failed candidate added to `exclusions` and shows the next
+candidate for confirmation; `blocked` is a rich Spanish question; `attempt_failed`/`noop` present
+evidence and reference `quorum task back` as the human-only rollback path). It never computes or
+decides routing itself, never auto-chains into another `/q-*` skill, and never calls
+`quorum task back`.
+
+The ratified G1 cell set (see `.agents/config.yaml.levels[0]` and
+`.agents/policies/routing.yaml`) pins `agy` on `google/gemini-3.5-flash-low` as the primary cheap
+cell for level 0 (`low` risk / `S` band), with `opencode`-backed
+`nvidia/nemotron-3-ultra-550b-a55b-free` and `poolside/laguna-m.1-free` as $0 OpenRouter
+cross-provider secondaries; reroute always prefers a cross-provider free cell over re-trying
+`agy`; `aider` stays restricted to mechanical single-file changes and is the last transport in
+`fleet_transport_order`. This cell set is expressed only as policy data (`config.yaml`,
+`routing.yaml`, `agents.yaml`); `core.Route` never hardcodes any of it.
 
 #### Agent usage (`quorum fleet run`, mk-cli contract)
 
