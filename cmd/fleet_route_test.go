@@ -248,6 +248,7 @@ func TestFleetRouteTraceAppend(t *testing.T) {
 // (read from config, never embedded here) appears in any cmd/ or internal/ .go
 // source.
 func TestFleetRouteRealPolicyFilesG1Cell(t *testing.T) {
+	t.Setenv("QUORUM_FLEET_AGENTS", "")
 	repo := fleetRouteRepoRoot(t)
 	primary, forbidden := g1CellModelNames(t, repo)
 
@@ -345,6 +346,7 @@ func fleetRouteAgentsProviderOf(t *testing.T, repo, agent, model string) string 
 // .agents/config.yaml and .agents/fleet/agents.yaml end-to-end (no fixture),
 // so a future data change that regresses the ratified order fails this test.
 func TestFleetRouteRerouteAfterPrimaryExcludedIsCrossProvider(t *testing.T) {
+	t.Setenv("QUORUM_FLEET_AGENTS", "")
 	repo := fleetRouteRepoRoot(t)
 
 	first, out1, errOut1 := runRoute(t, repo, `{"phase":"implement","risk":"low","complexity_band":"S"}`)

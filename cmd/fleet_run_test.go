@@ -15,6 +15,8 @@ import (
 // only the transport map and the delegate binary.
 func setupFleetRunProject(t *testing.T) (root, marker string) {
 	t.Helper()
+	// Isolate from any QUORUM_FLEET_AGENTS exported in the invoking shell.
+	t.Setenv("QUORUM_FLEET_AGENTS", "")
 	root = t.TempDir()
 	// A marker path the fake binary touches so a test can prove the delegate
 	// (a) ran and (b) ran with cwd = --cwd.
@@ -166,6 +168,7 @@ func TestFleetRunSchema(t *testing.T) {
 }
 
 func TestFleetRunTimeout(t *testing.T) {
+	t.Setenv("QUORUM_FLEET_AGENTS", "")
 	root := t.TempDir()
 	script := filepath.Join(root, "slow.sh")
 	if err := os.WriteFile(script, []byte("#!/bin/sh\nsleep 30\n"), 0o755); err != nil {
@@ -197,6 +200,7 @@ func TestFleetRunTimeout(t *testing.T) {
 // returned argv must carry "--print-timeout" set to the effective timeout
 // (--timeout if set, else the transport default), same formatting as dispatch.
 func TestFleetRunPrintTimeout(t *testing.T) {
+	t.Setenv("QUORUM_FLEET_AGENTS", "")
 	root := t.TempDir()
 	agentsDir := filepath.Join(root, ".agents", "fleet")
 	if err := os.MkdirAll(agentsDir, 0o755); err != nil {
@@ -244,6 +248,8 @@ func TestFleetRunPrintTimeout(t *testing.T) {
 // its cwd so tests can assert all three.
 func setupFleetRunOpencodeProject(t *testing.T) string {
 	t.Helper()
+	// Isolate from any QUORUM_FLEET_AGENTS exported in the invoking shell.
+	t.Setenv("QUORUM_FLEET_AGENTS", "")
 	root := t.TempDir()
 	script := filepath.Join(root, "fake-opencode.sh")
 	body := "#!/bin/sh\nprintf '%s\\n' \"$@\" > args.txt\ncat > stdin.txt\nprintf '%s' \"$FLEET_TEST_ENV_MARKER\" > env.txt\n"

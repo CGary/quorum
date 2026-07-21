@@ -831,9 +831,9 @@ func TestFleetToggleHandler_EquivalentToCLIEnable(t *testing.T) {
 	}
 }
 
-// TestFleetJSHasToggleWiring guards AC-10: fleet.js must POST to
+// TestFleetToggleJSWiring guards AC-10: fleet.js must POST to
 // /api/fleet/toggle and must never use innerHTML anywhere in the file.
-func TestFleetJSHasToggleWiring(t *testing.T) {
+func TestFleetToggleJSWiring(t *testing.T) {
 	root := repoRoot(t)
 	b, err := os.ReadFile(filepath.Join(root, "internal", "server", "web", "fleet.js"))
 	if err != nil {

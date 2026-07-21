@@ -84,6 +84,8 @@ func setupFleetDispatchProject(t *testing.T) (string, string) {
 	_, file, _, _ := runtime.Caller(0)
 	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(file), ".."))
 	t.Setenv("QUORUM_SCHEMAS_DIR", filepath.Join(repoRoot, ".agents", "schemas"))
+	// Isolate from any QUORUM_FLEET_AGENTS exported in the invoking shell.
+	t.Setenv("QUORUM_FLEET_AGENTS", "")
 	root := t.TempDir()
 	gitCmd(t, root, "init", "-q", "-b", "main", ".")
 	gitCmd(t, root, "config", "user.email", "test@example.com")
@@ -237,6 +239,7 @@ func TestFleetDispatchPrintTimeout(t *testing.T) {
 // argv_templates never declare {print_timeout}, so substitution with/without
 // it must render byte-for-byte identical argv.
 func TestFleetPrintTimeoutDoesNotLeakIntoCodexOrAider(t *testing.T) {
+	t.Setenv("QUORUM_FLEET_AGENTS", "")
 	_, file, _, _ := runtime.Caller(0)
 	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(file), ".."))
 	base := map[string]string{
@@ -455,6 +458,7 @@ func TestFleetDispatchAiderCostUnderCeilingDoesNotAlert(t *testing.T) {
 // render byte-for-byte identical argv (same idiom as
 // TestFleetPrintTimeoutDoesNotLeakIntoCodexOrAider for {print_timeout}).
 func TestFleetCwdVarDoesNotLeakIntoAgyAiderCodex(t *testing.T) {
+	t.Setenv("QUORUM_FLEET_AGENTS", "")
 	_, file, _, _ := runtime.Caller(0)
 	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(file), ".."))
 	base := map[string]string{
@@ -483,6 +487,7 @@ func TestFleetCwdVarDoesNotLeakIntoAgyAiderCodex(t *testing.T) {
 // Env (nil/empty) and StdinEmpty (false), proving the new optional schema
 // fields are no-ops for transports that omit them.
 func TestRealAgyAiderTransportsUnaffectedByEnvAndStdinEmptyFields(t *testing.T) {
+	t.Setenv("QUORUM_FLEET_AGENTS", "")
 	_, file, _, _ := runtime.Caller(0)
 	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(file), ".."))
 	for _, agent := range []string{"codex", "agy", "aider", "claude"} {
@@ -503,6 +508,7 @@ func TestRealAgyAiderTransportsUnaffectedByEnvAndStdinEmptyFields(t *testing.T) 
 // opencode block in .agents/fleet/agents.yaml loads with the validated
 // headless recipe.
 func TestRealOpencodeTransportLoadsExpectedShape(t *testing.T) {
+	t.Setenv("QUORUM_FLEET_AGENTS", "")
 	_, file, _, _ := runtime.Caller(0)
 	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(file), ".."))
 	transport, err := loadFleetTransport(repoRoot, "opencode")
