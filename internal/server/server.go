@@ -17,7 +17,8 @@ import (
 )
 
 type Server struct {
-	db *sql.DB
+	db          *sql.DB
+	projectRoot string
 }
 
 func NewServer() (*Server, error) {
@@ -25,7 +26,11 @@ func NewServer() (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Server{db: db}, nil
+	// core.ProjectRoot() failure must never fail NewServer(): the multi-project
+	// report/task/memory viewer must keep working when quorum serve is started
+	// outside a git-tracked directory. Only the new fleet endpoints degrade (503).
+	root, _ := core.ProjectRoot()
+	return &Server{db: db, projectRoot: root}, nil
 }
 
 func (s *Server) Start(host string, port int) error {
@@ -37,6 +42,10 @@ func (s *Server) Start(host string, port int) error {
 
 	mux.HandleFunc("/api/projects", s.projectsHandler)
 	mux.HandleFunc("/api/projects/", s.projectSubRouteHandler)
+
+	mux.HandleFunc("/fleet", s.fleetPageHandler)
+	mux.HandleFunc("/api/fleet/status", s.fleetStatusHandler)
+	mux.HandleFunc("/api/fleet/dispatches", s.fleetDispatchesHandler)
 
 	s.MountEmbeddedViewer(mux)
 

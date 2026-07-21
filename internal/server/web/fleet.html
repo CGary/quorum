@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Quorum Fleet Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+        body { font-family: system-ui, sans-serif; margin: 2rem; color: #1a1a1a; }
+        h1 { font-size: 1.4rem; }
+        section { margin-bottom: 2rem; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { text-align: left; padding: 0.35rem 0.6rem; border-bottom: 1px solid #ddd; font-size: 0.9rem; }
+        .status-red { color: #b00020; font-weight: 600; }
+        .status-green { color: #1b7a1b; font-weight: 600; }
+        .empty { color: #777; font-style: italic; }
+    </style>
+</head>
+<body>
+    <h1>Quorum Fleet Dashboard</h1>
+    <p class="empty">Read-only view. Project root: {{ .ProjectRoot }}. Polling every {{ .PollIntervalMS }}ms.</p>
+
+    <section id="status-section">
+        <h2>Agent / Model Status</h2>
+        <div id="status-list">Loading...</div>
+    </section>
+
+    <section id="inflight-section">
+        <h2>In-flight Dispatches</h2>
+        <div id="inflight-list">Loading...</div>
+    </section>
+
+    <section id="blocked-section">
+        <h2>Blocked Tasks</h2>
+        <div id="blocked-list">Loading...</div>
+    </section>
+
+    <section id="dispatches-section">
+        <h2>Recent Dispatches</h2>
+        <div id="dispatches-list">Loading...</div>
+    </section>
+
+    <script>window.QUORUM_FLEET_POLL_MS = {{ .PollIntervalMS }};</script>
+    <script src="/fleet.js"></script>
+</body>
+</html>
