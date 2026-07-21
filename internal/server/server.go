@@ -46,6 +46,7 @@ func (s *Server) Start(host string, port int) error {
 	mux.HandleFunc("/fleet", s.fleetPageHandler)
 	mux.HandleFunc("/api/fleet/status", s.fleetStatusHandler)
 	mux.HandleFunc("/api/fleet/dispatches", s.fleetDispatchesHandler)
+	mux.HandleFunc("/api/fleet/toggle", s.fleetToggleHandler)
 
 	s.MountEmbeddedViewer(mux)
 

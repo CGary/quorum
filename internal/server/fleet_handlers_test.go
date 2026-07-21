@@ -1,17 +1,34 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"quorum/internal/core"
 )
+
+// writeFleetAgentsFixture writes the .agents/fleet/agents.yaml fixture shared
+// by the toggle tests, registering the "agy/testvendor/test-model-x" target
+// so core.ValidateFleetTarget (invoked inside core.DisableFleetTarget)
+// accepts it.
+func writeFleetAgentsFixture(t *testing.T, root string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Join(root, ".agents", "fleet"), 0755); err != nil {
+		t.Fatalf("mkdir agents/fleet: %v", err)
+	}
+	agentsYAML := "transports:\n  agy:\n    models:\n      testvendor/test-model-x:\n        provider: google\n"
+	if err := os.WriteFile(filepath.Join(root, ".agents", "fleet", "agents.yaml"), []byte(agentsYAML), 0644); err != nil {
+		t.Fatalf("write agents.yaml: %v", err)
+	}
+}
 
 func setupFleetTestProject(t *testing.T) string {
 	t.Helper()
@@ -566,5 +583,277 @@ func TestFleetJSSyntax(t *testing.T) {
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("fleet.js syntax check failed: %v\n%s", err, string(out))
+	}
+}
+
+// --- POST /api/fleet/toggle handler tests -----------------------------------
+
+func postToggleRequest(t *testing.T, body string) *http.Request {
+	t.Helper()
+	return httptest.NewRequest(http.MethodPost, "/api/fleet/toggle", bytes.NewBufferString(body))
+}
+
+func TestFleetToggleHandler_MethodNotAllowed(t *testing.T) {
+	root := setupFleetTestProject(t)
+	srv := &Server{projectRoot: root}
+	req := httptest.NewRequest(http.MethodGet, "/api/fleet/toggle", nil)
+	w := httptest.NewRecorder()
+	srv.fleetToggleHandler(w, req)
+	if w.Result().StatusCode != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405, got %v", w.Result().StatusCode)
+	}
+}
+
+func TestFleetToggleHandler_503WhenNoProjectRoot(t *testing.T) {
+	srv := &Server{projectRoot: ""}
+	req := postToggleRequest(t, `{"target":"agy/testvendor/test-model-x","action":"disable","reason":"x"}`)
+	w := httptest.NewRecorder()
+	srv.fleetToggleHandler(w, req)
+	if w.Result().StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %v", w.Result().StatusCode)
+	}
+}
+
+func TestFleetToggleHandler_MalformedJSON(t *testing.T) {
+	root := setupFleetTestProject(t)
+	srv := &Server{projectRoot: root}
+	req := postToggleRequest(t, `{not valid json`)
+	w := httptest.NewRecorder()
+	srv.fleetToggleHandler(w, req)
+	if w.Result().StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %v", w.Result().StatusCode)
+	}
+}
+
+func TestFleetToggleHandler_MissingTarget(t *testing.T) {
+	root := setupFleetTestProject(t)
+	srv := &Server{projectRoot: root}
+	req := postToggleRequest(t, `{"target":"  ","action":"disable","reason":"x"}`)
+	w := httptest.NewRecorder()
+	srv.fleetToggleHandler(w, req)
+	if w.Result().StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %v", w.Result().StatusCode)
+	}
+}
+
+func TestFleetToggleHandler_UnknownAction(t *testing.T) {
+	root := setupFleetTestProject(t)
+	srv := &Server{projectRoot: root}
+	req := postToggleRequest(t, `{"target":"agy/testvendor/test-model-x","action":"frobnicate"}`)
+	w := httptest.NewRecorder()
+	srv.fleetToggleHandler(w, req)
+	if w.Result().StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %v", w.Result().StatusCode)
+	}
+}
+
+func TestFleetToggleHandler_DisableMissingReason(t *testing.T) {
+	root := setupFleetTestProject(t)
+	writeFleetAgentsFixture(t, root)
+	srv := &Server{projectRoot: root}
+	req := postToggleRequest(t, `{"target":"agy/testvendor/test-model-x","action":"disable","reason":"   "}`)
+	w := httptest.NewRecorder()
+	srv.fleetToggleHandler(w, req)
+	if w.Result().StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %v", w.Result().StatusCode)
+	}
+	if _, err := os.Stat(core.FleetControlPath(root)); !os.IsNotExist(err) {
+		t.Fatalf("expected fleet-control.json to not be created, stat err=%v", err)
+	}
+}
+
+func TestFleetToggleHandler_DisableUnknownTarget(t *testing.T) {
+	root := setupFleetTestProject(t)
+	writeFleetAgentsFixture(t, root)
+	srv := &Server{projectRoot: root}
+	req := postToggleRequest(t, `{"target":"agy/unknown-vendor/unknown-model","action":"disable","reason":"quota"}`)
+	w := httptest.NewRecorder()
+	srv.fleetToggleHandler(w, req)
+	if w.Result().StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %v", w.Result().StatusCode)
+	}
+}
+
+func TestFleetToggleHandler_DisableSuccess(t *testing.T) {
+	root := setupFleetTestProject(t)
+	writeFleetAgentsFixture(t, root)
+	srv := &Server{projectRoot: root}
+	req := postToggleRequest(t, `{"target":"agy/testvendor/test-model-x","action":"disable","reason":"quota exhausted"}`)
+	w := httptest.NewRecorder()
+	srv.fleetToggleHandler(w, req)
+
+	res := w.Result()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %v", res.StatusCode)
+	}
+	var report core.FleetStatusReport
+	if err := json.NewDecoder(res.Body).Decode(&report); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(report.Disabled) != 1 || report.Disabled[0].Target != "agy/testvendor/test-model-x" {
+		t.Fatalf("unexpected report: %+v", report)
+	}
+	if report.Disabled[0].By != "human" {
+		t.Fatalf("expected by=human, got %q", report.Disabled[0].By)
+	}
+}
+
+func TestFleetToggleHandler_EnableSuccess(t *testing.T) {
+	root := setupFleetTestProject(t)
+	writeFleetAgentsFixture(t, root)
+	if _, err := core.DisableFleetTarget(root, "agy/testvendor/test-model-x", "quota exhausted", "human"); err != nil {
+		t.Fatalf("seed disable: %v", err)
+	}
+
+	srv := &Server{projectRoot: root}
+	req := postToggleRequest(t, `{"target":"agy/testvendor/test-model-x","action":"enable"}`)
+	w := httptest.NewRecorder()
+	srv.fleetToggleHandler(w, req)
+
+	res := w.Result()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %v", res.StatusCode)
+	}
+	var report core.FleetStatusReport
+	if err := json.NewDecoder(res.Body).Decode(&report); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(report.Disabled) != 0 {
+		t.Fatalf("expected empty disabled list, got %+v", report.Disabled)
+	}
+}
+
+// TestFleetToggleHandler_EquivalentToCLIDisable proves the HTTP disable path
+// and the direct core.DisableFleetTarget call (the exact call
+// cmd/fleet_disable.go's runFleetDisable makes) produce structurally
+// identical ControlState.Disabled[0] entries, differing only by timestamp.
+func TestFleetToggleHandler_EquivalentToCLIDisable(t *testing.T) {
+	rootCLI := setupFleetTestProject(t)
+	writeFleetAgentsFixture(t, rootCLI)
+	rootHTTP := setupFleetTestProject(t)
+	writeFleetAgentsFixture(t, rootHTTP)
+
+	target := "agy/testvendor/test-model-x"
+	reason := "quota exhausted"
+
+	cliState, err := core.DisableFleetTarget(rootCLI, target, reason, "human")
+	if err != nil {
+		t.Fatalf("CLI-path disable: %v", err)
+	}
+
+	srv := &Server{projectRoot: rootHTTP}
+	req := postToggleRequest(t, `{"target":"`+target+`","action":"disable","reason":"`+reason+`"}`)
+	w := httptest.NewRecorder()
+	srv.fleetToggleHandler(w, req)
+	if w.Result().StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %v", w.Result().StatusCode)
+	}
+	httpState, err := core.LoadFleetControlState(rootHTTP)
+	if err != nil {
+		t.Fatalf("load HTTP-path state: %v", err)
+	}
+
+	if len(cliState.Disabled) != 1 || len(httpState.Disabled) != 1 {
+		t.Fatalf("expected exactly one disabled entry on each path: cli=%+v http=%+v", cliState.Disabled, httpState.Disabled)
+	}
+	cliEntry := cliState.Disabled[0]
+	httpEntry := httpState.Disabled[0]
+
+	if cliEntry.Target != httpEntry.Target {
+		t.Fatalf("Target mismatch: cli=%q http=%q", cliEntry.Target, httpEntry.Target)
+	}
+	if cliEntry.Reason != httpEntry.Reason {
+		t.Fatalf("Reason mismatch: cli=%q http=%q", cliEntry.Reason, httpEntry.Reason)
+	}
+	if cliEntry.By != httpEntry.By {
+		t.Fatalf("By mismatch: cli=%q http=%q", cliEntry.By, httpEntry.By)
+	}
+	if _, err := time.Parse(time.RFC3339, cliEntry.At); err != nil {
+		t.Fatalf("cli At not RFC3339: %v", err)
+	}
+	if _, err := time.Parse(time.RFC3339, httpEntry.At); err != nil {
+		t.Fatalf("http At not RFC3339: %v", err)
+	}
+	// At fields are intentionally NOT asserted byte-equal to each other --
+	// they are independent timestamps from two separate calls.
+}
+
+// TestFleetToggleHandler_EquivalentToCLIEnable is the symmetric enable-path
+// equivalence test: both roots pre-seeded with the same disabled entry, then
+// one enabled via core.EnableFleetTarget directly and the other via an
+// httptest POST to fleetToggleHandler.
+func TestFleetToggleHandler_EquivalentToCLIEnable(t *testing.T) {
+	rootCLI := setupFleetTestProject(t)
+	writeFleetAgentsFixture(t, rootCLI)
+	rootHTTP := setupFleetTestProject(t)
+	writeFleetAgentsFixture(t, rootHTTP)
+
+	target := "agy/testvendor/test-model-x"
+	reason := "quota exhausted"
+	if _, err := core.DisableFleetTarget(rootCLI, target, reason, "human"); err != nil {
+		t.Fatalf("seed CLI-path disable: %v", err)
+	}
+	if _, err := core.DisableFleetTarget(rootHTTP, target, reason, "human"); err != nil {
+		t.Fatalf("seed HTTP-path disable: %v", err)
+	}
+
+	cliState, err := core.EnableFleetTarget(rootCLI, target)
+	if err != nil {
+		t.Fatalf("CLI-path enable: %v", err)
+	}
+
+	srv := &Server{projectRoot: rootHTTP}
+	req := postToggleRequest(t, `{"target":"`+target+`","action":"enable"}`)
+	w := httptest.NewRecorder()
+	srv.fleetToggleHandler(w, req)
+	if w.Result().StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %v", w.Result().StatusCode)
+	}
+	httpState, err := core.LoadFleetControlState(rootHTTP)
+	if err != nil {
+		t.Fatalf("load HTTP-path state: %v", err)
+	}
+
+	if len(cliState.Disabled) != 0 {
+		t.Fatalf("expected CLI-path disabled empty, got %+v", cliState.Disabled)
+	}
+	if len(httpState.Disabled) != 0 {
+		t.Fatalf("expected HTTP-path disabled empty, got %+v", httpState.Disabled)
+	}
+
+	cliReport := core.BuildFleetStatusReport(cliState, time.Now().UTC())
+	httpReport := core.BuildFleetStatusReport(httpState, time.Now().UTC())
+	if _, err := time.Parse(time.RFC3339, cliReport.UpdatedAt); err != nil {
+		t.Fatalf("cli UpdatedAt not RFC3339: %v", err)
+	}
+	if _, err := time.Parse(time.RFC3339, httpReport.UpdatedAt); err != nil {
+		t.Fatalf("http UpdatedAt not RFC3339: %v", err)
+	}
+}
+
+// TestFleetJSHasToggleWiring guards AC-10: fleet.js must POST to
+// /api/fleet/toggle and must never use innerHTML anywhere in the file.
+func TestFleetJSHasToggleWiring(t *testing.T) {
+	root := repoRoot(t)
+	b, err := os.ReadFile(filepath.Join(root, "internal", "server", "web", "fleet.js"))
+	if err != nil {
+		t.Fatalf("read fleet.js: %v", err)
+	}
+	content := string(b)
+	if !containsAny(content, []string{"/api/fleet/toggle"}) {
+		t.Fatal("fleet.js must reference /api/fleet/toggle")
+	}
+	if !strings.Contains(strings.ToLower(content), "post") {
+		t.Fatal("fleet.js must use a POST method for the toggle request")
+	}
+	// Guard against unsafe innerHTML usage for rendering fetched/user data
+	// (insertAdjacentHTML, template-literal/string-concat assignment); the
+	// pre-existing clearInto's `innerHTML = ''` reset (FLEET-023-b, unrelated
+	// to this task's touch list) is not a rendering call and stays allowed.
+	if containsAny(content, []string{"insertAdjacentHTML", "innerHTML +=", "innerHTML = `"}) {
+		t.Fatal("fleet.js must not use innerHTML/insertAdjacentHTML to render fetched or user-supplied data")
+	}
+	if !containsAny(content, []string{"toggle-error"}) {
+		t.Fatal("fleet.js must wire the #toggle-error element")
 	}
 }

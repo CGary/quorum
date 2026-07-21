@@ -3,7 +3,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const inflightList = document.getElementById('inflight-list');
     const blockedList = document.getElementById('blocked-list');
     const dispatchesList = document.getElementById('dispatches-list');
+    const toggleTarget = document.getElementById('toggle-target');
+    const toggleReason = document.getElementById('toggle-reason');
+    const toggleDisableBtn = document.getElementById('toggle-disable-btn');
+    const toggleError = document.getElementById('toggle-error');
     const pollMs = window.QUORUM_FLEET_POLL_MS || 5000;
+
+    const postToggle = (body) => fetch('/api/fleet/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+
+    const setToggleError = (text) => {
+        toggleError.textContent = text || '';
+    };
 
     const makeEl = (tag, className, text) => {
         const element = document.createElement(tag);
@@ -26,7 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const table = makeEl('table');
         const head = makeEl('tr');
-        ['Target', 'Status', 'Reason', 'By', 'Age (s)'].forEach((label) => {
+        ['Target', 'Status', 'Reason', 'By', 'Age (s)', 'Actions'].forEach((label) => {
             head.appendChild(makeEl('th', null, label));
         });
         table.appendChild(head);
@@ -37,6 +51,25 @@ document.addEventListener('DOMContentLoaded', () => {
             row.appendChild(makeEl('td', null, entry.reason || ''));
             row.appendChild(makeEl('td', null, entry.by || ''));
             row.appendChild(makeEl('td', null, Math.round(entry.age_seconds || 0)));
+            const actionsCell = makeEl('td');
+            const enableBtn = makeEl('button', null, 'Enable');
+            enableBtn.type = 'button';
+            enableBtn.addEventListener('click', () => {
+                postToggle({ target: entry.target, action: 'enable' })
+                    .then((res) => {
+                        if (!res.ok) {
+                            return res.text().then((text) => { throw new Error(text); });
+                        }
+                        return res.json();
+                    })
+                    .then((json) => {
+                        setToggleError('');
+                        renderStatus(json);
+                    })
+                    .catch((err) => setToggleError(err.message || String(err)));
+            });
+            actionsCell.appendChild(enableBtn);
+            row.appendChild(actionsCell);
             table.appendChild(row);
         });
         container.appendChild(table);
@@ -136,6 +169,25 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .catch((err) => console.error('Error fetching fleet dispatches:', err));
     };
+
+    toggleDisableBtn.addEventListener('click', () => {
+        const target = toggleTarget.value;
+        const reason = toggleReason.value;
+        postToggle({ target, action: 'disable', reason })
+            .then((res) => {
+                if (!res.ok) {
+                    return res.text().then((text) => { throw new Error(text); });
+                }
+                return res.json();
+            })
+            .then((json) => {
+                setToggleError('');
+                toggleTarget.value = '';
+                toggleReason.value = '';
+                renderStatus(json);
+            })
+            .catch((err) => setToggleError(err.message || String(err)));
+    });
 
     loadFleetData();
     setInterval(loadFleetData, pollMs);

@@ -2,10 +2,12 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"html/template"
 	"net/http"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -67,6 +69,65 @@ func (s *Server) fleetStatusHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	report := core.BuildFleetStatusReport(state, time.Now().UTC())
 
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(report)
+}
+
+// fleetToggleRequest is the JSON body for POST /api/fleet/toggle.
+type fleetToggleRequest struct {
+	Target string `json:"target"`
+	Action string `json:"action"`
+	Reason string `json:"reason"`
+}
+
+// fleetToggleHandler is the sole write route the web UI exposes: it calls
+// core.DisableFleetTarget/core.EnableFleetTarget exclusively -- it never
+// writes .ai/fleet-control.json directly -- so the CLI (quorum fleet
+// disable/enable) and the HTTP path share exactly one write function.
+func (s *Server) fleetToggleHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.projectRoot == "" {
+		http.Error(w, "Fleet dashboard unavailable: no project root resolved", http.StatusServiceUnavailable)
+		return
+	}
+
+	var req fleetToggleRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON body", http.StatusBadRequest)
+		return
+	}
+
+	target := strings.TrimSpace(req.Target)
+	if target == "" {
+		http.Error(w, "target is required", http.StatusBadRequest)
+		return
+	}
+
+	var state core.ControlState
+	var err error
+	switch req.Action {
+	case "disable":
+		reason := strings.TrimSpace(req.Reason)
+		if reason == "" {
+			http.Error(w, "reason is required to disable a target", http.StatusBadRequest)
+			return
+		}
+		state, err = core.DisableFleetTarget(s.projectRoot, target, reason, "human")
+	case "enable":
+		state, err = core.EnableFleetTarget(s.projectRoot, target)
+	default:
+		http.Error(w, fmt.Sprintf("unknown action: %q", req.Action), http.StatusBadRequest)
+		return
+	}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	report := core.BuildFleetStatusReport(state, time.Now().UTC())
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(report)
 }
