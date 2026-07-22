@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"os"
@@ -524,8 +525,11 @@ func TestRealOpencodeTransportLoadsExpectedShape(t *testing.T) {
 	if transport.Env["OPENCODE_DISABLE_AUTOUPDATE"] != "true" {
 		t.Fatalf("want env OPENCODE_DISABLE_AUTOUPDATE=true, got %v", transport.Env)
 	}
-	if !transport.StdinEmpty {
-		t.Fatal("want stdin_empty true for opencode")
+	if transport.StdinEmpty {
+		t.Fatal("want stdin_empty false for opencode (FLEET-024: prompt now flows via stdin)")
+	}
+	if transport.InputChannel != "stdin" {
+		t.Fatalf("want input_channel stdin for opencode, got %q", transport.InputChannel)
 	}
 	model, ok := transport.Models["openrouter/free"]
 	if !ok {
@@ -534,9 +538,9 @@ func TestRealOpencodeTransportLoadsExpectedShape(t *testing.T) {
 	if stringField(model, "model_arg") != "openrouter/openrouter/free" {
 		t.Fatalf("want model_arg openrouter/openrouter/free, got %v", model)
 	}
-	wantArgv := []string{"run", "{prompt}", "-m", "{model_arg}", "--format", "json", "--dir", "{cwd}", "--auto"}
+	wantArgv := []string{"run", "-m", "{model_arg}", "--format", "json", "--dir", "{cwd}", "--auto"}
 	if !reflect.DeepEqual(transport.ArgvTemplate, wantArgv) {
-		t.Fatalf("want argv_template %v, got %v", wantArgv, transport.ArgvTemplate)
+		t.Fatalf("want argv_template %v (no {prompt} token), got %v", wantArgv, transport.ArgvTemplate)
 	}
 }
 
@@ -626,6 +630,202 @@ func TestFleetDispatchOpencodeCwdEnvAndStdinEmpty(t *testing.T) {
 	}
 	if len(stdinRaw) != 0 {
 		t.Fatalf("want empty stdin for stdin_empty:true transport, got stdin.txt=%q", stdinRaw)
+	}
+}
+
+// setupFleetAgyPromptPointerFakeProject extends setupFleetDispatchProject
+// with an agy-shaped fake transport declaring input_channel: prompt_pointer.
+// The fake binary records its full argv (one token per line) so tests can
+// assert the final --print token is small, never the raw bundle content.
+func setupFleetAgyPromptPointerFakeProject(t *testing.T) (string, string) {
+	t.Helper()
+	root, taskID := setupFleetDispatchProject(t)
+	script := filepath.Join(root, "fake-agy-pointer.sh")
+	body := "#!/bin/sh\nprintf 'delegate change\\n' > delegate_made_this.txt\nprintf '%s\\n' \"$@\" > args.txt\necho done\n"
+	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	agentsPath := filepath.Join(root, ".agents", "fleet", "agents.yaml")
+	raw, err := os.ReadFile(agentsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	extra := "  agy-pointer-fake:\n" +
+		"    binary: " + script + "\n" +
+		"    argv_template:\n" +
+		"      - --model\n" +
+		"      - \"{model_arg}\"\n" +
+		"      - --print-timeout\n" +
+		"      - \"{print_timeout}\"\n" +
+		"      - --print\n" +
+		"      - \"{prompt}\"\n" +
+		"    input_channel: prompt_pointer\n" +
+		"    output_format: text\n" +
+		"    timeouts:\n" +
+		"      default_s: 30\n" +
+		"    failure_signatures: []\n" +
+		"    active: true\n" +
+		"    models:\n" +
+		"      test/model-a:\n" +
+		"        model_arg: model-a\n"
+	if err := os.WriteFile(agentsPath, append(raw, []byte(extra)...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return root, taskID
+}
+
+// TestFleetDispatchAgyPromptPointerLargeBundleAvoidsE2BIG is FLEET-024 AC-1:
+// a >128 KiB bundle prompt dispatched through an agy-shaped prompt_pointer
+// transport starts successfully (no fork/exec E2BIG) and its --print argv
+// token is the small fixed pointer instruction referencing the bundle's
+// absolute path, never the raw >128 KiB content.
+func TestFleetDispatchAgyPromptPointerLargeBundleAvoidsE2BIG(t *testing.T) {
+	root, taskID := setupFleetAgyPromptPointerFakeProject(t)
+	bundlePath := filepath.Join(t.TempDir(), "prompt.md")
+	large := strings.Repeat("A", 200*1024) // > 128 KiB MAX_ARG_STRLEN
+	if err := os.WriteFile(bundlePath, []byte(large), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runFleetDispatch(core.NewTaskStore(root), fleetDispatchRequest{
+		TaskID: taskID, Agent: "agy-pointer-fake", Model: "test/model-a", DispatchID: "ap1", TimeoutS: 30,
+		BundlePath: bundlePath,
+	}); err != nil {
+		t.Fatalf("runFleetDispatch: %v (should not fail with E2BIG on a large bundle)", err)
+	}
+	worktree := filepath.Join(root, "worktrees", taskID)
+	argvRaw, err := os.ReadFile(filepath.Join(worktree, "args.txt"))
+	if err != nil {
+		t.Fatalf("read args.txt: %v", err)
+	}
+	argv := strings.Split(strings.TrimRight(string(argvRaw), "\n"), "\n")
+	got := argv[len(argv)-1]
+	if len(got) > 1024 {
+		t.Fatalf("want a small pointer instruction, got %d bytes", len(got))
+	}
+	absBundle, aerr := filepath.Abs(bundlePath)
+	if aerr != nil {
+		t.Fatal(aerr)
+	}
+	if !strings.Contains(got, absBundle) {
+		t.Fatalf("want the pointer instruction to reference %s, got %q", absBundle, got)
+	}
+	if strings.Contains(got, large) {
+		t.Fatal("want the raw >128 KiB prompt content NOT to appear in argv")
+	}
+}
+
+// setupFleetOpencodeStdinFakeProject mirrors the real opencode transport
+// shape (FLEET-024): argv has no {prompt} token and stdin_empty is absent,
+// so the prompt must flow to stdin. The fake binary records both its argv
+// and its full stdin content to files.
+func setupFleetOpencodeStdinFakeProject(t *testing.T) (string, string) {
+	t.Helper()
+	root, taskID := setupFleetDispatchProject(t)
+	script := filepath.Join(root, "fake-opencode-stdin.sh")
+	body := "#!/bin/sh\nprintf '%s\\n' \"$@\" > args.txt\ncat > stdin.txt\nprintf 'delegate change\\n' > delegate_made_this.txt\necho done\n"
+	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	agentsPath := filepath.Join(root, ".agents", "fleet", "agents.yaml")
+	raw, err := os.ReadFile(agentsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	extra := "  opencode-stdin-fake:\n" +
+		"    binary: " + script + "\n" +
+		"    argv_template:\n" +
+		"      - run\n" +
+		"      - -m\n" +
+		"      - \"{model_arg}\"\n" +
+		"      - --dir\n" +
+		"      - \"{cwd}\"\n" +
+		"    input_channel: stdin\n" +
+		"    output_format: json\n" +
+		"    timeouts:\n" +
+		"      default_s: 30\n" +
+		"    failure_signatures: []\n" +
+		"    active: true\n" +
+		"    models:\n" +
+		"      test/model-a:\n" +
+		"        model_arg: model-a\n"
+	if err := os.WriteFile(agentsPath, append(raw, []byte(extra)...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return root, taskID
+}
+
+// TestFleetDispatchOpencodeStdinLargeBundleAvoidsE2BIG is FLEET-024 AC-2: a
+// >128 KiB bundle prompt dispatched through an opencode-shaped stdin
+// transport (no argv prompt token, no stdin_empty) starts successfully, the
+// delegate receives the full prompt on stdin, and no argv token equals the
+// prompt content.
+func TestFleetDispatchOpencodeStdinLargeBundleAvoidsE2BIG(t *testing.T) {
+	root, taskID := setupFleetOpencodeStdinFakeProject(t)
+	bundlePath := filepath.Join(t.TempDir(), "prompt.md")
+	large := strings.Repeat("B", 200*1024) // > 128 KiB MAX_ARG_STRLEN
+	if err := os.WriteFile(bundlePath, []byte(large), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runFleetDispatch(core.NewTaskStore(root), fleetDispatchRequest{
+		TaskID: taskID, Agent: "opencode-stdin-fake", Model: "test/model-a", DispatchID: "os1", TimeoutS: 30,
+		BundlePath: bundlePath,
+	}); err != nil {
+		t.Fatalf("runFleetDispatch: %v (should not fail with E2BIG on a large bundle)", err)
+	}
+	worktree := filepath.Join(root, "worktrees", taskID)
+	stdinRaw, err := os.ReadFile(filepath.Join(worktree, "stdin.txt"))
+	if err != nil {
+		t.Fatalf("read stdin.txt: %v", err)
+	}
+	if string(stdinRaw) != large {
+		t.Fatalf("want the full >128 KiB prompt delivered on stdin, got %d bytes", len(stdinRaw))
+	}
+	argvRaw, err := os.ReadFile(filepath.Join(worktree, "args.txt"))
+	if err != nil {
+		t.Fatalf("read args.txt: %v", err)
+	}
+	argv := strings.Split(strings.TrimRight(string(argvRaw), "\n"), "\n")
+	for _, tok := range argv {
+		if tok == large {
+			t.Fatal("want no argv token equal to the prompt content")
+		}
+	}
+}
+
+// TestRealAgentsYamlValidatesAgainstSchemaAndRejectsUnknownChannel is
+// FLEET-024 AC-5: the real .agents/fleet/agents.yaml validates clean against
+// the updated agents.schema.json through core.RunFleetPreflight (accepting
+// input_channel: prompt_pointer), while an input_channel value outside the
+// enum is still rejected.
+func TestRealAgentsYamlValidatesAgainstSchemaAndRejectsUnknownChannel(t *testing.T) {
+	_, file, _, _ := runtime.Caller(0)
+	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(file), ".."))
+	agentsYAML, err := os.ReadFile(filepath.Join(repoRoot, ".agents", "fleet", "agents.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	schemaJSON, err := os.ReadFile(filepath.Join(repoRoot, ".agents", "schemas", "agents.schema.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := core.RunFleetPreflight(agentsYAML, schemaJSON, nil)
+	if err != nil {
+		t.Fatalf("RunFleetPreflight: %v", err)
+	}
+	if len(result.Errors) != 0 {
+		t.Fatalf("want the real agents.yaml to validate clean, got errors=%v", result.Errors)
+	}
+
+	bad := bytes.Replace(agentsYAML, []byte("input_channel: prompt_pointer"), []byte("input_channel: made_up_channel"), 1)
+	if bytes.Equal(bad, agentsYAML) {
+		t.Fatal("fixture assumption broken: expected 'input_channel: prompt_pointer' in the real agents.yaml")
+	}
+	badResult, err := core.RunFleetPreflight(bad, schemaJSON, nil)
+	if err != nil {
+		t.Fatalf("RunFleetPreflight (bad channel): %v", err)
+	}
+	if len(badResult.Errors) == 0 {
+		t.Fatal("want an unknown input_channel value to fail schema validation")
 	}
 }
 

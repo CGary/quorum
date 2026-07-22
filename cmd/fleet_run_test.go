@@ -330,6 +330,215 @@ func TestFleetRunOpencodeCwdEnvAndStdinEmpty(t *testing.T) {
 	}
 }
 
+// setupFleetRunAgyPromptPointerProject builds an agy-shaped fake transport
+// declaring input_channel: prompt_pointer (FLEET-024). The fake binary
+// records its full argv (one token per line) and its stdin content, so tests
+// can assert the final --print token is a small pointer instruction, never
+// raw prompt content, and that stdin is empty.
+func setupFleetRunAgyPromptPointerProject(t *testing.T) string {
+	t.Helper()
+	t.Setenv("QUORUM_FLEET_AGENTS", "")
+	root := t.TempDir()
+	script := filepath.Join(root, "fake-agy-pointer.sh")
+	body := "#!/bin/sh\nprintf '%s\\n' \"$@\" > args.txt\ncat > stdin.txt\n"
+	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	agentsDir := filepath.Join(root, ".agents", "fleet")
+	if err := os.MkdirAll(agentsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	agents := "transports:\n" +
+		"  agy:\n" +
+		"    binary: " + script + "\n" +
+		"    argv_template:\n" +
+		"      - --model\n" +
+		"      - \"{model_arg}\"\n" +
+		"      - --print-timeout\n" +
+		"      - \"{print_timeout}\"\n" +
+		"      - --print\n" +
+		"      - \"{prompt}\"\n" +
+		"    input_channel: prompt_pointer\n" +
+		"    output_format: text\n" +
+		"    timeouts:\n" +
+		"      default_s: 30\n" +
+		"    failure_signatures: []\n" +
+		"    active: true\n" +
+		"    models:\n" +
+		"      test/agy-model-a:\n" +
+		"        model_arg: Test Agy Model A\n"
+	if err := os.WriteFile(filepath.Join(agentsDir, "agents.yaml"), []byte(agents), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return root
+}
+
+// TestFleetRunAgyPromptPointerLargeInputFileAvoidsE2BIG is FLEET-024 AC-4:
+// 'quorum fleet run' on the prompt_pointer channel renders a small pointer
+// --print token targeting the absolute path of a large --input file and runs
+// the delegate successfully (no fork/exec E2BIG).
+func TestFleetRunAgyPromptPointerLargeInputFileAvoidsE2BIG(t *testing.T) {
+	root := setupFleetRunAgyPromptPointerProject(t)
+	cwd := t.TempDir()
+	promptPath := filepath.Join(root, "large-prompt.txt")
+	large := strings.Repeat("A", 200*1024) // > 128 KiB MAX_ARG_STRLEN
+	if err := os.WriteFile(promptPath, []byte(large), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errW bytes.Buffer
+	code := runFleetRun(fleetRunParams{
+		Agent: "agy", Model: "test/agy-model-a", Cwd: cwd,
+		Input: promptPath, JSON: true, ProjectRoot: root,
+	}, &out, &errW)
+	if code != 0 {
+		t.Fatalf("want exit 0 (no E2BIG), got %d\nstdout=%s\nstderr=%s", code, out.String(), errW.String())
+	}
+	argvRaw, err := os.ReadFile(filepath.Join(cwd, "args.txt"))
+	if err != nil {
+		t.Fatalf("read args.txt: %v", err)
+	}
+	argv := strings.Split(strings.TrimRight(string(argvRaw), "\n"), "\n")
+	got := argv[len(argv)-1]
+	if len(got) > 1024 {
+		t.Fatalf("want a small pointer instruction, got %d bytes", len(got))
+	}
+	absPrompt, aerr := filepath.Abs(promptPath)
+	if aerr != nil {
+		t.Fatal(aerr)
+	}
+	if !strings.Contains(got, absPrompt) {
+		t.Fatalf("want the pointer instruction to reference %s, got %q", absPrompt, got)
+	}
+	stdinRaw, err := os.ReadFile(filepath.Join(cwd, "stdin.txt"))
+	if err != nil {
+		t.Fatalf("read stdin.txt: %v", err)
+	}
+	if len(stdinRaw) != 0 {
+		t.Fatalf("want empty stdin for prompt_pointer channel, got %d bytes", len(stdinRaw))
+	}
+}
+
+// TestFleetRunAgyPromptPointerStdinInputMaterializesTempFile is FLEET-024
+// AC-4: with --input - (stdin), the large prompt has no on-disk path yet, so
+// fleet run must materialize it to a temp file inside --cwd, point the
+// delegate at that file's absolute path, and remove it after the delegate
+// runs.
+func TestFleetRunAgyPromptPointerStdinInputMaterializesTempFile(t *testing.T) {
+	root := setupFleetRunAgyPromptPointerProject(t)
+	cwd := t.TempDir()
+	large := strings.Repeat("A", 200*1024) // > 128 KiB MAX_ARG_STRLEN
+	var out, errW bytes.Buffer
+	code := runFleetRun(fleetRunParams{
+		Agent: "agy", Model: "test/agy-model-a", Cwd: cwd,
+		Input: "-", Stdin: strings.NewReader(large), JSON: true, ProjectRoot: root,
+	}, &out, &errW)
+	if code != 0 {
+		t.Fatalf("want exit 0 (no E2BIG), got %d\nstdout=%s\nstderr=%s", code, out.String(), errW.String())
+	}
+	argvRaw, err := os.ReadFile(filepath.Join(cwd, "args.txt"))
+	if err != nil {
+		t.Fatalf("read args.txt: %v", err)
+	}
+	argv := strings.Split(strings.TrimRight(string(argvRaw), "\n"), "\n")
+	got := argv[len(argv)-1]
+	if len(got) > 1024 {
+		t.Fatalf("want a small pointer instruction, got %d bytes", len(got))
+	}
+	if !strings.Contains(got, cwd) {
+		t.Fatalf("want the materialized temp prompt file to live inside --cwd %s, got %q", cwd, got)
+	}
+	var materialized string
+	for _, f := range strings.Fields(got) {
+		if strings.HasPrefix(f, cwd) {
+			materialized = f
+			break
+		}
+	}
+	if materialized == "" {
+		t.Fatalf("could not find a materialized path token in %q", got)
+	}
+	if _, err := os.Stat(materialized); err == nil {
+		t.Fatalf("want the temp prompt file removed after the delegate ran, still present: %s", materialized)
+	}
+}
+
+// setupFleetRunOpencodeStdinProject mirrors the real opencode transport
+// shape (FLEET-024): argv has no {prompt} token and input_channel is stdin,
+// so the prompt must flow to stdin on the standalone 'fleet run' path too.
+func setupFleetRunOpencodeStdinProject(t *testing.T) string {
+	t.Helper()
+	t.Setenv("QUORUM_FLEET_AGENTS", "")
+	root := t.TempDir()
+	script := filepath.Join(root, "fake-opencode-stdin.sh")
+	body := "#!/bin/sh\nprintf '%s\\n' \"$@\" > args.txt\ncat > stdin.txt\n"
+	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	agentsDir := filepath.Join(root, ".agents", "fleet")
+	if err := os.MkdirAll(agentsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	agents := "transports:\n" +
+		"  opencode-stdin-fake:\n" +
+		"    binary: " + script + "\n" +
+		"    argv_template:\n" +
+		"      - run\n" +
+		"      - -m\n" +
+		"      - \"{model_arg}\"\n" +
+		"      - --dir\n" +
+		"      - \"{cwd}\"\n" +
+		"    input_channel: stdin\n" +
+		"    output_format: json\n" +
+		"    timeouts:\n" +
+		"      default_s: 30\n" +
+		"    failure_signatures: []\n" +
+		"    active: true\n" +
+		"    models:\n" +
+		"      openrouter/free:\n" +
+		"        model_arg: openrouter/openrouter/free\n"
+	if err := os.WriteFile(filepath.Join(agentsDir, "agents.yaml"), []byte(agents), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return root
+}
+
+// TestFleetRunOpencodeStdinDelivery is FLEET-024 AC-4: 'quorum fleet run' on
+// the stdin channel delivers the prompt via stdin with no inline argv token
+// and returns a normal success envelope.
+func TestFleetRunOpencodeStdinDelivery(t *testing.T) {
+	root := setupFleetRunOpencodeStdinProject(t)
+	cwd := t.TempDir()
+	var out, errW bytes.Buffer
+	code := runFleetRun(fleetRunParams{
+		Agent: "opencode-stdin-fake", Model: "openrouter/free", Cwd: cwd,
+		Input: writePromptFile(t, root), JSON: true, ProjectRoot: root,
+	}, &out, &errW)
+	if code != 0 {
+		t.Fatalf("want exit 0, got %d\nstdout=%s\nstderr=%s", code, out.String(), errW.String())
+	}
+	env := decodeEnvelope(t, out.Bytes())
+	if env["ok"] != true {
+		t.Fatalf("want ok:true, got %v", env)
+	}
+	stdinRaw, err := os.ReadFile(filepath.Join(cwd, "stdin.txt"))
+	if err != nil {
+		t.Fatalf("read stdin.txt: %v", err)
+	}
+	if string(stdinRaw) != "say hi" {
+		t.Fatalf("want the prompt delivered via stdin, got stdin.txt=%q", stdinRaw)
+	}
+	argvRaw, err := os.ReadFile(filepath.Join(cwd, "args.txt"))
+	if err != nil {
+		t.Fatalf("read args.txt: %v", err)
+	}
+	argv := strings.Split(strings.TrimRight(string(argvRaw), "\n"), "\n")
+	for _, tok := range argv {
+		if tok == "say hi" {
+			t.Fatal("want no argv token equal to the prompt content")
+		}
+	}
+}
+
 // TestFleetRunPromptWithLiteralBracesPasses is the regression test for the
 // false-positive placeholder rejection: a prompt_arg transport (agy-like)
 // whose prompt contains literal '{'/'}' (e.g. Go code) must not be rejected

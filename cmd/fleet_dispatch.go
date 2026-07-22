@@ -25,8 +25,13 @@ type fleetDispatchRequest struct {
 }
 
 type fleetTransport struct {
-	Binary            string   `yaml:"binary"`
-	ArgvTemplate      []string `yaml:"argv_template"`
+	Binary       string   `yaml:"binary"`
+	ArgvTemplate []string `yaml:"argv_template"`
+	// InputChannel (FLEET-024) is the data-only signal for how the prompt
+	// payload reaches this transport's CLI. It is currently load-bearing
+	// only for the "prompt_pointer" branch below; stdin/prompt_arg/
+	// prompt_file stay token/StdinEmpty driven for backward compatibility.
+	InputChannel      string   `yaml:"input_channel"`
 	OutputFormat      string   `yaml:"output_format"`
 	FailureSignatures []string `yaml:"failure_signatures"`
 	Timeouts          struct {
@@ -141,6 +146,16 @@ func runFleetDispatch(store core.TaskStore, req fleetDispatchRequest) (string, e
 		"reasoning_effort": stringField(transport.Models[req.Model], "reasoning_effort"),
 		"print_timeout":    formatPrintTimeout(timeoutS),
 	}
+	if transport.InputChannel == "prompt_pointer" {
+		if req.BundlePath == "" {
+			return "", fmt.Errorf("transport %q requires input_channel prompt_pointer but no bundle_path was provided", req.Agent)
+		}
+		absBundle, aerr := filepath.Abs(req.BundlePath)
+		if aerr != nil {
+			return "", fmt.Errorf("cannot resolve absolute path for bundle_path %s: %w", req.BundlePath, aerr)
+		}
+		vars["prompt"] = renderPromptPointer(absBundle)
+	}
 	argv := substituteFleetArgv(transport.ArgvTemplate, vars)
 	stdinPrompt := prompt
 	if containsToken(transport.ArgvTemplate, "{prompt_file}") {
@@ -151,7 +166,7 @@ func runFleetDispatch(store core.TaskStore, req fleetDispatchRequest) (string, e
 		argv = aiderArgv
 		stdinPrompt = "" // aider has no stdin channel (input_channel: prompt_file)
 	}
-	if transport.StdinEmpty {
+	if transport.StdinEmpty || transport.InputChannel == "prompt_pointer" {
 		stdinPrompt = ""
 	}
 	spec := core.DispatchSpec{
@@ -280,6 +295,15 @@ func loadFleetTransport(projectRoot, agent string) (fleetTransport, error) {
 	}
 	return transport, nil
 }
+// renderPromptPointer returns a small, fixed-size English instruction that
+// tells a prompt_pointer transport (e.g. agy) to read and execute the
+// dispatch bundle's prompt.md at its absolute on-disk path, instead of
+// receiving the (possibly >128 KiB) prompt content inline as an argv token,
+// which would otherwise hit Linux's fork/exec MAX_ARG_STRLEN limit.
+func renderPromptPointer(absPath string) string {
+	return fmt.Sprintf("Read the file at %s and carry out the instructions it contains.", absPath)
+}
+
 func substituteFleetArgv(tmpl []string, vars map[string]string) []string {
 	out := make([]string, 0, len(tmpl))
 	for _, tok := range tmpl {

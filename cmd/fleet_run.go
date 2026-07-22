@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -128,6 +129,20 @@ func runFleetRun(p fleetRunParams, stdout, stderr io.Writer) int {
 		"reasoning_effort": stringField(transport.Models[p.Model], "reasoning_effort"),
 		"print_timeout":    formatPrintTimeout(timeoutS),
 	}
+	// prompt_pointer (FLEET-024): agy has no stdin/file-prompt channel, so
+	// instead of the raw (possibly >128 KiB) prompt, the argv {prompt} token
+	// is rendered as a small fixed instruction pointing at an absolute
+	// on-disk prompt file, avoiding fork/exec E2BIG on this task-less path.
+	if transport.InputChannel == "prompt_pointer" {
+		absPath, cleanup, perr2 := materializePromptPointerTarget(p, prompt)
+		if perr2 != nil {
+			return fail(fleetAgentError(fleetRunCommand, errCodeInternal,
+				perr2.Error(), "input", p.Input, false, ""))
+		}
+		defer cleanup()
+		vars["prompt"] = renderPromptPointer(absPath)
+	}
+
 	// Reject any dispatch-only placeholder ({worktree}/{out}/{files}, etc.) by
 	// scanning the RAW template BEFORE substitution: the prompt is user
 	// content and may legitimately contain literal '{'/'}' (e.g. any Go/JS/C
@@ -165,7 +180,7 @@ func runFleetRun(p fleetRunParams, stdout, stderr io.Writer) int {
 
 	// Execute via the policy-free primitive; NO git/task/trace/result.json.
 	stdinPrompt := prompt
-	if transport.StdinEmpty {
+	if transport.StdinEmpty || transport.InputChannel == "prompt_pointer" {
 		stdinPrompt = ""
 	}
 	res := core.RunDelegate(core.RunDelegateInput{
@@ -223,6 +238,36 @@ func fleetRunSchema(transport fleetTransport) map[string]any {
 		"output": map[string]any{"type": "object", "required": []string{"ok", "command", "summary", "data"}},
 		"errors": []string{errCodeMissingRequired, errCodeInvalidEnum, errCodeFileNotFound, errCodeTimeout, errCodeInvalidArgument, errCodeInternal},
 	}
+}
+
+// materializePromptPointerTarget resolves the absolute path an
+// input_channel:prompt_pointer transport (e.g. agy) should be pointed at.
+// When --input names a real file, its absolute path is reused directly (no
+// copy, no extra file). When --input is "-" (stdin), the already-read
+// prompt has no on-disk path yet, so it is materialized to a temp file
+// inside p.Cwd; the returned cleanup removes that temp file after the
+// delegate runs. The no-op cleanup lets every error path call it uniformly.
+func materializePromptPointerTarget(p fleetRunParams, prompt string) (string, func(), error) {
+	noop := func() {}
+	if p.Input != "-" {
+		abs, err := filepath.Abs(p.Input)
+		if err != nil {
+			return "", noop, fmt.Errorf("cannot resolve absolute path for --input %s: %w", p.Input, err)
+		}
+		return abs, noop, nil
+	}
+	f, err := os.CreateTemp(p.Cwd, "fleet-run-prompt-*.md")
+	if err != nil {
+		return "", noop, fmt.Errorf("cannot materialize stdin prompt to a temp file: %w", err)
+	}
+	if _, werr := f.WriteString(prompt); werr != nil {
+		f.Close()
+		os.Remove(f.Name())
+		return "", noop, fmt.Errorf("cannot write stdin prompt to temp file: %w", werr)
+	}
+	f.Close()
+	path := f.Name()
+	return path, func() { os.Remove(path) }, nil
 }
 
 // readPrompt reads the prompt from a file, or from stdin when input == "-".

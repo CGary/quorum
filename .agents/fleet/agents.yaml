@@ -97,7 +97,12 @@ transports:
       - "{print_timeout}"
       - --print
       - "{prompt}"
-    input_channel: prompt_arg
+    # prompt_pointer (FLEET-024): agy has no stdin/file-prompt support and
+    # rejects an empty --print argument, so the argv still carries a {prompt}
+    # token, but the wrapper now renders it as a small fixed instruction that
+    # points at the dispatch bundle's absolute on-disk path instead of the
+    # raw (possibly >128 KiB) prompt content, avoiding fork/exec E2BIG.
+    input_channel: prompt_pointer
     output_format: text
     timeouts:
       # agy's own documented default for --print-timeout (Fase 0a §3).
@@ -238,7 +243,6 @@ transports:
       OPENCODE_DISABLE_AUTOUPDATE: "true"
     argv_template:
       - run
-      - "{prompt}"
       - -m
       - "{model_arg}"
       - --format
@@ -246,12 +250,12 @@ transports:
       - --dir
       - "{cwd}"
       - --auto
-    input_channel: prompt_arg
+    # stdin (FLEET-024): opencode reads the prompt from stdin when no
+    # positional message argv token is given, so the prompt no longer travels
+    # inline through argv (which previously hit fork/exec E2BIG on bundles
+    # larger than Linux's MAX_ARG_STRLEN, 128 KiB).
+    input_channel: stdin
     output_format: json
-    # stdin is not the input channel for opencode (the prompt is a trailing
-    # argv token); stdin_empty forces an explicitly empty stdin rather than
-    # relying on whatever the caller happens to pipe.
-    stdin_empty: true
     timeouts:
       # Provisional: no opencode-native default was empirically measured this
       # session; validate via `quorum fleet smoke opencode <task_id>` before

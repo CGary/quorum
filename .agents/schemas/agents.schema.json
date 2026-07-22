@@ -47,8 +47,8 @@
         },
         "input_channel": {
           "type": "string",
-          "enum": ["stdin", "prompt_file", "prompt_arg"],
-          "description": "How the prompt payload reaches the CLI: piped to stdin, written to a file referenced by argv, or passed as a trailing argv token."
+          "enum": ["stdin", "prompt_file", "prompt_arg", "prompt_pointer"],
+          "description": "How the prompt payload reaches the CLI: piped to stdin, written to a file referenced by argv, passed as a trailing argv token, or (prompt_pointer) a small fixed argv instruction pointing at the dispatch bundle's absolute path, for transports with no stdin/file-prompt support whose prompt would otherwise exceed Linux's per-argv MAX_ARG_STRLEN."
         },
         "output_format": {
           "type": "string",
