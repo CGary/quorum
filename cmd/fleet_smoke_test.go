@@ -69,6 +69,17 @@ func TestFleetSmokeCommandUnknownTask(t *testing.T) {
 	}
 }
 
+func TestFleetSmokeCommandInactiveTransport(t *testing.T) {
+	root, taskID := setupFleetDispatchProject(t)
+	_, err := runFleetSmoke(core.NewTaskStore(root), "fake-inactive", taskID)
+	if err == nil || !strings.Contains(err.Error(), "inactive") {
+		t.Fatalf("want inactive-transport error, got %v", err)
+	}
+	if _, e := os.Stat(filepath.Join(root, "worktrees", taskID, "delegate_made_this.txt")); e == nil {
+		t.Fatalf("delegate binary must not execute for an inactive transport")
+	}
+}
+
 func TestFleetSmokeCommandRequiresAgentAndTaskID(t *testing.T) {
 	root, taskID := setupFleetDispatchProject(t)
 	if _, err := runFleetSmoke(core.NewTaskStore(root), "", taskID); err == nil {

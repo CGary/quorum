@@ -69,6 +69,9 @@ func runFleetSmoke(store core.TaskStore, agent, taskID string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if !transport.Active {
+		return "", fmt.Errorf("fleet transport %q is inactive (active:false in agents.yaml); not dispatchable", agent)
+	}
 	applyFleetTransportEnv(transport.Env)
 	worktree := filepath.Join(store.ProjectRoot, "worktrees", taskID)
 	if _, statErr := os.Stat(worktree); statErr != nil {
