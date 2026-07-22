@@ -47,6 +47,10 @@ A task is ready only if:
    - valid advisory evidence: `red_exit_code != 0` and `green_exit_code == 0` for that acceptance id.
 10. Contract Gate (hard block): re-run `quorum analyze contract-check` with the identical construction q-review used in its Contract Gate step (base-branch-scoped `--name-only`/`--shortstat`/`--numstat` diff against `02-contract.yaml`). Any violation in the result forces `not_ready`, regardless of what `06-review.json` already recorded; this is additive to, never a replacement for, checks 1-4 above. Surface every `not_checked` entry (e.g. `forbid.behaviors`) as advisory human context, never silently.
 
+`<BASE_BRANCH>` is the repo's LOCAL base branch (what `GetBaseBranch()` resolves,
+typically `main`) — never `origin/<base>` or another remote ref, which can be
+stale and produces false contract violations (lesson F2).
+
 ```bash
 git -C worktrees/<TASK_ID> diff --name-only <BASE_BRANCH>...HEAD
 git -C worktrees/<TASK_ID> diff --shortstat <BASE_BRANCH>...HEAD

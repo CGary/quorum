@@ -59,6 +59,10 @@ The step-2 diff commands have no revision range, so they cannot feed
 from the repo root (`02-contract.yaml` lives in `.ai/tasks/active/<TASK>/`,
 outside the worktree):
 
+`<BASE_BRANCH>` is the repo's LOCAL base branch (what `GetBaseBranch()` resolves,
+typically `main`) — never `origin/<base>` or another remote ref, which can be
+stale and produces false contract violations (lesson F2).
+
 ```bash
 git -C worktrees/<TASK_ID> diff --name-only <BASE_BRANCH>...HEAD
 git -C worktrees/<TASK_ID> diff --shortstat <BASE_BRANCH>...HEAD
