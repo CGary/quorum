@@ -110,3 +110,24 @@ Rules, mirroring the reasoning already established for `blocked` in Decision §1
 
 No schema change is required: `events[]` already accommodates this via its existing
 `additionalProperties: true` shape, exactly as Decision §2 established for `reroute`/`blocked`.
+
+## Amendment (2026-07-22): a fifth outcome class, `spawn_failed`
+
+A dispatch where the delegate process itself never started (e.g. `cmd.Start()`/execve error such as E2BIG, missing or non-executable binary, permission denial) must be classified separately from `attempt`, `reroute`, `blocked`, and `staging_failed`.
+
+This amendment adds `spawn_failed` as a fifth, disjoint outcome class, governed by the same signal-based discipline:
+
+| Signal at dispatch end | Class | Consumes | Record |
+|---|---|---|---|
+| Delegate process never started (`cmd.Start()`/execve fails) | **spawn_failed** | nothing | `events[]` only (`dispatch_started` + `dispatch_finished`) |
+
+Rules, mirroring the reasoning already established for `staging_failed`:
+
+- **Consumes no attempt/reroute budget.** The delegate's fitness for the task was never observed, so it consumes no `max_attempts` nor `reroute_budget`.
+- **Adds no exclusions.** No routing exclusion, cooldown, or penalty is written.
+- **Appends no `attempts[]` entry.** No classifiable work was produced.
+- **Emits only `dispatch_started`/`dispatch_finished`.** No new event type is introduced; the outcome's `class` and `cause` (the underlying execve error text) travel in `dispatch_finished`'s existing free-form payload.
+- **The worktree is untouched.** A spawn failure never produces a forensic ref and never runs git reset on the worktree, since the delegate never touched it and no diff is possible (it is short-circuited before staging is even attempted).
+- **Orchestrator contract: surface to human, retry is human/orchestrator-initiated.** Defers the next action to a human/orchestrator.
+
+No `trace.schema.json` change is required or permitted; `events[]` (`additionalProperties: true`) already accommodates the new class.

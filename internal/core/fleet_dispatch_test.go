@@ -468,3 +468,48 @@ func deadPID(t *testing.T) int {
 	_ = c.Wait()
 	return pid
 }
+
+func TestFleetDispatchSpawnFailure(t *testing.T) {
+	env := setupDispatchEnv(t)
+	spec := env.fakeSpec("d1")
+	spec.Binary = "/path/to/nonexistent/binary/to/force/spawn/failure"
+
+	res, err := Dispatch(spec)
+	if err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+
+	if res.Outcome.Class != "spawn_failed" {
+		t.Fatalf("outcome class = %q, want spawn_failed", res.Outcome.Class)
+	}
+	if res.ExitCode != nil {
+		t.Fatalf("exit_code = %v, want nil", res.ExitCode)
+	}
+	if res.DurationS > 1.0 {
+		t.Fatalf("DurationS = %v, want near zero", res.DurationS)
+	}
+
+	if n := countExecuteAttempts(t, env.taskDir); n != 0 {
+		t.Fatalf("execute attempts = %d, want 0", n)
+	}
+
+	loaded := loadResult(t, filepath.Join(env.dispatchDir("d1"), "result.json"))
+	if loaded.Outcome.Class != "spawn_failed" {
+		t.Fatalf("loaded result class = %q", loaded.Outcome.Class)
+	}
+	if loaded.Applied {
+		t.Fatal("loaded result applied = true")
+	}
+	if loaded.ForensicRef != nil {
+		t.Fatalf("loaded result forensic_ref = %v", *loaded.ForensicRef)
+	}
+	if loaded.ResetError != nil {
+		t.Fatalf("loaded result reset_error = %v", *loaded.ResetError)
+	}
+
+	events := loadTraceEvents(t, env.taskDir)
+	types := eventTypesInTrace(events)
+	if len(types) != 2 || types[0] != "dispatch_started" || types[1] != "dispatch_finished" {
+		t.Fatalf("expected exactly [dispatch_started dispatch_finished], got %v", types)
+	}
+}

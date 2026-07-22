@@ -81,6 +81,26 @@ func Dispatch(spec DispatchSpec) (DispatchResult, error) {
 	_ = os.WriteFile(notesPath, []byte(run.output), 0o644)
 	endedAt := time.Now().UTC()
 	notesTrim := strings.TrimSpace(run.output)
+
+	if run.startFailed {
+		msg := notesTrim
+		outcome := classifiedOutcome{class: "spawn_failed", cause: &msg}
+		res := newBaseResult(spec, startedAt, baseline, notesRel)
+		res.EndedAt = endedAt.Format(time.RFC3339)
+		res.DurationS = endedAt.Sub(startedAt).Seconds()
+		res.Outcome = DispatchOutcome{Class: outcome.class, Cause: outcome.cause}
+		res.Diff = DispatchDiffStat{Empty: true}
+		res.Applied = false
+		res.TraceEvents = traceEventTypes(outcome)
+		if err := normalizeResult(resultPath, res); err != nil {
+			return res, err
+		}
+		if terr := appendDispatchTrace(spec, res, outcome, notesTrim); terr != nil {
+			return res, terr
+		}
+		return res, nil
+	}
+
 	diffStat, diffErr := stageAndDiffStat(spec.Worktree, baseline)
 	var outcome classifiedOutcome
 	if diffErr != nil {
@@ -153,11 +173,12 @@ func Dispatch(spec DispatchSpec) (DispatchResult, error) {
 }
 
 type runResult struct {
-	output   string
-	exitCode int
-	hasExit  bool
-	timedOut bool
-	killed   bool
+	output      string
+	exitCode    int
+	hasExit     bool
+	timedOut    bool
+	killed      bool
+	startFailed bool
 }
 
 // RunDelegateInput is the policy-free data-only Value Object for one delegated
@@ -185,6 +206,7 @@ type RunDelegateResult struct {
 	HasExit       bool
 	TimedOut      bool
 	Killed        bool
+	StartFailed   bool
 	QuotaMatched  bool
 	OutputParseOK bool
 }
@@ -208,7 +230,7 @@ func RunDelegate(in RunDelegateInput) RunDelegateResult {
 	if err := cmd.Start(); err != nil {
 		out := fmt.Sprintf("dispatch could not start delegate: %v", err)
 		return RunDelegateResult{
-			Output: out, ExitCode: -1,
+			Output: out, ExitCode: -1, StartFailed: true,
 			QuotaMatched:  matchesAnySignature(out, in.FailureSignatures),
 			OutputParseOK: outputParses(in.OutputFormat, out),
 		}
@@ -261,7 +283,7 @@ func runDelegate(spec DispatchSpec) runResult {
 	})
 	return runResult{
 		output: r.Output, exitCode: r.ExitCode, hasExit: r.HasExit,
-		timedOut: r.TimedOut, killed: r.Killed,
+		timedOut: r.TimedOut, killed: r.Killed, startFailed: r.StartFailed,
 	}
 }
 func exitCodeFrom(err error) int {
