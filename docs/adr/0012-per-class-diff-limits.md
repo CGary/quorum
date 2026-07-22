@@ -69,7 +69,10 @@ order the contract author wrote it and applies the first glob (via
 count is checked against that class's `max_diff_lines` instead of being
 folded into the aggregate check; an unmatched file is left entirely to the
 pre-existing aggregate `limits.max_diff_lines` check (no new per-file
-global check is introduced). A per-class violation
+global check is introduced). This substitution is per-file only: a matched
+file's lines still count toward the whole-diff total evaluated by the
+aggregate `limits.max_diff_lines` check below, exactly as stated above --
+no file is ever exempt from the global cap. A per-class violation
 (`type: "max_diff_lines_per_class"`, `rule: "limits.per_class"`) reports
 the matched glob plus the measured and budgeted line counts in `detail`,
 additive to (never replacing) the existing `max_diff_lines` violation type.
