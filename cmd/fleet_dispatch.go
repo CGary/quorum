@@ -150,11 +150,12 @@ func runFleetDispatch(store core.TaskStore, req fleetDispatchRequest) (string, e
 		if req.BundlePath == "" {
 			return "", fmt.Errorf("transport %q requires input_channel prompt_pointer but no bundle_path was provided", req.Agent)
 		}
-		absBundle, aerr := filepath.Abs(req.BundlePath)
-		if aerr != nil {
-			return "", fmt.Errorf("cannot resolve absolute path for bundle_path %s: %w", req.BundlePath, aerr)
+		copyPath, cleanup, cerr := materializeDispatchPromptPointerCopy(worktree, req.DispatchID, prompt)
+		if cerr != nil {
+			return "", cerr
 		}
-		vars["prompt"] = renderPromptPointer(absBundle)
+		defer cleanup()
+		vars["prompt"] = renderPromptPointer(copyPath)
 	}
 	argv := substituteFleetArgv(transport.ArgvTemplate, vars)
 	stdinPrompt := prompt
@@ -295,6 +296,26 @@ func loadFleetTransport(projectRoot, agent string) (fleetTransport, error) {
 	}
 	return transport, nil
 }
+func materializeDispatchPromptPointerCopy(worktree, dispatchID, content string) (string, func(), error) {
+	dir := filepath.Join(worktree, ".ai", "tasks", "active")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return "", func() {}, fmt.Errorf("cannot create dispatch prompt directory: %w", err)
+	}
+	path := filepath.Join(dir, fmt.Sprintf("dispatch-prompt-%s.md", dispatchID))
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		return "", func() {}, fmt.Errorf("cannot write dispatch prompt copy: %w", err)
+	}
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		_ = os.Remove(path)
+		return "", func() {}, fmt.Errorf("cannot resolve absolute path for dispatch prompt copy: %w", err)
+	}
+	cleanup := func() {
+		_ = os.Remove(absPath)
+	}
+	return absPath, cleanup, nil
+}
+
 // renderPromptPointer returns a small, fixed-size English instruction that
 // tells a prompt_pointer transport (e.g. agy) to read and execute the
 // dispatch bundle's prompt.md at its absolute on-disk path, instead of

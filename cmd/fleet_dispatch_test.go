@@ -94,7 +94,10 @@ func setupFleetDispatchProject(t *testing.T) (string, string) {
 	if err := os.WriteFile(filepath.Join(root, "seed.txt"), []byte("seed\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	gitCmd(t, root, "add", "seed.txt")
+	if err := os.WriteFile(filepath.Join(root, ".gitignore"), []byte(".ai/tasks/active/*\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitCmd(t, root, "add", "seed.txt", ".gitignore")
 	gitCmd(t, root, "commit", "-q", "-m", "init")
 	taskID := "FLEET-800"
 	taskDir := filepath.Join(root, ".ai", "tasks", "active", taskID)
@@ -641,7 +644,21 @@ func setupFleetAgyPromptPointerFakeProject(t *testing.T) (string, string) {
 	t.Helper()
 	root, taskID := setupFleetDispatchProject(t)
 	script := filepath.Join(root, "fake-agy-pointer.sh")
-	body := "#!/bin/sh\nprintf 'delegate change\\n' > delegate_made_this.txt\nprintf '%s\\n' \"$@\" > args.txt\necho done\n"
+	body := "#!/bin/sh\n" +
+		"printf 'delegate change\\n' > delegate_made_this.txt\n" +
+		"printf '%s\\n' \"$@\" > args.txt\n" +
+		"for arg in \"$@\"; do\n" +
+		"  if echo \"$arg\" | grep -q \"Read the file at \"; then\n" +
+		"    filePath=$(echo \"$arg\" | sed 's/Read the file at \\(.*\\) and carry.*/\\1/')\n" +
+		"    if [ -f \"$filePath\" ]; then\n" +
+		"      cat \"$filePath\" > captured_content.txt\n" +
+		"      git status --porcelain \"$filePath\" > git_status.txt\n" +
+		"    else\n" +
+		"      echo \"file not found: $filePath\" > captured_content.txt\n" +
+		"    fi\n" +
+		"  fi\n" +
+		"done\n" +
+		"echo done\n"
 	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -702,15 +719,39 @@ func TestFleetDispatchAgyPromptPointerLargeBundleAvoidsE2BIG(t *testing.T) {
 	if len(got) > 1024 {
 		t.Fatalf("want a small pointer instruction, got %d bytes", len(got))
 	}
-	absBundle, aerr := filepath.Abs(bundlePath)
-	if aerr != nil {
-		t.Fatal(aerr)
+	expectedCopyPath := filepath.Join(worktree, ".ai", "tasks", "active", "dispatch-prompt-ap1.md")
+	absCopyPath, cerr := filepath.Abs(expectedCopyPath)
+	if cerr != nil {
+		t.Fatal(cerr)
 	}
-	if !strings.Contains(got, absBundle) {
-		t.Fatalf("want the pointer instruction to reference %s, got %q", absBundle, got)
+	if !strings.Contains(got, absCopyPath) {
+		t.Fatalf("want the pointer instruction to reference %s, got %q", absCopyPath, got)
 	}
 	if strings.Contains(got, large) {
 		t.Fatal("want the raw >128 KiB prompt content NOT to appear in argv")
+	}
+
+	// Verify that the file existed and matched the prompt content during execution
+	captured, rerr := os.ReadFile(filepath.Join(worktree, "captured_content.txt"))
+	if rerr != nil {
+		t.Fatalf("read captured_content.txt: %v", rerr)
+	}
+	if string(captured) != large {
+		t.Fatalf("captured prompt content does not match, got len %d, want %d", len(captured), len(large))
+	}
+
+	// Verify git status output showed the file as gitignored (meaning not listed in status)
+	gitStatus, gerr := os.ReadFile(filepath.Join(worktree, "git_status.txt"))
+	if gerr != nil {
+		t.Fatalf("read git_status.txt: %v", gerr)
+	}
+	if len(bytes.TrimSpace(gitStatus)) > 0 {
+		t.Fatalf("expected copy path to be ignored by git, but git status output was: %q", string(gitStatus))
+	}
+
+	// Verify that the copy was cleaned up after runFleetDispatch returned
+	if _, serr := os.Stat(expectedCopyPath); !os.IsNotExist(serr) {
+		t.Fatalf("expected copy path %s to be cleaned up, but os.Stat returned: %v", expectedCopyPath, serr)
 	}
 }
 
@@ -1013,4 +1054,74 @@ func TestFleetDispatchBundleHashFromManifest(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestFleetDispatchPromptPointerErrorPathCleanup(t *testing.T) {
+	root, taskID := setupFleetAgyPromptPointerFakeProject(t)
+	worktree := filepath.Join(root, "worktrees", taskID)
+	// Create an untracked, non-ignored file in the worktree to force dirty worktree error
+	if err := os.WriteFile(filepath.Join(worktree, "dirty.txt"), []byte("dirty content"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	bundlePath := filepath.Join(t.TempDir(), "prompt.md")
+	if err := os.WriteFile(bundlePath, []byte("error path test prompt"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	dispatchID := "err-cleanup-123"
+	_, err := runFleetDispatch(core.NewTaskStore(root), fleetDispatchRequest{
+		TaskID: taskID, Agent: "agy-pointer-fake", Model: "test/model-a", DispatchID: dispatchID, TimeoutS: 30,
+		BundlePath: bundlePath,
+	})
+	if err == nil {
+		t.Fatal("expected runFleetDispatch to fail due to dirty worktree")
+	}
+	if !strings.Contains(err.Error(), "dirty before dispatch") {
+		t.Fatalf("expected dirty worktree error, got: %v", err)
+	}
+
+	// Verify that the copy was cleaned up even on error path
+	expectedCopyPath := filepath.Join(worktree, ".ai", "tasks", "active", "dispatch-prompt-"+dispatchID+".md")
+	if _, serr := os.Stat(expectedCopyPath); !os.IsNotExist(serr) {
+		t.Fatalf("expected copy path %s to be cleaned up on error, but it exists", expectedCopyPath)
+	}
+}
+
+func TestFleetDispatchNonPromptPointerNoFileWritten(t *testing.T) {
+	root, taskID := setupFleetDispatchProject(t)
+	bundlePath := filepath.Join(t.TempDir(), "prompt.md")
+	if err := os.WriteFile(bundlePath, []byte("non prompt pointer test"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// List active task files before running dispatch to ensure no new file under active tasks is written
+	activeTasksDir := filepath.Join(root, "worktrees", taskID, ".ai", "tasks", "active")
+	var initialFiles []string
+	if files, err := os.ReadDir(activeTasksDir); err == nil {
+		for _, f := range files {
+			initialFiles = append(initialFiles, f.Name())
+		}
+	}
+
+	dispatchID := "non-pointer-123"
+	_, err := runFleetDispatch(core.NewTaskStore(root), fleetDispatchRequest{
+		TaskID: taskID, Agent: "fake", Model: "test/model-a", DispatchID: dispatchID, TimeoutS: 30,
+		BundlePath: bundlePath,
+	})
+	if err != nil {
+		t.Fatalf("runFleetDispatch: %v", err)
+	}
+
+	// Verify that no new files were written to the active tasks directory
+	var finalFiles []string
+	if files, err := os.ReadDir(activeTasksDir); err == nil {
+		for _, f := range files {
+			finalFiles = append(finalFiles, f.Name())
+		}
+	}
+
+	if !reflect.DeepEqual(initialFiles, finalFiles) {
+		t.Fatalf("expected no new files written in %s, initial: %v, final: %v", activeTasksDir, initialFiles, finalFiles)
+	}
 }
