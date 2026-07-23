@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -8,6 +9,7 @@ import (
 	"quorum/internal/core"
 	"regexp"
 	"strings"
+	"text/tabwriter"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -15,10 +17,11 @@ import (
 )
 
 var (
-	reportSaveFile      string
-	reportSaveDryRun    bool
-	reportNewOutput     string
-	reportNewKind       string
+	reportSaveFile   string
+	reportSaveDryRun bool
+	reportNewOutput  string
+	reportNewKind    string
+	reportListJSON   bool
 )
 
 // reportMetaDateLine matches the single active `date:` line inside the template's
@@ -313,12 +316,55 @@ var reportSaveCmd = &cobra.Command{
 	},
 }
 
+var reportListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List persisted report artifacts",
+	Run: func(cmd *cobra.Command, args []string) {
+		projectRoot, err := core.ProjectRoot()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error locating project root: %v\n", err)
+			os.Exit(1)
+		}
+
+		reportsDir := filepath.Join(projectRoot, ".ai", "reports")
+		reports, err := core.ListReports(reportsDir)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error listing reports: %v\n", err)
+			os.Exit(1)
+		}
+
+		if reportListJSON {
+			raw, err := json.Marshal(reports)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error encoding reports: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Print(string(raw))
+			return
+		}
+
+		if len(reports) == 0 {
+			fmt.Println("No reports found in .ai/reports/.")
+			return
+		}
+
+		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		fmt.Fprintln(w, "id\tkind\ttitle\tdate")
+		for _, report := range reports {
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", report.ID, report.Kind, report.Title, report.Date)
+		}
+		w.Flush()
+	},
+}
+
 func init() {
 	reportNewCmd.Flags().StringVarP(&reportNewOutput, "output", "o", "", "Scaffold the draft to this path (e.g. .tmp/<id>.yaml) instead of .ai/reports/")
 	reportNewCmd.Flags().StringVar(&reportNewKind, "kind", "", "Scaffold a specific kind of report (e.g. audit, refactor_plan)")
 	reportSaveCmd.Flags().StringVar(&reportSaveFile, "file", "", "Read the report YAML from a file instead of stdin")
 	reportSaveCmd.Flags().BoolVar(&reportSaveDryRun, "dry-run", false, "Validate the full write path (id, identity, schema) without persisting")
+	reportListCmd.Flags().BoolVar(&reportListJSON, "json", false, "Print reports as a JSON array")
 	reportCmd.AddCommand(reportNewCmd)
 	reportCmd.AddCommand(reportSaveCmd)
+	reportCmd.AddCommand(reportListCmd)
 	rootCmd.AddCommand(reportCmd)
 }

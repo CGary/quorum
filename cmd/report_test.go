@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -355,6 +356,70 @@ func TestReportSaveFillsMetadata(t *testing.T) {
 	}
 	if !strings.Contains(s, "date") {
 		t.Errorf("save must inject meta.date; got:\n%s", s)
+	}
+}
+
+func TestReportList(t *testing.T) {
+	bin, dir := setupReportTestEnv(t)
+	dbPath := filepath.Join(t.TempDir(), "memory.db")
+
+	if out, err := runMemoryCmdErr(t, dir, bin, dbPath, validReportPayload("audit-01"), "report", "save", "audit-01"); err != nil {
+		t.Fatalf("save audit-01 failed: %v\n%s", err, out)
+	}
+	if out, err := runMemoryCmdErr(t, dir, bin, dbPath, validReportPayload("audit-02"), "report", "save", "audit-02"); err != nil {
+		t.Fatalf("save audit-02 failed: %v\n%s", err, out)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".ai", "reports", "corrupt.yaml"), []byte("meta:\n  id: [unterminated\n"), 0644); err != nil {
+		t.Fatalf("write corrupt report: %v", err)
+	}
+
+	out, err := runMemoryCmdErr(t, dir, bin, dbPath, "", "report", "list")
+	if err != nil {
+		t.Fatalf("report list failed: %v\n%s", err, out)
+	}
+	for _, want := range []string{"id", "kind", "title", "date", "audit-01", "audit-02", "Report Title", "2026-06-01T00:00:00Z"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("report list output missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "corrupt") {
+		t.Fatalf("corrupt report should not be listed:\n%s", out)
+	}
+
+	jsonOut, err := runMemoryCmdErr(t, dir, bin, dbPath, "", "report", "list", "--json")
+	if err != nil {
+		t.Fatalf("report list --json failed: %v\n%s", err, jsonOut)
+	}
+	var reports []map[string]string
+	if err := json.Unmarshal([]byte(jsonOut), &reports); err != nil {
+		t.Fatalf("invalid JSON output %q: %v", jsonOut, err)
+	}
+	if len(reports) != 2 {
+		t.Fatalf("expected two valid reports, got %#v", reports)
+	}
+	if reports[0]["id"] != "audit-01" || reports[0]["kind"] != "generic" || reports[0]["title"] != "Report Title" || reports[0]["date"] != "2026-06-01T00:00:00Z" {
+		t.Fatalf("unexpected first report summary: %#v", reports[0])
+	}
+}
+
+func TestReportListEmpty(t *testing.T) {
+	bin, dir := setupReportTestEnv(t)
+	dbPath := filepath.Join(t.TempDir(), "memory.db")
+
+	out, err := runMemoryCmdErr(t, dir, bin, dbPath, "", "report", "list")
+	if err != nil {
+		t.Fatalf("report list on empty dir failed: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "No reports found") {
+		t.Fatalf("expected friendly empty message, got: %s", out)
+	}
+
+	jsonOut, err := runMemoryCmdErr(t, dir, bin, dbPath, "", "report", "list", "--json")
+	if err != nil {
+		t.Fatalf("report list --json on empty dir failed: %v\n%s", err, jsonOut)
+	}
+	if jsonOut != "[]" {
+		t.Fatalf("empty JSON output must be [], got %q", jsonOut)
 	}
 }
 
