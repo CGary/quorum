@@ -1,0 +1,103 @@
+content:
+    kicker: Guía operativa post-reactivación de codex (2026-07-22)
+    sections:
+        - diagram:
+            code: |
+                flowchart LR
+                  B["/q-brief\n00-spec"] --> P["/q-blueprint\n01+02 + worktree"]
+                  P --> D{"implementar"}
+                  D -->|delegado| F["/q-dispatch\nfleet: codex/agy/opencode"]
+                  D -->|directo| I["/q-implement\nClaude"]
+                  F --> V["/q-verify\nverify.commands"]
+                  I --> V
+                  V --> R["/q-review"]
+                  R --> M["merge humano\n+ /q-memory + clean"]
+            type: mermaid
+          id: ciclo-lifecycle
+          role: diagram
+          title: Ciclo de vida de una feature
+        - id: pasos
+          items:
+            - action: 'quorum init en el proyecto destino (una sola vez): crea .ai/tasks/, .agents/{skills,schemas,policies} y el symlink .claude/skills.'
+              owner: humano
+              step: 1
+            - action: '/q-brief con la descripción de la feature: produce 00-spec.yaml (riesgo declarado por el humano) y auto-ejecuta quorum task blueprint, moviendo la tarea de inbox/ a active/.'
+              owner: skill /q-brief
+              step: 2
+            - action: 'Opcional, solo si la feature es grande: /q-decompose escribe decomposition en el spec padre y auto-ejecuta quorum task split; cada hijo (ID-a, ID-b) corre su ciclo completo.'
+              owner: skill /q-decompose
+              step: 3
+            - action: '/q-blueprint produce 01-blueprint.yaml y 02-contract.yaml (touch/forbid vinculantes) y auto-ejecuta quorum task start: worktree en worktrees/ID sobre la rama ai/ID.'
+              owner: skill /q-blueprint
+              step: 4
+            - action: 'Implementación delegada: /q-dispatch ID llama a quorum fleet route, muestra el candidato (agente, modelo, nivel) y espera tu confirmación explícita antes de bundle+dispatch. Con codex activo, una tarea medium/M propone codex gpt-5.5-medium primero; si falla, reroute a agy gemini-3.1-pro-low y luego a las células gpt-5.6.'
+              owner: humano + skill /q-dispatch
+              step: 5
+            - action: 'Alternativa directa: /q-implement ID implementa con Claude dentro del contrato, sin fleet. Útil cuando la tarea exige juicio de diseño o el fleet quedó sin candidatos viables.'
+              owner: skill /q-implement
+              step: 6
+            - action: '/q-verify ID corre verify.commands sobre el diff aplicado. Obligatorio tras un attempt_done del dispatch: done significa exit 0, ningún agente puede eximirlo (Rule #4).'
+              owner: skill /q-verify
+              step: 7
+            - action: /q-review ID compara el diff contra spec/blueprint/contrato/validación y emite approve, revise o reject en 06-review.json.
+              owner: skill /q-review
+              step: 8
+            - action: 'Merge a main: siempre humano (Rule #6). Después /q-memory cura lo aprendido en SQLite (pattern/decision/lesson) y quorum task clean ID archiva a done/ y borra el worktree.'
+              owner: humano + skill /q-memory
+              step: 9
+          role: action_plan
+          title: Paso a paso con comandos
+        - body: 'En vez de invocar cada /q-* a mano, /q-orchestrate (skill global en ~/.claude/skills, fuera del perímetro constitucional del repo, permitido como andamiaje personal por D40) dirige el ciclo completo: desambigua contigo al inicio, delega cada fase a un subagente efímero ruteado por dificultad (haiku para lo mecánico, sonnet para lógica estándar, opus para blueprint y greenfield) y se detiene en el merge humano. Desde v1.3 (2026-07-22) incorpora la puerta de fleet en implement: si el riesgo es low/medium y la banda S/M con contrato claro, el orquestador corre /q-dispatch en la ventana principal (la confirmación humana no se delega a subagentes), y el fleet externo implementa a costo ~cero; si el delegado falla o la tarea exige juicio de diseño, cae al subagente interno de la tabla de routing. Resultado: los tokens Claude se gastan donde una mala decisión es cara (blueprint, review, greenfield) y la implementación acotada por contrato se externaliza. Un intento de fleet por implement, nunca ping-pong externo.'
+          details:
+            body: 'Todo candidato externo sale de quorum fleet route (política en config.yaml/routing.yaml/agents.yaml): el orquestador nunca elige modelo ni agente por su cuenta. La confirmación humana pre-dispatch nunca se relaja y codex jamás se despacha sin ella (créditos finitos). Tras attempt_done, /q-verify es obligatorio: done significa verify.commands en exit 0, no la palabra del delegado. El merge a main sigue siendo humano y el orquestador imprime los pasos sin ejecutarlos.'
+            label: Reglas fijas del orquestador
+          id: orquestacion-q-orchestrate
+          role: analysis
+          title: 'Modo orquestado: /q-orchestrate v1.3 dirige todo el ciclo'
+        - body: 'Codex volvió a estar activo en .agents/fleet/agents.yaml con seis modelos free-tier nuevos mapeados (gpt-5.6-terra/luna en medium y high, gpt-5.4-mini en low y medium) además de los gpt-5.5 ya probados. El routing por niveles quedó así. Nivel 0 (riesgo low y banda S): células $0 de OpenRouter vía agy y opencode (gemini-3.5-flash-low primario, nemotron y laguna como reroute cross-provider); codex queda fuera a propósito para no quemar créditos finitos en trabajo rutinario. Nivel 1 (medium o banda M): primario codex gpt-5.5-medium, fallback agy gemini-3.1-pro-low, secundarios gpt-5.6-terra-medium y gpt-5.6-luna-medium. Nivel 2 (high o banda L, con gate humano): primario claude-opus-4-7, fallback codex gpt-5.5-high, secundarios gpt-5.6-terra-high y gpt-5.6-luna-high. Dos restricciones operativas de codex: es dispatch-only (su argv usa el placeholder worktree, quorum fleet run lo rechaza por diseño) y codex exec exige que el directorio de trabajo sea un repo git, condición que los worktrees de tarea cumplen siempre.'
+          details:
+            body: 'Niveles y orden de transportes: .agents/config.yaml (levels + policies.fleet_transport_order = agy, opencode, aider, codex, claude). Matriz riesgo x banda a nivel: .agents/policies/routing.yaml. Transportes y modelos: .agents/fleet/agents.yaml. Contrato estructural de codex: .agents/fleet/contract_tests/codex.yaml (8 checks contra codex exec --help, sin gastar créditos). core.Route no hardcodea ningún modelo: todo es data de política.'
+            label: Dónde vive cada decisión
+          id: que-cambio-codex
+          role: analysis
+          title: Qué cambió con codex en el routing
+        - id: delegar-o-directo
+          items:
+            - downside: Modelos más débiles que Claude en diseño; requiere reroute cuando un candidato falla; codex consume créditos finitos no renovables.
+              option: /q-dispatch (fleet delegado)
+              upside: Costo cero o casi cero (células $0 de OpenRouter, créditos free de codex); el contrato acota el diff; trazabilidad forense completa en 07-trace.
+              useWhen: 'Tareas cerradas con contrato claro y verify.commands baratos: nivel 0 rutinario o nivel 1 bien especificado.'
+            - downside: Gasta tokens del hilo principal de Claude; sin diversidad de familia para la revisión posterior.
+              option: /q-implement (Claude directo)
+              upside: Máxima calidad de juicio; sin límites de cuota externa; ideal cuando el blueprint deja decisiones abiertas.
+              useWhen: Greenfield, lógica novedosa, o cuando el fleet devolvió no_viable_candidate o attempt_failed.
+            - avoidWhen: Cualquier cambio que toque más de un archivo o requiera juicio de diseño.
+              downside: Poco fiable en dificultad M (0/10 en tareas de dos archivos); la guardia de /q-dispatch lo rechaza si touch tiene más de un archivo.
+              option: aider (dentro del fleet)
+              upside: Harness de edición muy fiable en cambios mecánicos de un solo archivo (9/10 en campaña pass@10).
+          role: tradeoffs
+          title: Delegar al fleet o implementar directo
+        - body: 'Los créditos free-tier de ChatGPT no se renuevan: prefiere los transportes $0 (agy/opencode) para lo rutinario y reserva codex para dispatches deliberados. /q-dispatch v1 exige confirmación humana antes de cada dispatch, así que codex nunca gasta solo. Si la cuota se agota a mitad de un dispatch, la failure_signature dispara un reroute automático hacia el fallback $0. Límites OpenRouter free-tier que también aplican: 20 req/min compartidas, 1000 req/día, y los 429 cuentan contra la cuota diaria — nunca reintentar en loop.'
+          id: cuidado-creditos
+          kind: warning
+          role: callout
+          title: 'Créditos codex: finitos y nunca gastados en silencio'
+        - body: 'Estado y navegación: quorum task list, quorum task status ID, /q-status. Validación local sin mutar estado: quorum validate ruta/al/artefacto. Persistencia validada de artefactos: quorum task artifact-save ID relpath (siempre desde la raíz del repo). Rollback humano de la última transición: quorum task back ID (borra worktree y rama sin commits únicos; nunca lo ejecuta una skill). Retry de hijo fallido: quorum task retry-prepare CHILD_ID (solo humano u orquestador, preserva 07-trace append-only). Runner standalone sin lifecycle: quorum fleet run --agent agy|opencode|aider --schema para ver el enum de modelos; codex no es invocable por fleet run, solo por dispatch. Dashboard read-only del fleet: /fleet en quorum serve, con kill-switch en /api/fleet/toggle. Los tres únicos auto-encadenamientos autorizados siguen siendo brief a blueprint, decompose a split y blueprint a start; todo lo demás lo despacha el humano u orquestador fase por fase (Rule #9).'
+          id: referencia
+          role: appendix
+          title: Referencia rápida de comandos y rollback
+    summary: 'El ciclo Spec-Driven Contracts no cambió: una feature sigue naciendo como intención humana y termina como diff verificado en Git, pasando por artefactos validados 00-07. Lo que cambió el 2026-07-22 es la fase de implementación delegada: el transporte codex fue reactivado con modelos free-tier de ChatGPT (gpt-5.5, gpt-5.6-terra, gpt-5.6-luna, gpt-5.4-mini) y quedó ruteado en los niveles 1 y 2 del fleet. En la práctica, cuando una tarea de riesgo o complejidad media llegue a /q-dispatch, el router va a proponer codex como primer candidato, siempre con confirmación humana antes de gastar créditos.'
+    title: Cómo generar una feature con Quorum hoy (fleet con codex activo)
+    verdict:
+        confidence: high
+        text: 'Para generar una feature hoy hay dos modos: fase por fase (/q-brief, /q-blueprint, /q-dispatch o /q-implement, /q-verify, /q-review, merge humano, /q-memory) o dirigido por /q-orchestrate v1.3, el orquestador personal que delega cada fase a subagentes y prefiere el fleet externo ($0/codex free-tier) en implement cuando riesgo y banda lo permiten. El cambio real de fondo es el mismo: el dispatch delegado ahora tiene células codex free-tier en el routing.'
+kind: project_usage
+meta:
+    date: "2026-07-23T03:45:48Z"
+    id: guia-generar-feature-quorum
+    schemaVersion: "1.1"
+presentation:
+    audience: engineer
+    density: medium
+    language: es
+    profile: teaching
