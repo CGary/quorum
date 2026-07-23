@@ -1059,16 +1059,33 @@ func TestFleetDispatchBundleHashFromManifest(t *testing.T) {
 func TestFleetDispatchPromptPointerErrorPathCleanup(t *testing.T) {
 	root, taskID := setupFleetAgyPromptPointerFakeProject(t)
 	worktree := filepath.Join(root, "worktrees", taskID)
-	// Create an untracked, non-ignored file in the worktree to force dirty worktree error
+
+	// Non-vacuous half: prove the exact function cmd/fleet_dispatch.go defers
+	// on every return path really DOES create the copy (with matching
+	// content) before it is asked to clean it up -- absence alone can't tell
+	// "created then removed" from "never created".
+	copyPath, cleanup, merr := materializeDispatchPromptPointerCopy(worktree, "unit-check", "unit check content")
+	if merr != nil {
+		t.Fatalf("materializeDispatchPromptPointerCopy: %v", merr)
+	}
+	if got, rerr := os.ReadFile(copyPath); rerr != nil || string(got) != "unit check content" {
+		t.Fatalf("expected copy to exist with matching content, read err=%v content=%q", rerr, got)
+	}
+	cleanup()
+	if _, serr := os.Stat(copyPath); !os.IsNotExist(serr) {
+		t.Fatalf("expected copy path %s to be cleaned up, but os.Stat returned: %v", copyPath, serr)
+	}
+
+	// Integration regression: a genuine dispatch failure (dirty worktree
+	// precondition, hit AFTER the copy is materialized) must still trigger
+	// the deferred cleanup.
 	if err := os.WriteFile(filepath.Join(worktree, "dirty.txt"), []byte("dirty content"), 0644); err != nil {
 		t.Fatal(err)
 	}
-
 	bundlePath := filepath.Join(t.TempDir(), "prompt.md")
 	if err := os.WriteFile(bundlePath, []byte("error path test prompt"), 0644); err != nil {
 		t.Fatal(err)
 	}
-
 	dispatchID := "err-cleanup-123"
 	_, err := runFleetDispatch(core.NewTaskStore(root), fleetDispatchRequest{
 		TaskID: taskID, Agent: "agy-pointer-fake", Model: "test/model-a", DispatchID: dispatchID, TimeoutS: 30,
@@ -1080,8 +1097,6 @@ func TestFleetDispatchPromptPointerErrorPathCleanup(t *testing.T) {
 	if !strings.Contains(err.Error(), "dirty before dispatch") {
 		t.Fatalf("expected dirty worktree error, got: %v", err)
 	}
-
-	// Verify that the copy was cleaned up even on error path
 	expectedCopyPath := filepath.Join(worktree, ".ai", "tasks", "active", "dispatch-prompt-"+dispatchID+".md")
 	if _, serr := os.Stat(expectedCopyPath); !os.IsNotExist(serr) {
 		t.Fatalf("expected copy path %s to be cleaned up on error, but it exists", expectedCopyPath)
@@ -1089,9 +1104,10 @@ func TestFleetDispatchPromptPointerErrorPathCleanup(t *testing.T) {
 }
 
 func TestFleetDispatchNonPromptPointerNoFileWritten(t *testing.T) {
-	root, taskID := setupFleetDispatchProject(t)
+	root, taskID := setupPrintTimeoutFakeProject(t)
+	prompt := "non-prompt-pointer-argv-identity-check: !@#$%^&*()"
 	bundlePath := filepath.Join(t.TempDir(), "prompt.md")
-	if err := os.WriteFile(bundlePath, []byte("non prompt pointer test"), 0644); err != nil {
+	if err := os.WriteFile(bundlePath, []byte(prompt), 0644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1106,11 +1122,22 @@ func TestFleetDispatchNonPromptPointerNoFileWritten(t *testing.T) {
 
 	dispatchID := "non-pointer-123"
 	_, err := runFleetDispatch(core.NewTaskStore(root), fleetDispatchRequest{
-		TaskID: taskID, Agent: "fake", Model: "test/model-a", DispatchID: dispatchID, TimeoutS: 30,
+		TaskID: taskID, Agent: "agy-fake", Model: "test/model-a", DispatchID: dispatchID, TimeoutS: 30,
 		BundlePath: bundlePath,
 	})
 	if err != nil {
 		t.Fatalf("runFleetDispatch: %v", err)
+	}
+
+	// AC-5: for a non-prompt_pointer transport the real argv must carry the
+	// bundle content byte-for-byte, with no pointer materialization.
+	argvRaw, err := os.ReadFile(filepath.Join(root, "worktrees", taskID, "args.txt"))
+	if err != nil {
+		t.Fatalf("read args.txt: %v", err)
+	}
+	argv := strings.Split(strings.TrimRight(string(argvRaw), "\n"), "\n")
+	if got := argAfter(argv, "--print"); !bytes.Equal([]byte(got), []byte(prompt)) {
+		t.Fatalf("want argv --print token byte-identical to bundle content, got %q want %q", got, prompt)
 	}
 
 	// Verify that no new files were written to the active tasks directory
