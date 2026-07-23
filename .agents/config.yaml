@@ -28,6 +28,13 @@ levels:
       - small_corrections
     primary: openai/gpt-5.5-medium
     fallback: google/gemini-3.1-pro-low
+    # gpt-5.6 free-tier cells (2026-07-22): listed in the order the human gave
+    # them; no capability ranking between terra and luna is asserted. They sit
+    # in secondary so the proven gpt-5.5-medium primary and the $0 agy fallback
+    # are enumerated first — codex free credits are finite.
+    secondary:
+      - openai/gpt-5.6-terra-medium
+      - openai/gpt-5.6-luna-medium
     max_cost_per_call_usd: 0.50
 
   2:
@@ -39,6 +46,10 @@ levels:
       - security
     primary: anthropic/claude-opus-4-7
     fallback: openai/gpt-5.5-high
+    # Same ordering rationale as level 1: human-given order, no ranking claim.
+    secondary:
+      - openai/gpt-5.6-terra-high
+      - openai/gpt-5.6-luna-high
     max_cost_per_call_usd: 3.00
     requires_human_gate: true
 
@@ -51,7 +62,8 @@ policies:
   # when building the ordered candidate transport slice. Expresses the
   # cross-provider reroute preference as DATA (not Go): agy first (primary cheap
   # cell's own transport), opencode before aider (cross-provider before the
-  # mechanical-single-file fallback), codex/claude last (both inactive in v1).
+  # mechanical-single-file fallback), then codex (reactivated 2026-07-22 on
+  # finite free-tier credits) and claude (inactive) last.
   # A transport absent from this list is unreachable via `fleet route`.
   fleet_transport_order:
     - agy
