@@ -74,11 +74,47 @@ transports:
         effort_whitelist: [none, low, medium, high, xhigh]
       # gpt-5.6-sol intentionally absent: temporarily unavailable, not obsolete
       # (Fase 0a §9 addendum). Reintroducing it only requires editing this map.
+      # Free-tier models below confirmed available by the human 2026-07-22
+      # (gpt-5.6-terra, gpt-5.6-luna, gpt-5.4-mini). Their effort_whitelist is
+      # ASSUMED equal to gpt-5.5's backend enum, not per-model verified: only
+      # gpt-5.4-mini-low was smoke-probed (credits are scarce). Extending the
+      # effort variants only requires editing this map.
+      openai/gpt-5.6-terra-medium:
+        provider: openai
+        model_arg: gpt-5.6-terra
+        reasoning_effort: medium
+        effort_whitelist: [none, low, medium, high, xhigh]
+      openai/gpt-5.6-terra-high:
+        provider: openai
+        model_arg: gpt-5.6-terra
+        reasoning_effort: high
+        effort_whitelist: [none, low, medium, high, xhigh]
+      openai/gpt-5.6-luna-medium:
+        provider: openai
+        model_arg: gpt-5.6-luna
+        reasoning_effort: medium
+        effort_whitelist: [none, low, medium, high, xhigh]
+      openai/gpt-5.6-luna-high:
+        provider: openai
+        model_arg: gpt-5.6-luna
+        reasoning_effort: high
+        effort_whitelist: [none, low, medium, high, xhigh]
+      openai/gpt-5.4-mini-low:
+        provider: openai
+        model_arg: gpt-5.4-mini
+        reasoning_effort: low
+        effort_whitelist: [none, low, medium, high, xhigh]
+      openai/gpt-5.4-mini-medium:
+        provider: openai
+        model_arg: gpt-5.4-mini
+        reasoning_effort: medium
+        effort_whitelist: [none, low, medium, high, xhigh]
     contract_test: .agents/fleet/contract_tests/codex.yaml
-    # Deactivated 2026-07-13: the OpenAI/Codex subscription is currently
-    # unpaid, so this transport is not dispatchable. Revert by flipping
-    # this back to true once the subscription is restored.
-    active: false
+    # Reactivated 2026-07-22: ChatGPT free-tier credits are available for
+    # gpt-5.6-terra / gpt-5.6-luna / gpt-5.5 / gpt-5.4-mini. Credits are
+    # LIMITED and non-renewing: prefer the $0 transports (agy/opencode) for
+    # routine dispatches and keep real codex runs scarce and deliberate.
+    active: true
 
   agy:
     # No -C/--cd flag exists for agy (Fase 0a §3): the wrapper MUST launch

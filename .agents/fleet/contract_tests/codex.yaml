@@ -1,0 +1,32 @@
+# Level 1 structural contract test for the codex transport (FLEET-006/007).
+# Checks are read-only with respect to .agents/fleet/agents.yaml: they mirror
+# the flags already declared there (argv_template) via cheap `codex exec
+# --help` probes. No model/LLM invocation happens here, so no credits are
+# spent. Substrings verified against codex-cli 0.144.1 on 2026-07-22.
+transport: codex
+binary: codex
+checks:
+  - name: model_flag
+    probe_args: ["exec", "--help"]
+    expect_substring: "--model <MODEL>"
+  - name: config_override_flag
+    probe_args: ["exec", "--help"]
+    expect_substring: "--config <key=value>"
+  - name: cd_flag
+    probe_args: ["exec", "--help"]
+    expect_substring: "--cd <DIR>"
+  - name: sandbox_flag
+    probe_args: ["exec", "--help"]
+    expect_substring: "--sandbox <SANDBOX_MODE>"
+  - name: ephemeral_flag
+    probe_args: ["exec", "--help"]
+    expect_substring: "--ephemeral"
+  - name: ignore_user_config_flag
+    probe_args: ["exec", "--help"]
+    expect_substring: "--ignore-user-config"
+  - name: json_flag
+    probe_args: ["exec", "--help"]
+    expect_substring: "--json"
+  - name: output_last_message_flag
+    probe_args: ["exec", "--help"]
+    expect_substring: "--output-last-message <FILE>"
