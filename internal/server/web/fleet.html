@@ -47,7 +47,7 @@
         <div id="dispatches-list">Loading...</div>
     </section>
 
-    <script>window.QUORUM_FLEET_POLL_MS = {{ .PollIntervalMS }};</script>
+    <script>window.QUORUM_FLEET_POLL_MS = {{ .PollIntervalMS }}; window.QUORUM_FLEET_TOKEN = {{ .Token }};</script>
     <script src="/fleet.js"></script>
 </body>
 </html>

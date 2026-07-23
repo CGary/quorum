@@ -9,9 +9,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const toggleError = document.getElementById('toggle-error');
     const pollMs = window.QUORUM_FLEET_POLL_MS || 5000;
 
+    // getFleetToken reads the X-Quorum-Fleet-Token to send with a toggle
+    // request: the value injected into the page (loopback binds only) or,
+    // for a non-loopback bind (where the token is never embedded and is
+    // instead logged out-of-band by the server), a value the operator has
+    // pasted into localStorage manually.
+    const getFleetToken = () => window.QUORUM_FLEET_TOKEN || localStorage.getItem('quorumFleetToken') || '';
+
     const postToggle = (body) => fetch('/api/fleet/toggle', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Quorum-Fleet-Token': getFleetToken() },
         body: JSON.stringify(body),
     });
 

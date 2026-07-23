@@ -33,6 +33,33 @@ func loadFleetTemplate() *template.Template {
 type fleetPageData struct {
 	PollIntervalMS int
 	ProjectRoot    string
+	// Token is only ever non-empty on a loopback bind (Start never generates
+	// a fleetToken for a non-loopback bind, so there is nothing to embed
+	// there); FLEET-026 requires the non-loopback token to be delivered
+	// out-of-band via the server log instead.
+	Token string
+}
+
+// effectiveLoopbackBind normalizes bind state for guard/page purposes: a
+// Server whose bindHost was never set by Start (bare &Server{...} as built
+// directly by unit tests, or a caller that skipped Start) is treated as a
+// loopback bind, matching FLEET-026's "zero-value Server behaves like
+// loopback" contract.
+func (s *Server) effectiveLoopbackBind() bool {
+	if s.bindHost == "" {
+		return true
+	}
+	return s.loopbackBind
+}
+
+// fleetSecurityConfig snapshots the Server fields guardFleetToggle needs.
+func (s *Server) fleetSecurityConfig() fleetSecurityConfig {
+	return fleetSecurityConfig{
+		bindHost:     s.bindHost,
+		bindPort:     s.bindPort,
+		fleetToken:   s.fleetToken,
+		loopbackBind: s.effectiveLoopbackBind(),
+	}
 }
 
 // fleetPageHandler renders the read-only /fleet dashboard shell.
@@ -43,6 +70,9 @@ func (s *Server) fleetPageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := fleetPageData{PollIntervalMS: 5000, ProjectRoot: s.projectRoot}
+	if s.effectiveLoopbackBind() {
+		data.Token = s.fleetToken
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := loadFleetTemplate().Execute(w, data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -91,6 +121,11 @@ func (s *Server) fleetToggleHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.projectRoot == "" {
 		http.Error(w, "Fleet dashboard unavailable: no project root resolved", http.StatusServiceUnavailable)
+		return
+	}
+
+	if ok, status, message := guardFleetToggle(r, s.fleetSecurityConfig()); !ok {
+		http.Error(w, message, status)
 		return
 	}
 

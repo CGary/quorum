@@ -19,6 +19,15 @@ import (
 type Server struct {
 	db          *sql.DB
 	projectRoot string
+
+	// bindHost/bindPort/fleetToken/loopbackBind back the FLEET-026 hardening
+	// of POST /api/fleet/toggle (see fleet_security.go). They are populated
+	// by Start; a zero-value Server (as constructed directly in tests) is
+	// treated as an unconfigured/loopback bind by fleetSecurityConfig.
+	bindHost     string
+	bindPort     int
+	fleetToken   string
+	loopbackBind bool
 }
 
 func NewServer() (*Server, error) {
@@ -36,6 +45,17 @@ func NewServer() (*Server, error) {
 func (s *Server) Start(host string, port int) error {
 	if host == "" {
 		host = "127.0.0.1"
+	}
+	s.bindHost = host
+	s.bindPort = port
+	s.loopbackBind = isLoopbackHost(host)
+	if !s.loopbackBind {
+		token, err := newFleetToken()
+		if err != nil {
+			return fmt.Errorf("generate fleet toggle token: %w", err)
+		}
+		s.fleetToken = token
+		log.Printf("Fleet toggle token (required as X-Quorum-Fleet-Token on this non-loopback bind): %s", token)
 	}
 	addr := net.JoinHostPort(host, fmt.Sprintf("%d", port))
 	mux := http.NewServeMux()

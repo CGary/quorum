@@ -590,7 +590,12 @@ func TestFleetJSSyntax(t *testing.T) {
 
 func postToggleRequest(t *testing.T, body string) *http.Request {
 	t.Helper()
-	return httptest.NewRequest(http.MethodPost, "/api/fleet/toggle", bytes.NewBufferString(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/fleet/toggle", bytes.NewBufferString(body))
+	// FLEET-026: guardFleetToggle requires Content-Type: application/json;
+	// every pre-existing toggle test funnels through this helper, so setting
+	// it here keeps them green without touching each call site individually.
+	req.Header.Set("Content-Type", "application/json")
+	return req
 }
 
 func TestFleetToggleHandler_MethodNotAllowed(t *testing.T) {
@@ -855,5 +860,154 @@ func TestFleetToggleJSWiring(t *testing.T) {
 	}
 	if !containsAny(content, []string{"toggle-error"}) {
 		t.Fatal("fleet.js must wire the #toggle-error element")
+	}
+}
+
+// --- FLEET-026 guard integration tests --------------------------------------
+
+func postToggleRequestWithHeaders(t *testing.T, body string, headers map[string]string, host string) *http.Request {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/api/fleet/toggle", bytes.NewBufferString(body))
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	if host != "" {
+		req.Host = host
+	}
+	return req
+}
+
+// TestFleetToggleHandler_AC1_CrossOriginRejected covers a cross-origin POST,
+// including the text/plain simple-request variant, never reaching
+// Disable/EnableFleetTarget.
+func TestFleetToggleHandler_AC1_CrossOriginRejected(t *testing.T) {
+	root := setupFleetTestProject(t)
+	writeFleetAgentsFixture(t, root)
+	srv := &Server{projectRoot: root, bindHost: "127.0.0.1", bindPort: 4173, loopbackBind: true}
+
+	body := `{"target":"agy/testvendor/test-model-x","action":"disable","reason":"quota"}`
+
+	req := postToggleRequestWithHeaders(t, body, map[string]string{
+		"Content-Type": "application/json",
+		"Origin":       "http://evil.example.com",
+	}, "127.0.0.1:4173")
+	w := httptest.NewRecorder()
+	srv.fleetToggleHandler(w, req)
+	if w.Result().StatusCode != http.StatusForbidden {
+		t.Fatalf("expected 403 for cross-origin JSON POST, got %v", w.Result().StatusCode)
+	}
+
+	req = postToggleRequestWithHeaders(t, body, map[string]string{
+		"Content-Type": "text/plain",
+		"Origin":       "http://evil.example.com",
+	}, "127.0.0.1:4173")
+	w = httptest.NewRecorder()
+	srv.fleetToggleHandler(w, req)
+	if w.Result().StatusCode != http.StatusForbidden {
+		t.Fatalf("expected 403 for cross-origin text/plain simple-request POST, got %v", w.Result().StatusCode)
+	}
+
+	if _, err := os.Stat(core.FleetControlPath(root)); !os.IsNotExist(err) {
+		t.Fatalf("expected no fleet-control.json write from a rejected cross-origin request, stat err=%v", err)
+	}
+}
+
+// TestFleetToggleHandler_AC2_HostOutsideAllowlistRejected covers DNS
+// rebinding: a Host header outside the bind's allowed set is rejected.
+func TestFleetToggleHandler_AC2_HostOutsideAllowlistRejected(t *testing.T) {
+	root := setupFleetTestProject(t)
+	writeFleetAgentsFixture(t, root)
+	srv := &Server{projectRoot: root, bindHost: "127.0.0.1", bindPort: 4173, loopbackBind: true}
+
+	req := postToggleRequestWithHeaders(t, `{"target":"agy/testvendor/test-model-x","action":"disable","reason":"quota"}`,
+		map[string]string{"Content-Type": "application/json"}, "evil.example.com:4173")
+	w := httptest.NewRecorder()
+	srv.fleetToggleHandler(w, req)
+	if w.Result().StatusCode != http.StatusForbidden {
+		t.Fatalf("expected 403 for a Host header outside the allowed set, got %v", w.Result().StatusCode)
+	}
+}
+
+// TestFleetToggleHandler_AC3_MissingContentTypeRejected covers a request
+// missing Content-Type: application/json.
+func TestFleetToggleHandler_AC3_MissingContentTypeRejected(t *testing.T) {
+	root := setupFleetTestProject(t)
+	writeFleetAgentsFixture(t, root)
+	srv := &Server{projectRoot: root, bindHost: "127.0.0.1", bindPort: 4173, loopbackBind: true}
+
+	req := postToggleRequestWithHeaders(t, `{"target":"agy/testvendor/test-model-x","action":"disable","reason":"quota"}`,
+		nil, "127.0.0.1:4173")
+	w := httptest.NewRecorder()
+	srv.fleetToggleHandler(w, req)
+	if w.Result().StatusCode < 400 {
+		t.Fatalf("expected an error status without Content-Type, got %v", w.Result().StatusCode)
+	}
+	if _, err := os.Stat(core.FleetControlPath(root)); !os.IsNotExist(err) {
+		t.Fatalf("expected no fleet-control.json write without Content-Type, stat err=%v", err)
+	}
+}
+
+// TestFleetToggleHandler_AC4_NonLoopbackRequiresToken covers the
+// non-loopback-bind token gate: no token is rejected, the correct token
+// succeeds and reaches core.DisableFleetTarget.
+func TestFleetToggleHandler_AC4_NonLoopbackRequiresToken(t *testing.T) {
+	root := setupFleetTestProject(t)
+	writeFleetAgentsFixture(t, root)
+	srv := &Server{
+		projectRoot:  root,
+		bindHost:     "0.0.0.0",
+		bindPort:     4173,
+		loopbackBind: false,
+		fleetToken:   "test-token-value",
+	}
+
+	noToken := postToggleRequestWithHeaders(t, `{"target":"agy/testvendor/test-model-x","action":"disable","reason":"quota"}`,
+		map[string]string{"Content-Type": "application/json"}, "192.168.1.5:4173")
+	w := httptest.NewRecorder()
+	srv.fleetToggleHandler(w, noToken)
+	if got := w.Result().StatusCode; got != http.StatusUnauthorized && got != http.StatusForbidden {
+		t.Fatalf("expected 401/403 without a token on a non-loopback bind, got %v", got)
+	}
+	if _, err := os.Stat(core.FleetControlPath(root)); !os.IsNotExist(err) {
+		t.Fatalf("expected no fleet-control.json write without a token, stat err=%v", err)
+	}
+
+	withToken := postToggleRequestWithHeaders(t, `{"target":"agy/testvendor/test-model-x","action":"disable","reason":"quota"}`,
+		map[string]string{"Content-Type": "application/json", "X-Quorum-Fleet-Token": "test-token-value"}, "192.168.1.5:4173")
+	w = httptest.NewRecorder()
+	srv.fleetToggleHandler(w, withToken)
+	if w.Result().StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 with the correct token on a non-loopback bind, got %v", w.Result().StatusCode)
+	}
+	var report core.FleetStatusReport
+	if err := json.NewDecoder(w.Result().Body).Decode(&report); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(report.Disabled) != 1 {
+		t.Fatalf("expected the toggle to have succeeded via core.DisableFleetTarget, got %+v", report.Disabled)
+	}
+}
+
+// TestFleetToggleHandler_AC5_LoopbackNoTokenRequired covers the default
+// loopback bind (a zero-value bindHost, matching Start's own default): no
+// token is required and the disable/enable flow still succeeds.
+func TestFleetToggleHandler_AC5_LoopbackNoTokenRequired(t *testing.T) {
+	root := setupFleetTestProject(t)
+	writeFleetAgentsFixture(t, root)
+	srv := &Server{projectRoot: root} // zero-value bind state, same as a bare &Server{}
+
+	req := postToggleRequestWithHeaders(t, `{"target":"agy/testvendor/test-model-x","action":"disable","reason":"quota"}`,
+		map[string]string{"Content-Type": "application/json"}, "")
+	w := httptest.NewRecorder()
+	srv.fleetToggleHandler(w, req)
+	if w.Result().StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 on a loopback/unconfigured bind without a token, got %v", w.Result().StatusCode)
+	}
+	var report core.FleetStatusReport
+	if err := json.NewDecoder(w.Result().Body).Decode(&report); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(report.Disabled) != 1 || report.Disabled[0].Target != "agy/testvendor/test-model-x" {
+		t.Fatalf("unexpected report: %+v", report)
 	}
 }
