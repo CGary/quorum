@@ -2,6 +2,7 @@ package server
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 	"net"
 	"net/http"
@@ -170,7 +171,10 @@ func guardFleetToggle(r *http.Request, cfg fleetSecurityConfig) (ok bool, status
 
 	if !cfg.loopbackBind {
 		token := r.Header.Get("X-Quorum-Fleet-Token")
-		if token == "" || cfg.fleetToken == "" || token != cfg.fleetToken {
+		// Constant-time compare: the bearer token is a secret, so a plain
+		// != comparison would leak a timing side-channel proportional to
+		// the shared-prefix length.
+		if token == "" || cfg.fleetToken == "" || subtle.ConstantTimeCompare([]byte(token), []byte(cfg.fleetToken)) != 1 {
 			return false, http.StatusUnauthorized, "missing or invalid X-Quorum-Fleet-Token"
 		}
 	}

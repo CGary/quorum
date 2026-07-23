@@ -7,7 +7,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const toggleReason = document.getElementById('toggle-reason');
     const toggleDisableBtn = document.getElementById('toggle-disable-btn');
     const toggleError = document.getElementById('toggle-error');
+    const fleetTokenInput = document.getElementById('fleet-token-input');
+    const fleetTokenSaveBtn = document.getElementById('fleet-token-save-btn');
     const pollMs = window.QUORUM_FLEET_POLL_MS || 5000;
+
+    // Manual token entry: lets a non-loopback operator paste the token the
+    // server logs out-of-band (never embedded in the page) into
+    // localStorage, since getFleetToken() below already reads it from there.
+    fleetTokenInput.value = localStorage.getItem('quorumFleetToken') || '';
+    fleetTokenSaveBtn.addEventListener('click', () => {
+        localStorage.setItem('quorumFleetToken', fleetTokenInput.value.trim());
+    });
 
     // getFleetToken reads the X-Quorum-Fleet-Token to send with a toggle
     // request: the value injected into the page (loopback binds only) or,
