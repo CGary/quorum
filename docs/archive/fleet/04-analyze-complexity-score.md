@@ -1,5 +1,7 @@
 # 04 — `quorum analyze complexity-score`: banda de complejidad determinista
 
+> **ARCHIVADO 2026-07-23 — IMPLEMENTADO.** cmd/analyze_complexity_score.go + internal/core/complexity_score.go.
+
 **Tipo:** función pura en core + shim CLI (patrón `analyze` existente).
 **Depende de:** 01 (G0). Independiente de 02/03.
 **Riesgo sugerido:** low (función pura, aditiva, sin mutación de estado).

@@ -1,5 +1,7 @@
 # Sistema de enrutamiento de tareas entre múltiples LLMs
 
+> **ARCHIVADO 2026-07-23 — IMPLEMENTADO.** Superado — materializado por la serie ideas/fleet/00-17 y los ADR 0010-0012.
+
 **Fecha:** 2026-06-11
 **Estado:** Idea consolidada (v2), pre-ADR. Sustituye a la v1.
 **Insumos:** v1 de la idea; `*.analysis.md`; `*.analysis-fable.md`; respuesta de consolidación; `quorum.md` / README; `.agents/config.yaml`; `.agents/policies/routing.yaml`; `.agents/schemas/trace.schema.json`.

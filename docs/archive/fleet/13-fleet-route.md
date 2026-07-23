@@ -1,5 +1,7 @@
 # 13 — `quorum fleet route`: el router determinista
 
+> **ARCHIVADO 2026-07-23 — IMPLEMENTADO.** internal/core/fleet_route.go + cmd/fleet_route.go.
+
 **Tipo:** función pura en core + shim CLI.
 **Depende de:** 02 (agents.yaml + config reconciliado), 03 (taxonomía), 04 (complexity-score), 11 (estado de control). **GATE G1 (tarea 10): no iniciar sin la decisión sobre la celda barata y las bandas calibradas** — sin G1, este doc puede necesitar retoque (rol de L0).
 **Riesgo sugerido:** high (es la política hecha software; un bug acá rutea mal TODO).

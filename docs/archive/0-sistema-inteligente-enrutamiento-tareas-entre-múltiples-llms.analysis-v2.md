@@ -1,5 +1,7 @@
 # Análisis de factibilidad v2: sistema de enrutamiento de tareas entre múltiples LLMs
 
+> **ARCHIVADO 2026-07-23 — IMPLEMENTADO.** Superado — materializado por la serie ideas/fleet/00-17 y los ADR 0010-0012.
+
 **Fecha:** 2026-06-11  
 **Documento analizado:** `ideas/0-sistema-inteligente-enrutamiento-tareas-entre-múltiples-llms.md`  
 **Tipo:** análisis pre-ADR, sin implementación  

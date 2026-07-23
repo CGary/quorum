@@ -1,5 +1,7 @@
 # 06 — `quorum fleet dispatch`: motor de despacho + adapter codex
 
+> **ARCHIVADO 2026-07-23 — IMPLEMENTADO.** internal/core/fleet_dispatch.go (result.json normalizado, forensic ref).
+
 **Tipo:** comando core con control de procesos. La pieza más delicada de la serie.
 **Depende de:** 02 (agents.yaml), 03 (taxonomía/eventos), 05 (bundle).
 **Riesgo sugerido:** high (ejecuta procesos externos que escriben en worktrees; primer código de flota con efectos).

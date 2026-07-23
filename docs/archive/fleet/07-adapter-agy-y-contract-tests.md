@@ -1,5 +1,7 @@
 # 07 — Adapter agy + contract tests de wrappers
 
+> **ARCHIVADO 2026-07-23 — IMPLEMENTADO.** internal/core/fleet_adapter_agy.go + .agents/fleet/contract_tests/.
+
 **Tipo:** segundo adapter + harness de smoke tests para todos los transportes.
 **Depende de:** 06 (motor de dispatch) y del inventario de 01 (comportamiento real de agy).
 **Riesgo sugerido:** medium.

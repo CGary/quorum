@@ -1,5 +1,7 @@
 # 01 — Fase 0a: validación manual de delegación (gate G0)
 
+> **ARCHIVADO 2026-07-23 — IMPLEMENTADO.** Gate G0 ratificado 2026-07-11 (ver resultados-fase-0a.md §7).
+
 **Tipo:** experimento manual, **cero código en el repo**.
 **Depende de:** nada. **Gate que produce:** G0 — si delegar a mano no funciona, la serie entera se archiva sin haber tocado el core.
 **Riesgo sugerido:** low.

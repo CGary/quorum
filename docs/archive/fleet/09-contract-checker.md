@@ -1,5 +1,7 @@
 # 09 — `quorum analyze contract-check`: gate determinista de `touch`/`forbid`
 
+> **ARCHIVADO 2026-07-23 — IMPLEMENTADO.** quorum analyze contract-check (internal/core/contract_check.go, ADR 0012).
+
 **Tipo:** función pura en core + shim CLI (patrón `analyze`).
 **Depende de:** 01 (G0). Independiente de todo lo demás — puede implementarse en cualquier momento temprano.
 **Riesgo sugerido:** low.

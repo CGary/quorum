@@ -1,5 +1,7 @@
 # 02 — ADR-A: frontera transporte/política + `agents.yaml` + preflight del join
 
+> **ARCHIVADO 2026-07-23 — IMPLEMENTADO.** docs/adr/0010-frontera-transporte-politica.md + .agents/fleet/agents.yaml.
+
 **Tipo:** ADR + schema + código de preflight.
 **Depende de:** 01 (gate G0; el inventario alimenta el agents.yaml real).
 **Riesgo sugerido:** medium (toca política y convenciones del core; cambio conceptual, diff pequeño).

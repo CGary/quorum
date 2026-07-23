@@ -1,5 +1,7 @@
 # 05 — Context bundler: `quorum fleet bundle`
 
+> **ARCHIVADO 2026-07-23 — IMPLEMENTADO.** internal/core/fleet_bundle.go + cmd/fleet_bundle.go.
+
 **Tipo:** comando nuevo en core (`cmd/` + `internal/core/`), determinista, sin LLM.
 **Depende de:** 02 (ADR-A define dónde viven las cosas de flota). Independiente de 04.
 **Riesgo sugerido:** medium (es la encarnación de la regla constitucional #2 para delegación; un bundler con fugas rompe "contexto determinista").

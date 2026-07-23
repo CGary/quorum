@@ -1,5 +1,7 @@
 # Plan de fases — dispatcher multi-LLM (capa de ejecución)
 
+> **ARCHIVADO 2026-07-23 — IMPLEMENTADO.** Superado — materializado por la serie ideas/fleet/00-17 y los ADR 0010-0012.
+
 **Fecha:** 2026-07-07
 **Estado:** Aprobado (estructura). Las decisiones de cada fase se toman EN esa fase, no antes.
 **Insumos:** `0-sistema-...-llms.md` (v2) · `*.analysis-v2.md` · `ideas/fleet/00-indice.md` (DAG y decisiones cerradas 2026-06-12) · `ideas/fleet/17-adapter-aider.md` · `ideas/aider.md`

@@ -1,5 +1,7 @@
 # 🚦 Propuesta Técnica: Enrutamiento Dinámico en Runtime y Tuning de Umbrales
 
+> **PARCIALMENTE IMPLEMENTADO (2026-07-23).** Scoring estático hecho (internal/core/risk.go, fleet_route.go); pendiente: aplicación runtime dinámica y tuning empírico de umbrales.
+
 **Estado:** Diferida — implementar cuando se cumplan las precondiciones (ver §4).
 **Contexto:** Evolución de Quorum v1.2+.
 **Origen:** Subconjunto refinado de la propuesta original "Matriz de Enrutamiento y Riesgo Automática", filtrado por análisis de factibilidad contra el código real.

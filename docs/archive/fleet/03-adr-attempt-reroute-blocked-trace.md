@@ -1,5 +1,7 @@
 # 03 — ADR-B: semántica attempt/reroute/blocked + convención de eventos en trace
 
+> **ARCHIVADO 2026-07-23 — IMPLEMENTADO.** docs/adr/0011-attempt-reroute-blocked-trace.md + eventos en internal/core/fleet_dispatch.go.
+
 **Tipo:** ADR + (posible) extensión mínima de helper en core.
 **Depende de:** 01 (G0). Independiente de 02; pueden ir en paralelo.
 **Riesgo sugerido:** medium (define semántica que todo lo demás consume; errores acá se pagan en cada tarea futura).

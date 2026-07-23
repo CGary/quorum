@@ -1,5 +1,7 @@
 # 08 — Fabricador del `04-implementation-log.yaml` (compliance by construction)
 
+> **ARCHIVADO 2026-07-23 — IMPLEMENTADO.** FabricateImplementationLog en internal/core/fleet_04_fabricator.go.
+
 **Tipo:** función determinista en core, integrada al flujo de dispatch.
 **Depende de:** 06 (consume `result.json` + worktree). Independiente de 07.
 **Riesgo sugerido:** medium.

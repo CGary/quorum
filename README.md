@@ -4,7 +4,7 @@
 
 Quorum es un framework **AI-first** para ejecutar funcionalidades complejas mediante contratos verificables. Convierte una intención humana en artefactos machine-first (`00` → `07`), limita el contexto que recibe cada agente y exige que el resultado se pruebe con comandos reales antes de revisión humana.
 
-> Estado actual: **MVP de orquestación y artefactos**. Quorum ya incluye schemas, skills, CLI de tareas, worktrees aislados, políticas de riesgo/routing, scoring de riesgo y lookup de fallos relacionados.
+> Estado actual: **ciclo de vida SDC completo (`00`→`07`) con dispatch multi-agente**. Quorum ya incluye schemas, skills, CLI de tareas, worktrees aislados, políticas de riesgo/routing, scoring de riesgo, lookup de fallos relacionados, dispatcher de flota multi-LLM (`quorum fleet route/bundle/dispatch/run`), reportes (`quorum report`) con visor read-only (`quorum serve`) y memoria centralizada curada (`quorum memory`).
 
 ---
 
@@ -36,6 +36,10 @@ Quorum es un framework **AI-first** para ejecutar funcionalidades complejas medi
   - `spec`, `blueprint`, `contract`, `implementation-log`, `validation`, `review`, `trace`, `memory`, `feedback`.
 - Skills operativos:
   - `q-brief`, `q-decompose`, `q-blueprint`, `q-analyze`, `q-implement`, `q-verify`, `q-review`, `q-accept`, `q-memory`, `q-status`.
+  - `q-dispatch`: entrega la fase de implementación a un CLI delegado externo (agy/opencode/aider) vía `quorum fleet route/bundle/dispatch`, con confirmación humana antes de cada intento.
+  - `q-session`: captura decisiones/patrones/lecciones de sesión en memoria SQLite curada bajo el sentinela `SESSION-YYYY-MM-DD`.
+  - `q-report`: completa `report.yaml` desde el template en una sola pasada y lo valida contra `report.schema.json`.
+  - `fleet-cli-usage`: guía para invocar `quorum fleet run` (transporte de modelo standalone, no-lifecycle) fuera del ciclo de una tarea.
 - Worktrees por tarea en `worktrees/<TASK_ID>/`.
 - Políticas de riesgo/routing en `.agents/policies/`.
 - Helpers analíticos read-only `quorum analyze` (leen un request JSON por stdin):
@@ -46,6 +50,8 @@ Quorum es un framework **AI-first** para ejecutar funcionalidades complejas medi
   - `decomposition-coverage` para reportar cobertura padre↔hijos.
   - `decomposition-render` para dibujar el DAG ASCII determinístico.
 - Memoria centralizada SQLite vía `quorum memory save | status | search` (única vía de ingesta: `q-memory`).
+- Dispatcher de flota multi-agente `quorum fleet route | bundle | dispatch | run | status | enable | disable | smoke` (ver [`docs/fleet-run-for-agents.md`](docs/fleet-run-for-agents.md) y ADR 0010/0011/0012).
+- Reportes vía `quorum report new | save | list` y visor read-only `quorum serve start | stop | status`.
 - Partición de feedback (`feedback.schema.json`) y `quorum task feedback-consume` para consumir findings mecánicos.
 - `05-validation.json.error_category` opcional:
   - `logic | dependency | environment | flaky | unknown`.
@@ -58,9 +64,12 @@ Quorum es un framework **AI-first** para ejecutar funcionalidades complejas medi
 
 ### Diferido / no implementado aún
 
-- Dispatcher automático de ejecución.
-- Auto-retry y re-blueprint automático tras fallo.
-- Renegociación automática de contrato.
+- Validación de memoria curada (similarity & drift detection) — ver `ideas/6-validacion-memoria-curada.md`.
+- Resolución de conflictos de concurrencia / validación pre-merge determinística — ver `ideas/8-resolucion-conflictos-concurrencia.md`.
+- Enrutamiento dinámico en runtime y tuning empírico de umbrales — ver `ideas/9-enrutamiento-runtime-y-tuning.md`.
+- Recuperación automática en runtime tras fallo (auto-retry, re-blueprint automático) — ver `ideas/10-recuperacion-runtime-tras-fallo.md`.
+- Protocolo BLOCKED estructurado con pregunta de contexto rico (schema de pregunta más allá del `missing_file` que ya parsea `ParseBlockedSignal`) — ver `ideas/fleet/12-protocolo-blocked-pregunta-rica.md`.
+- Renegociación automática de contrato — ver `docs/adr/0002-defer-contract-renegotiation-protocol.md`.
 - Shadow merge / pre-merge gate automático.
 - Auto-rebase.
 - Nuevos artefactos `08-post-mortem.json` o `09/10-impact-report.json` — rechazados por duplicar `05/06/07` y `q-memory`.
@@ -98,6 +107,7 @@ Quorum usa `00` a `07` más memoria curada. No se agregan slots nuevos sin ADR, 
 
 ### Boundary de artefactos
 
+- `report.yaml` (`.ai/reports/`, `report.schema.json`) **no** es un artefacto del ciclo `00`→`07`: es un tipo aparte, producido por `/q-report`/`quorum report`, con su propio boundary (ver ADR 0004/0005).
 - No crear `08-post-mortem.json`: los datos del fallo viven en `05`, `06`, `07` y SQLite.
 - No crear `09/10-impact-report.json`: el aprendizaje exitoso va directo a `q-memory`.
 - Routing, merge-gate y eventos operativos deben registrarse en `07-trace.json` salvo ADR que justifique otra cosa.
@@ -426,6 +436,21 @@ quorum task status FEAT-001   # estado, artefactos, worktree, parent_task / deco
 /q-status FEAT-001   # diagnóstico por tarea
 ```
 
+### Flota multi-agente: `quorum fleet`
+
+Grupo de comandos para enrutar y despachar la fase de implementación a CLIs delegados externos (agy/opencode/aider/codex), separado del grupo read-only `quorum analyze`:
+
+```bash
+quorum fleet route     # stdin JSON {phase, risk, complexity_band, ...} -> resuelve un Candidate ejecutor desde policy (sin task_id, no muta; con task_id, registra routing_decision en 07-trace.json)
+quorum fleet bundle <ID>  # escribe el context bundle determinístico + manifest bajo .ai/tasks/active/<ID>/dispatch/<dispatch_id>/
+quorum fleet dispatch   # stdin JSON {task_id, agent, model, bundle_path, dispatch_id, ...} -> corre el delegado en el worktree con lock, timeout y result.json normalizado (ADR 0011)
+quorum fleet run        # NON-LIFECYCLE: corre un transporte en un --cwd explícito, sin task/worktree/trace (ver skill fleet-cli-usage)
+quorum fleet status | enable <target> | disable <target>  # kill-switch manual de agentes/modelos
+quorum fleet smoke <agent> <task_id>  # smoke dispatch manual de nivel 2 (consume cuota real; nunca automatizado)
+```
+
+`/q-dispatch` es la cara humana de un solo ciclo `route → confirmación humana → bundle → dispatch`. El detalle completo (contrato JSON de cada subcomando, flags de `quorum fleet run --schema`, celdas de modelos $0, límites de OpenRouter) vive en [`docs/fleet-run-for-agents.md`](docs/fleet-run-for-agents.md) y en `CLAUDE.md`.
+
 ---
 
 ## 🧪 Política de testing
@@ -510,8 +535,8 @@ Regla: **HSME informa; Git, los artefactos y `q-memory` deciden.** HSME jamás e
 
 Prioridad antes de automatización avanzada:
 
-1. Implementar dispatcher automático de ejecución.
-2. Consolidar escritura consistente de `07-trace.json` durante ejecución.
+1. ~~Implementar dispatcher automático de ejecución~~ — hecho (`quorum fleet route/bundle/dispatch/run`, ADR 0010/0011/0012, `/q-dispatch`).
+2. ~~Consolidar escritura consistente de `07-trace.json` durante ejecución~~ — hecho (`fleet route`/`fleet dispatch` escriben `routing_decision` y `attempts[]` vía `SaveArtifact`).
 3. Añadir flujo explícito de review/pre-merge en CLI.
 4. Implementar merge-gate determinístico mediante shadow merge + `verify.commands`.
 5. Solo con telemetría: evaluar auto-retry, renegociación de contrato o re-blueprint automático.

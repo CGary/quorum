@@ -1,5 +1,7 @@
 # 11 — Kill-switch manual + semáforo reactivo
 
+> **ARCHIVADO 2026-07-23 — IMPLEMENTADO.** cmd/fleet_enable.go / fleet_disable.go / fleet_status.go + evento quota_red.
+
 **Tipo:** estado de control + subcomandos CLI + integración con dispatch.
 **Depende de:** 03 (evento `quota_red`), 06 (el dispatch notifica). No depende de G1.
 **Riesgo sugerido:** medium.

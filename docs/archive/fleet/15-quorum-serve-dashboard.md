@@ -1,5 +1,7 @@
 # 15 — `quorum serve`: dashboard de status + kill-switch
 
+> **ARCHIVADO 2026-07-23 — IMPLEMENTADO.** internal/server/server.go (/fleet, /api/fleet/*).
+
 **Tipo:** servidor HTTP local + UI mínima. Tarea final de la serie (alcance decidido: SOLO status + kill-switch).
 **Depende de:** 11 (estado de control y su `--json`), 06 (traces con eventos de dispatch). El router (13) y el skill (14) NO son prerequisitos — el dashboard observa y controla, no orquesta.
 **Riesgo sugerido:** medium.

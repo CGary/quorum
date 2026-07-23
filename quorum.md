@@ -361,6 +361,8 @@ Risk assessment and model routing are policy-driven. The framework already provi
 | `.agents/policies/risk.yaml` | Named risk signals (`high/medium/low_risk_signals`) and `sensitive_paths` (executable globs). Touching any glob is a binary signal — it forces a higher tier regardless of file count. |
 | `.agents/policies/routing.yaml` | Maps `risk: low|medium|high` → `executor_level`, `reviewer_required`, `max_attempts`, `human_gate_required`. Includes `type_overrides` for `migration` and `security`. |
 | `.agents/config.yaml` | Three executor levels (0/1/2). Each level has primary/fallback/secondary models, max cost per call, and a `requires_human_gate` flag. |
+| `.agents/fleet/agents.yaml` | Transport catalog for fleet delegate CLIs: binary, argv template, models map, timeouts, and active flag. Pure transport — never `tier`/`level`/`risk`/`confidence` (ADR 0010). |
+| `.ai/fleet-control.json` | Runtime manual kill-switch state (disabled agent or agent/model targets, with reason/by/at). Read as request state by `quorum fleet route`, never as policy (ADR 0011). |
 
 ### Existing retrievers
 
@@ -406,7 +408,7 @@ When a task does not satisfy its contract, Quorum already has a structured chain
 
 - **Per-task forbiddance**: `02-contract.yaml.forbid.behaviors` is the binding list of patterns the executor must not introduce. Lessons from past failures of similar tasks belong here.
 - **Cross-task lessons**: SQLite `lessons` (with `q-memory`) capture durable failure modes. The `anti_patterns` field on every memory entry records approaches rejected with technical justification (see Memory Governance).
-- **Retry policy**: `02-contract.yaml.retry_policy.max_attempts` (range 0-5) caps retries. The dispatcher (when active) is the only authority to retry; the agent never decides. **Authorized Child Retry**: Failed child tasks may be retried by `/q-implement` if authorized by ADR 0001. This preserves the append-only nature of `07-trace.json` and does not automate human-only actions (merge/rollback).
+- **Retry policy**: `02-contract.yaml.retry_policy.max_attempts` (range 0-5) caps retries. The fleet dispatcher (`quorum fleet route` / `quorum fleet dispatch`; ADR 0010, ADR 0011) is the only authority to retry; the agent never decides. **Authorized Child Retry**: Failed child tasks may be retried by `/q-implement` if authorized by ADR 0001. This preserves the append-only nature of `07-trace.json` and does not automate human-only actions (merge/rollback).
 
 ### Failure classification (lightweight)
 

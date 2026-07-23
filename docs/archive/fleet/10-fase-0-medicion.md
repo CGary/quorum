@@ -1,5 +1,7 @@
 # 10 — Fase 0: medición instrumentada de calidad de delegación (gate G1)
 
+> **ARCHIVADO 2026-07-23 — IMPLEMENTADO.** Gate G1 resuelto — campaña pass@10 2026-07-15/16 en docs/fleet-run-for-agents.md §7.
+
 **Tipo:** experimento instrumentado + reporte. Poco código nuevo (scripts de tabulación como mucho).
 **Depende de:** 05, 06, 07 (o 06 solo, si agy se difirió), 08, 09.
 **Gate que produce:** G1 — decide el rol de la celda barata y calibra las bandas de complejidad. La tarea 13 (router) NO inicia sin G1 resuelto.

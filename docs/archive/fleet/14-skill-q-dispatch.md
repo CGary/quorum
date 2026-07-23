@@ -1,5 +1,7 @@
 # 14 — Skill `/q-dispatch`: la interfaz humana de la flota
 
+> **ARCHIVADO 2026-07-23 — IMPLEMENTADO.** .agents/skills/q-dispatch/SKILL.md.
+
 **Tipo:** skill (`.agents/skills/q-dispatch/SKILL.md`), capa fina sobre los comandos `fleet`.
 **Depende de:** 13 (route), 06/07 (dispatch), 12 (protocolo BLOCKED), 11 (status).
 **Riesgo sugerido:** medium (es un skill: debe cumplir el protocolo de skills y la Regla #9 a rajatabla).

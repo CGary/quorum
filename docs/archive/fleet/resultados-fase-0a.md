@@ -1,5 +1,7 @@
 # Resultados — Fase 0a: validación manual de delegación (gate G0)
 
+> **ARCHIVADO 2026-07-23 — IMPLEMENTADO.** Gate G0 ratificado 2026-07-11 (ver resultados-fase-0a.md §7).
+
 **Tipo:** registro de evidencia (subproducto obligatorio de la tarea 01).
 **Ejecutado:** 2026-07-11 (orquestación manual, cero código nuevo en el core).
 **Produce:** insumo para la ratificación humana de G0 y ajustes a docs 02–17.

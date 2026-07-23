@@ -15,7 +15,7 @@ nivel→modelo en más de un lugar del sistema. Una v1 de esta idea proponía un
 directamente con `.agents/config.yaml.levels` — eso es exactamente la
 duplicación que el manifiesto prohíbe.
 
-Fase 0a (`ideas/fleet/resultados-fase-0a.md`) validó manualmente, con dos
+Fase 0a (`docs/archive/fleet/resultados-fase-0a.md`) validó manualmente, con dos
 hijas reales de dogfooding (VAL-101 vía `codex exec`, VAL-102 vía
 `agy --print`), que un CLI externo invocado headless dentro de un worktree de
 Quorum con el contexto de `00`+`01`+`02` puede producir un diff que pasa
@@ -109,7 +109,7 @@ facturable por request. Para transportes con `quota_class: subscription`
 llamada) el campo está prohibido: no aplica, y declararlo sería sugerir un
 control de costo que no existe para ese tipo de cuenta. `aider`, declarado en
 esta ADR como transporte `quota_class: api` sin adapter implementado
-(diferido a `ideas/fleet/17-adapter-aider.md`), es el primer consumidor real
+(diferido a `docs/archive/fleet/17-adapter-aider.md`), es el primer consumidor real
 de este campo, con un valor provisional a validar contra el diseño del
 schema.
 
@@ -148,7 +148,7 @@ rutear ningún nivel al transporte `claude` ni al transporte `aider`.
   gasto de cuota del orquestador.
 - **Negativo / diferido.** El preflight en sí (FLEET-002-c), la reconciliación
   de `config.yaml.levels` (FLEET-002-b), el adapter de `aider`
-  (`ideas/fleet/17-adapter-aider.md`) y la política definitiva de naming de
+  (`docs/archive/fleet/17-adapter-aider.md`) y la política definitiva de naming de
   efforts (F7) quedan fuera de esta ADR y de esta tarea; esta ADR únicamente
   fija el contrato arquitectónico que esas tareas deben respetar.
 - **Negativo.** Mientras el preflight de FLEET-002-c no exista, el

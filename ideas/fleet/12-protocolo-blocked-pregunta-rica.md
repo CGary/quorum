@@ -1,5 +1,7 @@
 # 12 — Protocolo BLOCKED con pregunta de contexto rico
 
+> **PARCIALMENTE IMPLEMENTADO (2026-07-23).** Nivel 1 hecho: convención de pregunta rica en prosa en .agents/skills/q-dispatch/SKILL.md; pendiente: schema estructurado (opciones/consecuencias/recomendación) como payload validado.
+
 **Tipo:** extensión de señal existente en core + convención de protocolo.
 **Depende de:** 03 (clase `blocked` en la taxonomía). Complementa 05 (el bundle pide el formato) y 06 (el wrapper lo detecta).
 **Riesgo sugerido:** medium.

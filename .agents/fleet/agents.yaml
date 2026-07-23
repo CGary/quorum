@@ -187,7 +187,7 @@ transports:
     # policies.fleet_transport_order) and should be used only for MECHANICAL
     # SINGLE-FILE changes; a 2026-07-16 M-difficulty campaign found it
     # unreliable on multi-file tasks (docs/fleet-run-for-agents.md 7.2/4.1).
-    # Wired transport (FLEET-017; ideas/fleet/17-adapter-aider.md). First
+    # Wired transport (FLEET-017; docs/archive/fleet/17-adapter-aider.md). First
     # quota_class:api transport, backed by OpenRouter's free auto-router.
     # aider auto-commits by default -- the wrapper neutralizes that (and any
     # attribution/lint/test side effects) so q-verify remains the sole

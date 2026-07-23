@@ -39,6 +39,22 @@ quorum init
 # Validate one artifact file against its schema without saving it
 quorum validate path/to/00-spec.yaml
 
+# Report artifacts: create from template / validate+persist / list (cmd/report.go)
+quorum report new <id>
+quorum report save <id>
+quorum report list
+
+# Read-only viewer server for projects, reports, memories, and task state (cmd/serve.go)
+quorum serve            # foreground
+quorum serve start      # background
+quorum serve stop
+quorum serve status
+
+# Centralized SQLite memory: persist / inspect config+DB status / search (cmd/memory.go, cmd/memory_search.go)
+quorum memory save
+quorum memory status
+quorum memory search <query>
+
 # Local CLI invocation
 ./quorum <command>           # e.g. ./quorum task list
 ```
@@ -92,6 +108,10 @@ quorum fleet route        # stdin JSON {task_id?, phase, risk, complexity_band, 
 quorum fleet bundle <ID>  # writes a deterministic dispatch context bundle + manifest under .ai/tasks/active/<ID>/dispatch/<dispatch_id>/ (internal/core/fleet_bundle.go)
 quorum fleet dispatch     # stdin JSON {task_id, agent, model, bundle_path, timeout_s?, dispatch_id} -> runs a delegated CLI in the task worktree with lock, process-group-kill timeout, forensic ref, ADR 0011 outcome class, and a normalized result.json (internal/core/fleet_dispatch.go)
 quorum fleet run          # NON-LIFECYCLE: runs a transport in an explicit --cwd via core.RunDelegate; no task, worktree, git, forensic ref, 07-trace, or result.json (cmd/fleet_run.go)
+quorum fleet status       # manual kill-switch: reads .ai/fleet-control.json and reports currently disabled targets, optionally as --json (internal/core/fleet_control.go, cmd/fleet_status.go)
+quorum fleet enable <target>   # manual kill-switch: re-enables a disabled agent or agent/model target in .ai/fleet-control.json (internal/core/fleet_control.go, cmd/fleet_enable.go)
+quorum fleet disable <target> --reason <reason>  # manual kill-switch: disables an agent or agent/model target in .ai/fleet-control.json; --reason is required (internal/core/fleet_control.go, cmd/fleet_disable.go)
+quorum fleet smoke <agent> <task_id>  # LEVEL 2 manual-only real dispatch against an existing task worktree via core.Dispatch; consumes real quota and is never wired into CI, cron, or a q-* skill (cmd/fleet_smoke.go)
 ```
 
 `quorum fleet route` is the pure decision step (`internal/core/fleet_route.go`, `core.Route`):

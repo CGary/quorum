@@ -1,5 +1,7 @@
 # 17 — Adapter aider: tercer transporte (editor-CLI, `quota_class: api`)
 
+> **ARCHIVADO 2026-07-23 — IMPLEMENTADO.** internal/core/fleet_adapter_aider.go + contract test aider.yaml.
+
 **Tipo:** tercer adapter sobre el motor de la tarea 06, extensión del harness de contract tests de la tarea 07.
 **Depende de:** 06 (motor de dispatch) y 07 (harness de contract tests, que este doc EXTIENDE, no reescribe). Precondición propia: un inventario manual estilo Fase 0a del comportamiento headless de aider.
 **Riesgo sugerido:** medium (no es código nuevo de efectos —el wrapper de 06 ya los tiene—, pero es el PRIMER transporte `quota_class: api` y por tanto el primer consumidor real de `max_cost_per_call_usd` y el primero que maneja API keys de proveedor).
