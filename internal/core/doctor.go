@@ -187,9 +187,16 @@ func doctorDeriveTaskID(dirName string) string {
 }
 
 // doctorListAIBranches runs read-only `git branch --list ai/*` scoped to the
-// project root; never mutates refs.
+// project root; never mutates refs. It uses --format='%(refname:short)' so
+// each output line is exactly the branch's short name, with no leading
+// current-branch ('*') or worktree-registration ('+') marker to strip; a
+// marker-stripping approach previously used here silently dropped any
+// ai/<ID> branch tied to a worktree registration (live or stale/prunable)
+// because '+' was never stripped, causing the branch to fail
+// doctorAIBranchRE and be dropped from facts.AIBranches before the AC-4
+// orphaned-branch check ever saw it.
 func doctorListAIBranches(projectRoot string) ([]string, error) {
-	out, err := exec.Command("git", "-C", projectRoot, "branch", "--list", "ai/*").Output()
+	out, err := exec.Command("git", "-C", projectRoot, "branch", "--list", "ai/*", "--format=%(refname:short)").Output()
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			return nil, &exitErrorWithOutput{err: exitErr, output: string(exitErr.Stderr)}
@@ -198,7 +205,6 @@ func doctorListAIBranches(projectRoot string) ([]string, error) {
 	}
 	var names []string
 	for _, line := range strings.Split(string(out), "\n") {
-		line = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "*"))
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue

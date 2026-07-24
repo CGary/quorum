@@ -168,6 +168,45 @@ func TestDoctorStaleWorktreeRegistration(t *testing.T) {
 	}
 }
 
+// TestDoctorStaleWorktreeRegistrationAlsoOrphansBranch covers the AC-4/AC-5
+// interaction: an ai/<ID> branch whose worktree was created via
+// `git worktree add` and later removed with os.RemoveAll (not
+// `git worktree remove`, so the worktree registration is left prunable but
+// git still reports the branch as tied to that worktree with a '+' marker in
+// `git branch --list` output) must fire BOTH stale_worktree_registration
+// (AC-5) AND orphaned_branch (AC-4) when there is no active task for the ID.
+// This regression-guards doctorListAIBranches: a prior implementation only
+// stripped the '*' current-branch marker and left '+' unstripped, so the
+// branch line failed doctorAIBranchRE and silently never reached AC-4.
+func TestDoctorStaleWorktreeRegistrationAlsoOrphansBranch(t *testing.T) {
+	root := initGitRepo(t)
+	chdir(t, root)
+	ensureTaskDirs(t, root)
+
+	id := "MAINT-105"
+	worktree := filepath.Join(root, "worktrees", id)
+	run(t, root, "git", "worktree", "add", "-q", "-b", "ai/"+id, worktree)
+	if err := os.RemoveAll(worktree); err != nil {
+		t.Fatal(err)
+	}
+
+	facts, err := CollectDoctorFacts(root)
+	if err != nil {
+		t.Fatalf("CollectDoctorFacts: %v", err)
+	}
+	report := EvaluateDoctor(facts)
+
+	staleFindings := doctorFindingsByCheck(report, "stale_worktree_registration")
+	if len(staleFindings) != 1 {
+		t.Fatalf("expected one stale_worktree_registration finding, got %+v", report.Findings)
+	}
+
+	orphanedBranchFindings := doctorFindingsByCheck(report, "orphaned_branch")
+	if len(orphanedBranchFindings) != 1 || orphanedBranchFindings[0].TaskID != id {
+		t.Fatalf("expected one orphaned_branch finding for %s, got %+v", id, report.Findings)
+	}
+}
+
 // TestDoctorIncompleteClean covers AC-6: a task in done/ or failed/ that
 // still has a live worktree and/or ai/<ID> branch is reported, naming the
 // residue.
