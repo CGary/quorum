@@ -112,6 +112,7 @@ quorum fleet status       # manual kill-switch: reads .ai/fleet-control.json and
 quorum fleet enable <target>   # manual kill-switch: re-enables a disabled agent or agent/model target in .ai/fleet-control.json (internal/core/fleet_control.go, cmd/fleet_enable.go)
 quorum fleet disable <target> --reason <reason>  # manual kill-switch: disables an agent or agent/model target in .ai/fleet-control.json; --reason is required (internal/core/fleet_control.go, cmd/fleet_disable.go)
 quorum fleet smoke <agent> <task_id>  # LEVEL 2 manual-only real dispatch against an existing task worktree via core.Dispatch; consumes real quota and is never wired into CI, cron, or a q-* skill (cmd/fleet_smoke.go)
+quorum fleet stats        # read-only: aggregates terminal (done/failed) dispatch telemetry via core.CollectDispatchRecords + core.ComputeFleetStats, grouped by cell/level/band, optionally as --json (internal/core/fleet_stats.go, cmd/fleet_stats.go); also surfaced read-only via GET /api/fleet/stats in the quorum serve dashboard
 ```
 
 `quorum fleet route` is the pure decision step (`internal/core/fleet_route.go`, `core.Route`):

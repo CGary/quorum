@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const inflightList = document.getElementById('inflight-list');
     const blockedList = document.getElementById('blocked-list');
     const dispatchesList = document.getElementById('dispatches-list');
+    const statsList = document.getElementById('stats-list');
     const toggleTarget = document.getElementById('toggle-target');
     const toggleReason = document.getElementById('toggle-reason');
     const toggleDisableBtn = document.getElementById('toggle-disable-btn');
@@ -171,6 +172,38 @@ document.addEventListener('DOMContentLoaded', () => {
         container.appendChild(table);
     };
 
+    // renderStats renders /api/fleet/stats' per-cell groups (group_by=cell):
+    // dispatch count with an explicit n= sample-size label, success rate as a
+    // percentage (SuccessRate is a 0..1 fraction), timeout count, and
+    // null-checked p50/p95 latency mirroring renderDispatches' duration_s
+    // handling (DurationP50S/P95S are nullable when there are no timed
+    // samples).
+    const renderStats = (report) => {
+        const container = clearInto(statsList);
+        const groups = (report && report.groups) || [];
+        if (groups.length === 0) {
+            container.appendChild(makeEl('p', 'empty', 'No fleet stats yet.'));
+            return;
+        }
+        const table = makeEl('table');
+        const head = makeEl('tr');
+        ['Cell', 'n=', 'Success %', 'Timeouts', 'p50 (s)', 'p95 (s)'].forEach((label) => {
+            head.appendChild(makeEl('th', null, label));
+        });
+        table.appendChild(head);
+        groups.forEach((group) => {
+            const row = makeEl('tr');
+            row.appendChild(makeEl('td', null, group.key));
+            row.appendChild(makeEl('td', null, `n=${group.n}`));
+            row.appendChild(makeEl('td', null, `${(group.success_rate * 100).toFixed(1)}%`));
+            row.appendChild(makeEl('td', null, group.timeout));
+            row.appendChild(makeEl('td', null, group.duration_p50_s != null ? group.duration_p50_s.toFixed(1) : ''));
+            row.appendChild(makeEl('td', null, group.duration_p95_s != null ? group.duration_p95_s.toFixed(1) : ''));
+            table.appendChild(row);
+        });
+        container.appendChild(table);
+    };
+
     const loadFleetData = () => {
         fetch('/api/fleet/status')
             .then((res) => res.json())
@@ -185,6 +218,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderDispatches(data.dispatches);
             })
             .catch((err) => console.error('Error fetching fleet dispatches:', err));
+
+        fetch('/api/fleet/stats')
+            .then((res) => res.json())
+            .then(renderStats)
+            .catch((err) => console.error('Error fetching fleet stats:', err));
     };
 
     toggleDisableBtn.addEventListener('click', () => {

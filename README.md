@@ -447,9 +447,12 @@ quorum fleet dispatch   # stdin JSON {task_id, agent, model, bundle_path, dispat
 quorum fleet run        # NON-LIFECYCLE: corre un transporte en un --cwd explícito, sin task/worktree/trace (ver skill fleet-cli-usage)
 quorum fleet status | enable <target> | disable <target>  # kill-switch manual de agentes/modelos
 quorum fleet smoke <agent> <task_id>  # smoke dispatch manual de nivel 2 (consume cuota real; nunca automatizado)
+quorum fleet stats      # read-only: agrega telemetría de dispatches terminales (done/failed) por cell/level/band, también expuesto vía GET /api/fleet/stats en `quorum serve`
 ```
 
 `/q-dispatch` es la cara humana de un solo ciclo `route → confirmación humana → bundle → dispatch`. El detalle completo (contrato JSON de cada subcomando, flags de `quorum fleet run --schema`, celdas de modelos $0, límites de OpenRouter) vive en [`docs/fleet-run-for-agents.md`](docs/fleet-run-for-agents.md) y en `CLAUDE.md`.
+
+El visor read-only `quorum serve` expone además un dashboard `/fleet` con un endpoint de escritura único, `POST /api/fleet/toggle`, protegido por cuatro defensas: Content-Type `application/json` obligatorio, chequeo same-origin (`Origin`/`Referer`), allowlist de `Host` (defensa anti DNS-rebinding), y — solo en binds no-loopback — el header `X-Quorum-Fleet-Token`, generado por `serve` y entregado únicamente por log (nunca embebido en la página); el operador lo pega manualmente en el campo de la UI, que lo persiste en `localStorage`.
 
 ---
 

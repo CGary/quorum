@@ -167,6 +167,31 @@ func (s *Server) fleetToggleHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(report)
 }
 
+// fleetStatsHandler exposes core.ComputeFleetStats grouped by cell, over
+// records from core.CollectDispatchRecords. Strictly read-only: no auth
+// guard (mirroring status/dispatches), no query params, group-by fixed to
+// cell.
+func (s *Server) fleetStatsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.projectRoot == "" {
+		http.Error(w, "Fleet dashboard unavailable: no project root resolved", http.StatusServiceUnavailable)
+		return
+	}
+
+	records, err := core.CollectDispatchRecords(s.projectRoot, core.StatsFilter{})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	report := core.ComputeFleetStats(records, core.FleetStatsGroupByCell)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(report)
+}
+
 // dispatchRecord is one completed (attempt/reroute) dispatch surfaced on the
 // dashboard, joined from 07-trace.json events[] (and, for attempt-class
 // dispatches, the corresponding attempts[] entry).

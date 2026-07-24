@@ -524,6 +524,84 @@ func TestFleetDispatchesHandler_503WhenNoProjectRoot(t *testing.T) {
 	}
 }
 
+func writeFleetStatsDispatchResult(t *testing.T, taskDir, dispatchID, agent, model string) {
+	t.Helper()
+	dir := filepath.Join(taskDir, "dispatch", dispatchID)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatalf("mkdir dispatch dir: %v", err)
+	}
+	body := `{
+  "schema_version": "fleet-dispatch-result/v1",
+  "dispatch_id": "` + dispatchID + `",
+  "task_id": "FLEET-STATS-1",
+  "agent": "` + agent + `",
+  "model": "` + model + `",
+  "started_at": "2026-07-20T00:00:00Z",
+  "duration_s": 12.5,
+  "outcome": {"class": "attempt", "noop": false},
+  "applied": true,
+  "usage": {"source": "none"}
+}`
+	if err := os.WriteFile(filepath.Join(dir, "result.json"), []byte(body), 0644); err != nil {
+		t.Fatalf("write result.json: %v", err)
+	}
+}
+
+func TestFleetStatsHandler_OKReturnsReport(t *testing.T) {
+	root := setupFleetTestProject(t)
+	taskDir := filepath.Join(root, ".ai", "tasks", "done", "FLEET-STATS-1")
+	if err := os.MkdirAll(taskDir, 0755); err != nil {
+		t.Fatalf("mkdir task dir: %v", err)
+	}
+	writeFleetStatsDispatchResult(t, taskDir, "d1", "agy", "model/a")
+
+	srv := &Server{projectRoot: root}
+	req := httptest.NewRequest(http.MethodGet, "/api/fleet/stats", nil)
+	w := httptest.NewRecorder()
+	srv.fleetStatsHandler(w, req)
+
+	res := w.Result()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %v", res.StatusCode)
+	}
+	if ct := res.Header.Get("Content-Type"); ct != "application/json" {
+		t.Fatalf("expected application/json content type, got %q", ct)
+	}
+	var report core.FleetStatsReport
+	if err := json.NewDecoder(res.Body).Decode(&report); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if report.GroupBy != core.FleetStatsGroupByCell || report.TotalRecords != 1 || len(report.Groups) != 1 {
+		t.Fatalf("unexpected report: %+v", report)
+	}
+	if report.Groups[0].Key != "agy/model/a" || report.Groups[0].N != 1 {
+		t.Fatalf("unexpected group: %+v", report.Groups[0])
+	}
+}
+
+func TestFleetStatsHandler_MethodNotAllowed(t *testing.T) {
+	root := setupFleetTestProject(t)
+	srv := &Server{projectRoot: root}
+	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodDelete} {
+		req := httptest.NewRequest(method, "/api/fleet/stats", nil)
+		w := httptest.NewRecorder()
+		srv.fleetStatsHandler(w, req)
+		if w.Result().StatusCode != http.StatusMethodNotAllowed {
+			t.Fatalf("method %s: expected 405, got %v", method, w.Result().StatusCode)
+		}
+	}
+}
+
+func TestFleetStatsHandler_503WhenNoProjectRoot(t *testing.T) {
+	srv := &Server{projectRoot: ""}
+	req := httptest.NewRequest(http.MethodGet, "/api/fleet/stats", nil)
+	w := httptest.NewRecorder()
+	srv.fleetStatsHandler(w, req)
+	if w.Result().StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %v", w.Result().StatusCode)
+	}
+}
+
 // TestFleetJSHasPollingNoWebSocket guards AC-4: fleet.js must poll via
 // setInterval and never reference WebSocket.
 func TestFleetJSHasPollingNoWebSocket(t *testing.T) {
