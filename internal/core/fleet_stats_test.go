@@ -15,10 +15,12 @@ func TestFleetStatsCompute(t *testing.T) {
 		{Agent: "opencode", Model: "model/b", Level: "1", Band: "M", OutcomeClass: "reroute", Cause: cause, DurationS: 30, UsageSource: "none"},
 		{Agent: "opencode", Model: "model/b", Level: "1", Band: "M", OutcomeClass: "blocked", DurationS: 40, UsageSource: "none"},
 		{Agent: "opencode", Model: "model/b", Level: "1", Band: "M", OutcomeClass: "attempt", Applied: true, Noop: true, DurationS: 50, UsageSource: "cli_reported"},
+		{Agent: "aider", Model: "model/c", Level: "2", Band: "L", OutcomeClass: "spawn_failed", Cause: "exec: no such file", DurationS: 1, UsageSource: "none"},
+		{Agent: "aider", Model: "model/c", Level: "2", Band: "L", OutcomeClass: "staging_failed", Cause: "git worktree add failed", DurationS: 2, UsageSource: "none"},
 	}
 
 	report := ComputeFleetStats(records, FleetStatsGroupByCell)
-	if report.GroupBy != FleetStatsGroupByCell || report.TotalRecords != 5 || len(report.Groups) != 2 {
+	if report.GroupBy != FleetStatsGroupByCell || report.TotalRecords != 7 || len(report.Groups) != 3 {
 		t.Fatalf("unexpected cell report: %+v", report)
 	}
 	agy := findFleetStatsGroup(t, report, "agy/model/a")
@@ -37,6 +39,16 @@ func TestFleetStatsCompute(t *testing.T) {
 	}
 	if !opencode.UsageMetricsAvailable {
 		t.Fatal("non-none usage source should mark usage metrics available")
+	}
+	// spawn_failed and staging_failed are infra-level dispatch failures (fleet_dispatch.go's
+	// outcome.class enum); both must land in Failure so N stays reconciled with the tally
+	// instead of silently vanishing from the reliability picture.
+	aider := findFleetStatsGroup(t, report, "aider/model/c")
+	if aider.N != 2 || aider.Success != 0 || aider.Failure != 2 {
+		t.Fatalf("unexpected aider counts for spawn_failed/staging_failed: %+v", aider)
+	}
+	if aider.SuccessRate != 0 {
+		t.Fatalf("unexpected aider success rate: %+v", aider)
 	}
 
 	byLevel := ComputeFleetStats(records, FleetStatsGroupByLevel)
@@ -123,6 +135,37 @@ func TestFleetStatsCollectDispatchRecords(t *testing.T) {
 
 	if _, err := CollectDispatchRecords(root, StatsFilter{Since: "not-a-date"}); err == nil {
 		t.Fatal("invalid since should return an error")
+	}
+}
+
+// TestFleetStatsCollectDispatchRecordsLeftoverRoutingDecisions covers the N>M
+// pairing direction: a task whose 07-trace.json carries more routing_decision
+// events than the task has dispatch/*/result.json records. The leftover
+// decisions must be discarded silently -- they must not affect the level/band
+// enrichment of the dispatch records that do exist.
+func TestFleetStatsCollectDispatchRecordsLeftoverRoutingDecisions(t *testing.T) {
+	root := t.TempDir()
+	taskDir := filepath.Join(root, ".ai", "tasks", "done", "LEFTOVER-1")
+	writeFleetStatsResult(t, filepath.Join(taskDir, "dispatch", "only-1", "result.json"), DispatchResult{
+		TaskID: "LEFTOVER-1", DispatchID: "only-1", Agent: "agy", Model: "model/a",
+		StartedAt: "2026-07-20T00:00:00Z", DurationS: 5, Outcome: DispatchOutcome{Class: "attempt"}, Applied: true,
+		Usage: DispatchUsage{Source: "none"},
+	})
+	writeFleetStatsTrace(t, taskDir, []map[string]any{
+		routingDecisionEvent("2026-07-20T00:00:00Z", 0, "S"),
+		routingDecisionEvent("2026-07-21T00:00:00Z", 1, "M"),
+		routingDecisionEvent("2026-07-22T00:00:00Z", 2, "L"),
+	})
+
+	records, err := CollectDispatchRecords(root, StatsFilter{})
+	if err != nil {
+		t.Fatalf("CollectDispatchRecords failed: %v", err)
+	}
+	if len(records) != 1 {
+		t.Fatalf("records len = %d, want 1: %+v", len(records), records)
+	}
+	if records[0].DispatchID != "only-1" || records[0].Level != "0" || records[0].Band != "S" {
+		t.Fatalf("sole dispatch should be enriched from the first chronological decision, unaffected by leftovers: %+v", records[0])
 	}
 }
 

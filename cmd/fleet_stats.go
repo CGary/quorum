@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 
@@ -76,14 +77,17 @@ func renderFleetStatsTable(w io.Writer, report core.FleetStatsReport) {
 		fmt.Fprintln(w, "no fleet dispatch records found")
 		return
 	}
-	fmt.Fprintf(w, "GROUP\tN\tSUCCESS\tFAILURE\tREROUTE\tBLOCKED\tNOOP\tTIMEOUT\tSUCCESS_RATE\tP50_S\tP95_S\tUSAGE\n")
+	// tabwriter aligns columns for human readability; --json remains the stable
+	// machine-parseable envelope and is unaffected by this formatting.
+	tw := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
+	fmt.Fprintf(tw, "GROUP\tN\tSUCCESS\tFAILURE\tREROUTE\tBLOCKED\tNOOP\tTIMEOUT\tSUCCESS_RATE\tP50_S\tP95_S\tUSAGE\n")
 	for _, group := range report.Groups {
 		usage := "unavailable"
 		if group.UsageMetricsAvailable {
 			usage = "available"
 		}
 		fmt.Fprintf(
-			w,
+			tw,
 			"%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%.2f\t%s\t%s\t%s\n",
 			group.Key,
 			group.N,
@@ -99,6 +103,7 @@ func renderFleetStatsTable(w io.Writer, report core.FleetStatsReport) {
 			usage,
 		)
 	}
+	tw.Flush()
 }
 
 func formatFleetStatsFloat(value *float64) string {

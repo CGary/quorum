@@ -137,7 +137,19 @@ func ComputeFleetStats(records []DispatchRecord, groupBy string) FleetStatsRepor
 			existing.Blocked++
 		case "noop":
 			existing.Noop++
+		case "spawn_failed", "staging_failed":
+			// Infra-level dispatch failures (process never spawned, or working-tree
+			// staging failed) never produce an "attempt" outcome, but they are still
+			// a failed dispatch: count them as Failure so N stays reconciled with
+			// Success+Failure+Reroute+Blocked+Noop instead of silently vanishing
+			// from the reliability picture this command exists to surface.
+			existing.Failure++
 		}
+		// Deliberate non-exclusive tagging (blueprint step 2): an attempt that is
+		// both unsuccessful (OutcomeClass "attempt" + !Applied, counted above as
+		// Failure) and a no-op result (record.Noop) is counted in both Failure and
+		// Noop. This double count is intentional, not a bug -- Noop answers "did
+		// this dispatch produce no diff" independently of whether it also failed.
 		if record.Noop && record.OutcomeClass != "noop" {
 			existing.Noop++
 		}
@@ -380,6 +392,10 @@ func fleetStatsGroupKey(record DispatchRecord, groupBy string) (string, FleetSta
 	}
 }
 
+// percentileNearestRank implements the nearest-rank percentile method: for a
+// pre-sorted ascending slice, it takes the value at rank ceil(p*n) (1-indexed),
+// clamped to [1, n]. This is a simple, deterministic method suited to the small
+// sample sizes fleet stats groups typically have; it is not linear interpolation.
 func percentileNearestRank(sorted []float64, p float64) float64 {
 	if len(sorted) == 0 {
 		return 0
