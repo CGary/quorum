@@ -429,6 +429,7 @@ Los IDs hijos usan un sufijo de una letra (`FEAT-001-a`, `FEAT-001-b`, ...). Los
 ```bash
 quorum task list              # resumen de todas las tareas y su estado
 quorum task status FEAT-001   # estado, artefactos, worktree, parent_task / decomposition / depends_on
+quorum doctor                 # diagnóstico read-only de fallos (soporta --json)
 ```
 
 ```text

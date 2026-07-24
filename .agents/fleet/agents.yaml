@@ -35,6 +35,7 @@ transports:
       # Verified in Fase 0a §2: rejection when the pinned model is unavailable
       # for the account's ChatGPT tier (attempt 1, ADR 0010 context).
       - model not supported when using Codex with a ChatGPT account
+      - You've hit your usage limit
     quota_class: subscription
     models:
       # provider is a closed-enum field (agents.schema.json): one of google,

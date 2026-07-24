@@ -55,6 +55,10 @@ quorum memory save
 quorum memory status
 quorum memory search <query>
 
+# Read-only diagnostic: 6 checks, exit 0 clean / 1 with findings (cmd/doctor.go, internal/core/doctor.go with CollectDoctorFacts as IO and EvaluateDoctor as pure logic)
+quorum doctor
+quorum doctor --json
+
 # Local CLI invocation
 ./quorum <command>           # e.g. ./quorum task list
 ```
