@@ -198,18 +198,50 @@ func TestFleetE2ERouteBundleDispatchBlocked(t *testing.T) {
 		t.Fatalf("Dispatch: %v", err)
 	}
 	if res.Outcome.Class != "blocked" || res.Outcome.Blocked == nil {
-		t.Fatalf("want a blocked outcome with a parsed signal, got %+v", res.Outcome)
+		t.Fatalf("want a blocked outcome with a parsed rich question, got %+v", res.Outcome)
 	}
-	want := BlockedSignal{Path: "cmd/new_helper.go", Reason: "needs a helper not in touch", Severity: "critical"}
-	if *res.Outcome.Blocked != want {
-		t.Fatalf("parsed blocked signal = %+v, want %+v", *res.Outcome.Blocked, want)
+	q := res.Outcome.Blocked
+	if q.Question == "" || len(q.Options) < 2 || len(q.Evidence) < 1 || q.OpenOption == "" {
+		t.Fatalf("parsed blocked question is not fully populated: %+v", *q)
+	}
+	for i, opt := range q.Options {
+		if opt.Consequence == "" {
+			t.Fatalf("blocked question option %d is missing a consequence: %+v", i, opt)
+		}
 	}
 	if n := countExecuteAttempts(t, env.taskDir); n != 0 {
 		t.Fatalf("blocked leg must append zero execute attempts, got %d", n)
 	}
-	types := eventTypesInTrace(loadTraceEvents(t, env.taskDir))
+	// AC-4: the blocked_question event carries the FULL rich payload, not the
+	// removed path/reason/severity triple. Dispatch persisting the trace through
+	// the schema-validated append-only SaveArtifact path already proves it
+	// validates against trace.schema.json.
+	events := loadTraceEvents(t, env.taskDir)
+	types := eventTypesInTrace(events)
 	if !containsStr(types, "blocked_question") {
 		t.Fatalf("trace events = %v, want blocked_question", types)
+	}
+	var sawRich bool
+	for _, e := range events {
+		if e["type"] != "blocked_question" {
+			continue
+		}
+		if q, _ := e["question"].(string); q == "" {
+			t.Fatalf("blocked_question event is missing the rich question field: %+v", e)
+		}
+		if _, ok := e["options"]; !ok {
+			t.Fatalf("blocked_question event is missing the rich options field: %+v", e)
+		}
+		if oo, _ := e["open_option"].(string); oo == "" {
+			t.Fatalf("blocked_question event is missing the rich open_option field: %+v", e)
+		}
+		if _, legacy := e["severity"]; legacy {
+			t.Fatalf("blocked_question event must not carry the removed legacy severity field: %+v", e)
+		}
+		sawRich = true
+	}
+	if !sawRich {
+		t.Fatal("expected a rich blocked_question event in the trace")
 	}
 }
 

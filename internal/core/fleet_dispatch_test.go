@@ -36,13 +36,19 @@ func resCause(res DispatchResult) string {
 }
 
 func TestFleetDispatchOutcomeClassification(t *testing.T) {
-	sig := &BlockedSignal{Path: "cmd/x.go", Reason: "needs helper", Severity: "critical"}
+	sig := &BlockedQuestion{
+		Question:   "add helper to touch?",
+		Evidence:   []string{"blueprint references cmd/x.go"},
+		Options:    []BlockedOption{{Label: "add", Consequence: "scope grows"}, {Label: "inline", Consequence: "duplication"}},
+		OpenOption: "or propose another path",
+	}
 	cases := []struct {
 		name, class, cause string
 		noop               bool
 		in                 classifyInput
 	}{
 		{"blocked", "blocked", "", false, classifyInput{diffEmpty: true, blocked: sig, outputParseOK: true}},
+		{"malformed-question", "attempt", "malformed_question", false, classifyInput{diffEmpty: true, blockedMalformed: true, outputParseOK: true}},
 		{"diff-attempt", "attempt", "", false, classifyInput{diffEmpty: false, outputParseOK: true}},
 		{"noop", "attempt", "", true, classifyInput{diffEmpty: true, notesEmpty: true, outputParseOK: true}},
 		{"quota", "reroute", "quota", false, classifyInput{diffEmpty: true, exitCode: 1, quotaMatched: true, outputParseOK: true}},
@@ -71,6 +77,8 @@ func TestFleetDispatchIntegrationOutcomes(t *testing.T) {
 		{"unparseable", "garbage", "jsonl", "reroute", "wrapper_broken", 30, false, false, false, false, true},
 		{"noop", "noop", "text", "attempt", "", 30, false, true, false, false, true},
 		{"failed-reset-with-diff", "diff_then_fail", "text", "attempt", "", 30, false, false, false, true, true},
+		{"malformed-question", "blocked_malformed", "text", "attempt", "malformed_question", 30, false, false, false, false, true},
+		{"legacy-blocked", "blocked_legacy", "text", "attempt", "malformed_question", 30, false, false, false, false, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -436,8 +444,8 @@ func TestFleetDispatchTraceTelemetry(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Dispatch: %v", err)
 		}
-		if res.Outcome.Class != "blocked" || res.Outcome.Blocked == nil || res.Outcome.Blocked.Severity != "critical" {
-			t.Fatalf("want blocked outcome with parsed signal, got %+v", res.Outcome)
+		if res.Outcome.Class != "blocked" || res.Outcome.Blocked == nil || res.Outcome.Blocked.Question == "" || len(res.Outcome.Blocked.Options) < 2 {
+			t.Fatalf("want blocked outcome with parsed rich question, got %+v", res.Outcome)
 		}
 		check(t, env.taskDir, []string{"blocked_question"}, 0)
 	})

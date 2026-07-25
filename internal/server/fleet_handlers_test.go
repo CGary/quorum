@@ -111,7 +111,7 @@ func blockedQuestionTerminalTrace(now time.Time) string {
   "context_overflows": [],
   "events": [
     {"type": "dispatch_started", "ts": "2026-07-20T10:01:00Z", "dispatch_id": "bbb222", "bundle_hash": "bbb"},
-    {"type": "blocked_question", "ts": "` + blockedTS + `", "dispatch_id": "bbb222", "path": "internal/core/foo.go", "reason": "missing helper", "severity": "critical"},
+    {"type": "blocked_question", "ts": "` + blockedTS + `", "dispatch_id": "bbb222", "question": "add internal/core/foo.go to touch?", "evidence": ["blueprint references it"], "options": [{"label": "add", "consequence": "scope grows"}, {"label": "inline", "consequence": "duplication"}], "recommendation": "add to touch", "open_option": "or propose another path"},
     {"type": "dispatch_finished", "ts": "` + blockedTS + `", "dispatch_id": "bbb222", "outcome_class": "blocked", "applied": false, "noop": false}
   ],
   "execution_mode": "worktree_edit",
@@ -128,9 +128,9 @@ const blockedThenAnsweredTrace = `{
   "context_overflows": [],
   "events": [
     {"type": "dispatch_started", "ts": "2026-07-20T10:01:00Z", "dispatch_id": "ccc333", "bundle_hash": "ccc"},
-    {"type": "blocked_question", "ts": "2026-07-20T10:02:00Z", "dispatch_id": "ccc333", "path": "x.go", "reason": "why", "severity": "minor"},
+    {"type": "blocked_question", "ts": "2026-07-20T10:02:00Z", "dispatch_id": "ccc333", "question": "why x.go?", "evidence": ["e"], "options": [{"label": "a", "consequence": "x"}, {"label": "b", "consequence": "y"}], "open_option": "or else"},
     {"type": "dispatch_finished", "ts": "2026-07-20T10:02:00Z", "dispatch_id": "ccc333", "outcome_class": "blocked", "applied": false, "noop": false},
-    {"type": "blocked_answer", "ts": "2026-07-20T10:03:00Z", "dispatch_id": "ccc333"}
+    {"type": "blocked_answer", "ts": "2026-07-20T10:03:00Z", "dispatch_id": "ccc333", "answer": "keep x.go inline", "answered_by": "human"}
   ],
   "execution_mode": "worktree_edit",
   "started_at": "2026-07-20T09:59:00Z",
@@ -233,7 +233,7 @@ func TestFleetBuildTaskDispatchView_BlockedQuestionTerminal(t *testing.T) {
 	if blocked == nil {
 		t.Fatal("expected a blocked record")
 	}
-	if blocked.Path != "internal/core/foo.go" || blocked.Severity != "critical" {
+	if blocked.Question != "add internal/core/foo.go to touch?" || blocked.Recommendation != "add to touch" {
 		t.Fatalf("unexpected blocked record: %+v", blocked)
 	}
 	if blocked.AgeSeconds < 20 || blocked.AgeSeconds > 60 {

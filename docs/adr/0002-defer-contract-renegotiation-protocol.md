@@ -38,3 +38,29 @@ Positive: F-02 enables data collection and parser compatibility without changing
 Negative: blocked implementations still require manual intervention until the deferred protocol is designed.
 
 Neutral: no new numbered artifact is introduced; telemetry remains inside `07-trace.json`.
+
+## Amendment (2026-07-24, FLEET-029): BLOCKED signal format changed, decision unchanged
+
+The delegate BLOCKED signal format migrated from the legacy single-line form
+
+```text
+BLOCKED: missing_file=<path>; reason=<text>; severity=<critical|minor>
+```
+
+to a schema-validated rich JSON question (a `BLOCKED:` marker followed by a JSON
+object with `question`, `attempted`, `discarded`, `evidence` (>=1), `options`
+(>=2, each with a non-empty `consequence`), an optional `recommendation`, and an
+always-present non-empty `open_option`). See `internal/core/blocked_signal.go`
+(`ParseBlockedSignal`, `BlockedQuestion`) and the documentary
+`.agents/schemas/blocked-question.schema.json`. There is no dual-format
+coexistence: an incomplete or legacy payload is reclassified as `attempt` with
+cause `malformed_question`, never `blocked`.
+
+This is a **format change only**. It does NOT reopen or reverse the decision to
+defer automated contract renegotiation. The Section 7 preconditions for v1.2
+still stand and are unmet. A `blocked_answer` (the reserved ADR 0011 trace event,
+appended by `core.AppendBlockedAnswer`) is **clarification only**: it records the
+human's decision append-only in `07-trace.json` and never mutates the contract's
+`touch`/`forbid`/`limits`. When a blocked answer would require changing contract
+scope, the path remains a human `quorum task back` plus re-blueprint, exactly as
+before.

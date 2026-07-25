@@ -9,10 +9,10 @@ import (
 const FleetDispatchResultSchemaVersion = "fleet-dispatch-result/v1"
 
 type DispatchOutcome struct {
-	Class   string         `json:"class"`
-	Noop    bool           `json:"noop"`
-	Cause   *string        `json:"cause"`
-	Blocked *BlockedSignal `json:"blocked"`
+	Class   string           `json:"class"`
+	Noop    bool             `json:"noop"`
+	Cause   *string          `json:"cause"`
+	Blocked *BlockedQuestion `json:"blocked"`
 }
 
 type DispatchDiffStat struct {

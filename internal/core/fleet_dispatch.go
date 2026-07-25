@@ -111,15 +111,23 @@ func Dispatch(spec DispatchSpec) (DispatchResult, error) {
 		msg := diffErr.Error()
 		outcome = classifiedOutcome{class: "staging_failed", cause: &msg}
 	} else {
-		var blockedSig *BlockedSignal
-		if bs, perr := ParseBlockedSignal(notesTrim); perr == nil {
-			blockedSig = bs
+		var blockedSig *BlockedQuestion
+		blockedMalformed := false
+		if bq, perr := ParseBlockedSignal(notesTrim); perr == nil {
+			blockedSig = bq
+		} else if hasBlockedMarker(notesTrim) {
+			// The delegate clearly attempted a BLOCKED question but the payload
+			// failed rich-schema validation (or is the legacy single-line form):
+			// asking badly costs an attempt (cause malformed_question), asking
+			// well is free. A missing marker is not a malformed question at all.
+			blockedMalformed = true
 		}
 		outcome = classifyOutcome(classifyInput{
 			exitCode: run.exitCode, timedOut: run.timedOut, killed: run.killed,
 			diffEmpty: diffStat.Empty, notesEmpty: notesTrim == "", blocked: blockedSig,
-			quotaMatched:  matchesAnySignature(run.output, spec.FailureSignatures),
-			outputParseOK: outputParses(spec.OutputFormat, run.output),
+			blockedMalformed: blockedMalformed,
+			quotaMatched:     matchesAnySignature(run.output, spec.FailureSignatures),
+			outputParseOK:    outputParses(spec.OutputFormat, run.output),
 		})
 	}
 	applied := diffErr == nil && outcome.class == "attempt" && run.exitCode == 0 && !run.timedOut && !run.killed && !diffStat.Empty
@@ -298,20 +306,21 @@ func exitCodeFrom(err error) int {
 }
 
 type classifyInput struct {
-	exitCode      int
-	timedOut      bool
-	killed        bool
-	diffEmpty     bool
-	notesEmpty    bool
-	blocked       *BlockedSignal
-	quotaMatched  bool
-	outputParseOK bool
+	exitCode         int
+	timedOut         bool
+	killed           bool
+	diffEmpty        bool
+	notesEmpty       bool
+	blocked          *BlockedQuestion
+	blockedMalformed bool
+	quotaMatched     bool
+	outputParseOK    bool
 }
 type classifiedOutcome struct {
 	class   string
 	noop    bool
 	cause   *string
-	blocked *BlockedSignal
+	blocked *BlockedQuestion
 }
 
 // classifyOutcome is a pure signal-based classifier with deterministic ADR 0011
@@ -319,10 +328,13 @@ type classifiedOutcome struct {
 func classifyOutcome(in classifyInput) classifiedOutcome {
 	cause := func(c string) classifiedOutcome { return classifiedOutcome{class: "reroute", cause: &c} }
 	switch {
-	case in.blocked != nil && in.diffEmpty: // parks the task; consumes nothing
+	case in.blocked != nil && in.diffEmpty: // valid rich question parks the task; consumes nothing
 		return classifiedOutcome{class: "blocked", blocked: in.blocked}
 	case !in.diffEmpty: // a diff is always an attempt, regardless of exit code
 		return classifiedOutcome{class: "attempt"}
+	case in.blockedMalformed: // attempted a question but it failed rich-schema validation
+		c := "malformed_question"
+		return classifiedOutcome{class: "attempt", cause: &c}
 	case in.exitCode == 0 && in.notesEmpty: // exit 0 + empty diff + empty notes
 		return classifiedOutcome{class: "attempt", noop: true}
 	case in.quotaMatched:
@@ -569,7 +581,20 @@ func appendDispatchTrace(spec DispatchSpec, res DispatchResult, outcome classifi
 	case "blocked":
 		ev := map[string]any{"type": "blocked_question", "ts": ts, "dispatch_id": spec.DispatchID}
 		if outcome.blocked != nil {
-			ev["path"], ev["reason"], ev["severity"] = outcome.blocked.Path, outcome.blocked.Reason, outcome.blocked.Severity
+			q := outcome.blocked
+			ev["question"] = q.Question
+			ev["attempted"] = q.Attempted
+			ev["discarded"] = q.Discarded
+			ev["evidence"] = q.Evidence
+			opts := make([]map[string]any, 0, len(q.Options))
+			for _, o := range q.Options {
+				opts = append(opts, map[string]any{"label": o.Label, "consequence": o.Consequence})
+			}
+			ev["options"] = opts
+			if q.Recommendation != "" {
+				ev["recommendation"] = q.Recommendation
+			}
+			ev["open_option"] = q.OpenOption
 		}
 		events = append(events, ev)
 	}

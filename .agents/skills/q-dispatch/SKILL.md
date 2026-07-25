@@ -151,8 +151,10 @@ Build the stdin JSON for `quorum fleet dispatch`:
 ```
 
 `timeout_s` is optional. This writes `dispatch/<dispatch_id>/result.json`. Parse `outcome.class`,
-`outcome.noop`, `outcome.cause`, `outcome.blocked {path, reason, severity}`, `diff`,
-`forensic_ref`, `applied`.
+`outcome.noop`, `outcome.cause`, `outcome.blocked {question, attempted[], discarded[], evidence[],
+options[] (each {label, consequence}), recommendation, open_option}`, `diff`, `forensic_ref`,
+`applied`. The `outcome.blocked` payload is the FLEET-029 rich question schema; the legacy
+`path`/`reason`/`severity` triple no longer exists.
 
 ## 8. ADR 0011 Outcome Handling
 
@@ -161,7 +163,10 @@ per `docs/adr/0011-attempt-reroute-blocked-trace.md`:
 
 - `outcome.class == "attempt"`, `applied == true`, `diff.empty == false` -> **attempt_done**.
 - `outcome.class == "attempt"`, `diff.empty == true`, `outcome.noop == true` -> **noop**.
-- `outcome.class == "attempt"`, `diff.empty == true`, `outcome.noop == false` -> **attempt_failed**.
+- `outcome.class == "attempt"`, `diff.empty == true`, `outcome.noop == false` -> **attempt_failed**
+  (when `outcome.cause == "malformed_question"`, the delegate tried to ask a BLOCKED question but
+  the payload failed the rich schema or used the removed legacy single-line form: asking badly cost
+  an attempt).
 - `outcome.class == "reroute"` -> **reroute** (cause is `quota_red`/`timeout`/`wrapper_broken`).
 - `outcome.class == "blocked"` -> **blocked**.
 
@@ -213,21 +218,24 @@ with the step 3 no-viable-candidate message (informational, no wait indicator).
 
 ### blocked (rich Spanish question)
 
-Format `outcome.blocked {path, reason, severity}` as a rich question: context, evidence,
-consequential options, a recommendation, and an open option, ending in the mandatory indicator:
+The delegate already produced a schema-validated rich question in `outcome.blocked`. Render its OWN
+fields in Spanish — question, evidence entries, the delegate's options with their consequences, its
+recommendation (if present), and its always-present open option — ending in the mandatory indicator.
+Do NOT invent options or fabricate a path/severity; surface what the delegate actually asked:
 
 ```text
 === Dispatch: BLOCKED ===
 
-Contexto: el delegate emitió una señal BLOCKED y quedó a la espera de una decisión humana.
-Evidencia: path=<outcome.blocked.path> reason=<outcome.blocked.reason> severity=<outcome.blocked.severity>
+Contexto: el delegate emitió una pregunta BLOCKED estructurada y quedó a la espera de una decisión humana.
+Pregunta: <outcome.blocked.question>
+Evidencia: <una línea por cada entrada de outcome.blocked.evidence>
 
-Opciones (con consecuencias):
-1. Resolver lo señalado y re-despachar /q-dispatch <TASK_ID> — retoma el ciclo desde route.
-2. Renegociar el contrato con /q-blueprint <TASK_ID> — si <path> está fuera de touch/read.
-3. Implementar manualmente con /q-implement <TASK_ID> — si el bloqueo es de diseño, no de contrato.
-Recomendación: <opción sugerida según severity: critical -> 2; minor -> 1>
-Otra opción: contame qué preferís si ninguna de las anteriores encaja.
+Opciones (con consecuencias, tal como las propuso el delegate):
+1. <outcome.blocked.options[0].label> — <outcome.blocked.options[0].consequence>
+2. <outcome.blocked.options[1].label> — <outcome.blocked.options[1].consequence>
+(...una línea numerada por cada opción restante de outcome.blocked.options...)
+Recomendación del delegate: <outcome.blocked.recommendation; omitir la línea si viene vacía>
+Otra opción: <outcome.blocked.open_option> — o contame qué preferís si nada de lo anterior encaja.
 
 ESPERANDO RESPUESTA DEL USUARIO...
 ```

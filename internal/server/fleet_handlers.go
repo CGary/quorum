@@ -219,14 +219,15 @@ type inFlightRecord struct {
 	AgeSeconds float64 `json:"age_seconds"`
 }
 
-// blockedRecord is a task parked on an unanswered blocked_question event.
+// blockedRecord is a task parked on an unanswered blocked_question event. It
+// surfaces the rich question payload (FLEET-029): the delegate's decidable
+// question and its recommendation, not the removed path/reason/severity triple.
 type blockedRecord struct {
-	TaskID     string  `json:"task_id"`
-	Path       string  `json:"path,omitempty"`
-	Reason     string  `json:"reason,omitempty"`
-	Severity   string  `json:"severity,omitempty"`
-	At         string  `json:"at,omitempty"`
-	AgeSeconds float64 `json:"age_seconds"`
+	TaskID         string  `json:"task_id"`
+	Question       string  `json:"question,omitempty"`
+	Recommendation string  `json:"recommendation,omitempty"`
+	At             string  `json:"at,omitempty"`
+	AgeSeconds     float64 `json:"age_seconds"`
 }
 
 // fleetDispatchesResponse is the aggregate payload for /api/fleet/dispatches.
@@ -243,10 +244,9 @@ type pendingDispatch struct {
 }
 
 type pendingBlocked struct {
-	ts       string
-	path     string
-	reason   string
-	severity string
+	ts             string
+	question       string
+	recommendation string
 }
 
 // buildTaskDispatchView is the pure, table-testable core of the dispatches
@@ -308,11 +308,10 @@ func buildTaskDispatchView(taskID string, trace map[string]any, now time.Time) (
 				attemptClassIdx = append(attemptClassIdx, len(dispatches)-1)
 			}
 		case "blocked_question":
-			path, _ := ev["path"].(string)
-			reason, _ := ev["reason"].(string)
-			severity, _ := ev["severity"].(string)
+			question, _ := ev["question"].(string)
+			recommendation, _ := ev["recommendation"].(string)
 			ts, _ := ev["ts"].(string)
-			pendingBlk = &pendingBlocked{ts: ts, path: path, reason: reason, severity: severity}
+			pendingBlk = &pendingBlocked{ts: ts, question: question, recommendation: recommendation}
 		case "blocked_answer":
 			pendingBlk = nil
 		}
@@ -382,12 +381,11 @@ func buildTaskDispatchView(taskID string, trace map[string]any, now time.Time) (
 			age = now.Sub(parsed).Seconds()
 		}
 		blocked = &blockedRecord{
-			TaskID:     taskID,
-			Path:       pendingBlk.path,
-			Reason:     pendingBlk.reason,
-			Severity:   pendingBlk.severity,
-			At:         pendingBlk.ts,
-			AgeSeconds: age,
+			TaskID:         taskID,
+			Question:       pendingBlk.question,
+			Recommendation: pendingBlk.recommendation,
+			At:             pendingBlk.ts,
+			AgeSeconds:     age,
 		}
 	}
 

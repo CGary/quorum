@@ -67,6 +67,12 @@ Use this state machine:
 - In `active/` with `00-spec.yaml` but no `01-blueprint.yaml`/`02-contract.yaml` → if it is a parent or standalone task (no `parent_task`), use `/q-decompose <ID>` if the scope may be large, otherwise `/q-blueprint <ID>`. If it is a child task (has `parent_task`), ALWAYS use `/q-blueprint <ID>` and omit `/q-decompose`.
 - Has `01-blueprint.yaml` and `02-contract.yaml` but no worktree → normally `/q-blueprint` should have auto-run `quorum task start`; recommend re-dispatching `/q-blueprint <ID>` or manually running `quorum task start <ID>` only as repair.
 - Active with contract and worktree but no implementation log → use `/q-implement`.
+- Parked on an unanswered blocked question: `07-trace.json` `events[]` has a `blocked_question`
+  with no later `blocked_answer` for the same `dispatch_id` → the task is waiting on a HUMAN
+  decision, not on a phase. Highlight it prominently, surface the `question`/`options`/`recommendation`
+  from the latest `blocked_question` event, and note the next step is a human answer (recorded via
+  `core.AppendBlockedAnswer`) or `quorum task back <ID>`. There is no TTL and no auto-transition:
+  a blocked task stays parked until a human acts.
 - Has implementation but no validation → use `/q-verify`.
 - Has passing validation but no review → use `/q-review`.
 - Has approved review → use `/q-accept` for human merge readiness.

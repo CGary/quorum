@@ -114,8 +114,11 @@ func TestBuildBundleManifestShape(t *testing.T) {
 	if bundle.Manifest.CreatedAt != "2026-01-01T00:00:00Z" {
 		t.Fatalf("created_at = %q, want 2026-01-01T00:00:00Z", bundle.Manifest.CreatedAt)
 	}
-	if !strings.Contains(bundle.Prompt, "BLOCKED: missing_file=") {
-		t.Fatal("bundle prompt is missing the standardized BLOCKED signal template")
+	if !strings.Contains(bundle.Prompt, "BLOCKED:") || !strings.Contains(bundle.Prompt, `"open_option"`) {
+		t.Fatal("bundle prompt is missing the standardized rich BLOCKED question template")
+	}
+	if strings.Contains(bundle.Prompt, "missing_file=") {
+		t.Fatal("bundle prompt must not teach the removed legacy single-line BLOCKED format")
 	}
 	if !strings.Contains(bundle.Prompt, "NOTES:") {
 		t.Fatal("bundle prompt is missing the delimited NOTES block")
@@ -135,8 +138,10 @@ func TestBuildBundleDeterministicTruncation(t *testing.T) {
 
 	// Force truncation down to a budget that fits only the protocol header
 	// and the contract, forcing every slice, the blueprint, and the spec to
-	// drop, while the contract survives.
-	tiny, err := BuildBundle(input, 1050, "2026-01-01T00:00:00Z")
+	// drop, while the contract survives. The budget sits between the
+	// protocol+contract size and the protocol+contract+spec size for the v2
+	// rich-question protocol block.
+	tiny, err := BuildBundle(input, 2160, "2026-01-01T00:00:00Z")
 	if err != nil {
 		t.Fatalf("BuildBundle tiny: %v", err)
 	}

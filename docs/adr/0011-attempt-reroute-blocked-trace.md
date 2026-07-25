@@ -131,3 +131,29 @@ Rules, mirroring the reasoning already established for `staging_failed`:
 - **Orchestrator contract: surface to human, retry is human/orchestrator-initiated.** Defers the next action to a human/orchestrator.
 
 No `trace.schema.json` change is required or permitted; `events[]` (`additionalProperties: true`) already accommodates the new class.
+
+## Amendment (2026-07-24, FLEET-029): enriched `blocked_question` payload and the `blocked_answer` append primitive
+
+The `blocked_question` event now carries the full schema-validated rich question
+instead of the removed `path`/`reason`/`severity` triple: `question`,
+`attempted`, `discarded`, `evidence` (>=1), `options` (>=2, each with a non-empty
+`consequence`), an optional `recommendation`, and an always-present non-empty
+`open_option`. Only a payload that passes native Go validation
+(`internal/core/blocked_signal.go`, `BlockedQuestion.Validate`) classifies as
+`blocked`; an incomplete or legacy single-line payload is reclassified as class
+`attempt` with cause `malformed_question` (it consumes a contract attempt —
+asking badly costs an attempt, asking well is free). This introduces no new
+event type: `blocked_question` and `blocked_answer` were already reserved by the
+closed vocabulary above.
+
+`blocked_answer` is now actually emitted by a pure Application Service,
+`core.AppendBlockedAnswer(taskDir, dispatchID, answer, answeredBy)`, which
+appends exactly one `blocked_answer` event through the same append-only,
+schema-validated `SaveArtifact` path (`EnsureTraceAppendOnly` guarantees prior
+`attempts[]`/`events[]` are never rewritten or shortened). It is clarification
+only and never mutates contract scope (see ADR 0002's FLEET-029 amendment). No
+`trace.schema.json` change is required or permitted; the enriched fields ride the
+existing `events[]` `additionalProperties: true` shape, exactly as the reroute and
+blocked causes already do. There is deliberately no new CLI subcommand, no TTL or
+time-based auto-transition for a parked blocked task, and no new numbered
+lifecycle artifact.

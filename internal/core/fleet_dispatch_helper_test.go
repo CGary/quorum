@@ -64,6 +64,18 @@ func runFakeDelegate(mode string) int {
 		fmt.Println("boom: model not supported when using Codex with a ChatGPT account")
 		return 1
 	case "blocked":
+		fmt.Println("BLOCKED:")
+		fmt.Println(`{"question":"Add cmd/new_helper.go to touch?","attempted":["searched for an existing helper"],"discarded":["inlining: duplicates logic"],"evidence":["blueprint references cmd/new_helper.go but it is absent from touch"],"options":[{"label":"add to touch","consequence":"expands contract scope; needs human approval"},{"label":"inline helper","consequence":"keeps scope but duplicates logic"}],"recommendation":"add to touch","open_option":"suggest another path if neither fits"}`)
+		return 0
+	case "blocked_malformed":
+		// Attempted a BLOCKED question but omitted evidence and has only one
+		// option: must classify as attempt/malformed_question, never blocked.
+		fmt.Println("BLOCKED:")
+		fmt.Println(`{"question":"Add cmd/new_helper.go to touch?","options":[{"label":"add to touch","consequence":"expands scope"}],"open_option":"tell me what you prefer"}`)
+		return 0
+	case "blocked_legacy":
+		// The removed legacy single-line form: carries the BLOCKED marker but is
+		// not a JSON object, so it is malformed_question, never blocked.
 		fmt.Println("BLOCKED: missing_file=cmd/new_helper.go; reason=needs a helper not in touch; severity=critical")
 		return 0
 	case "timeout_sleep":
