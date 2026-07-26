@@ -69,7 +69,12 @@ var reportNewCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		id := args[0]
-		
+
+		if err := core.ValidateReportID(id); err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
+
 		projectRoot, err := core.ProjectRoot()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error locating project root: %v\n", err)
@@ -102,6 +107,11 @@ var reportSaveCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		id := args[0]
+
+		if err := core.ValidateReportID(id); err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
 
 		projectRoot, err := core.ProjectRoot()
 		if err != nil {
