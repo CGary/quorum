@@ -35,7 +35,13 @@ transports:
       # Verified in Fase 0a §2: rejection when the pinned model is unavailable
       # for the account's ChatGPT tier (attempt 1, ADR 0010 context).
       - model not supported when using Codex with a ChatGPT account
+      # Verified 2026-07 (quota exhaustion captured on a real session; see
+      # commit d01c650): codex free-tier limit reached.
       - You've hit your usage limit
+      # PROVISIONAL (FLEET-006-b): unverified. No Fase-0a session captured a
+      # real logged-out/session-expired response yet; this phrasing is a
+      # best-effort guess pending a real captured session.
+      - not authenticated
     quota_class: subscription
     models:
       # provider is a closed-enum field (agents.schema.json): one of google,
