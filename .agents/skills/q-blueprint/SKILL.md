@@ -142,7 +142,7 @@ stay tight, use `limits.per_class` (see the template and
 
 ### Phase 4: Risk Scoring (Advisory)
 
-After generating `01-blueprint.yaml`, invoke the risk scorer to suggest a level:
+After generating `01-blueprint.yaml`, invoke the risk scorer to suggest a level (when the stdin request has no policy field, the tool default-loads `.agents/policies/risk.yaml` from the project root; an explicit stdin policy overrides this default):
 
 ```bash
 cat << 'EOF' | quorum analyze risk-score

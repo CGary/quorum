@@ -3,9 +3,11 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"quorum/internal/core"
 
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 )
 
 type AnalyzeRiskScoreRequest struct {
@@ -32,6 +34,12 @@ var analyzeRiskScoreCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
+		if req.Policy.SensitivePaths == nil {
+			if root, err := core.ProjectRoot(); err == nil {
+				req.Policy = loadDefaultRiskPolicy(root)
+			}
+		}
+
 		result := core.AssignRiskLevel(req.Blueprint, req.Policy)
 		traceEvents := core.BuildRiskTraceEvents(req.DeclaredRisk, result)
 
@@ -51,4 +59,17 @@ var analyzeRiskScoreCmd = &cobra.Command{
 
 func init() {
 	analyzeCmd.AddCommand(analyzeRiskScoreCmd)
+}
+
+func loadDefaultRiskPolicy(projectRoot string) core.RiskPolicy {
+	filePath := filepath.Join(projectRoot, ".agents", "policies", "risk.yaml")
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return core.RiskPolicy{}
+	}
+	var policy core.RiskPolicy
+	if err := yaml.Unmarshal(data, &policy); err != nil {
+		return core.RiskPolicy{}
+	}
+	return policy
 }
