@@ -221,12 +221,12 @@ There is **no `03`, `08`, `09`, or `10`**. The manifesto rejects new lifecycle s
 
 ### Where state actually changes
 
-`internal/core/task_manager.go` owns nearly all state mutations and is the first place to inspect when task state changes unexpectedly. The CLI commands (`cmd/task*.go`, `cmd/init.go`) are thin shims. When in doubt, read `task_manager.go` first.
+Task state mutation logic lives in the `internal/core/task_manager.go` family — since the store refactor it is split across `task_manager.go` (resolution, IDs, project root), `task_store.go`/`task_transition.go`/`task_query.go` (persistence, state moves, queries), and `artifact.go` (artifact writes). `task_manager.go` is still the first place to inspect when task state changes unexpectedly. The CLI commands (`cmd/task*.go`, `cmd/init.go`) are thin shims.
 
 Important invariants enforced there (Go identifiers, grep-able as written):
 
-- **`SaveArtifact()` validates before writing.** Any `task artifact-save` (or skill that persists via this path) is schema-checked before the file is written. The validation engine itself lives in `internal/core/schema.go` (`ValidateArtifact`, keyed by `artifactSchemaMap`); `SaveArtifact` in `task_manager.go` only orchestrates the write. Failure raises `ArtifactValidationError` with a `field=$.path; reason=...` format (Python-compatible messages built by `pythonReason`/`jsonPointer` in `schema.go`).
-- **`07-trace.json` is append-only.** `EnsureTraceAppendOnly()` rejects any save that shortens or rewrites existing `attempts[]` or `events[]`. New attempts/events are appended by persisting the grown payload through `SaveArtifact` — there is no separate append helper. A delegated `q-implement` dispatch is recorded in `attempts[]` with `phase: "execute"` (see `docs/adr/0011-attempt-reroute-blocked-trace.md`).
+- **`SaveArtifact()` validates before writing.** Any `task artifact-save` (or skill that persists via this path) is schema-checked before the file is written. The validation engine itself lives in `internal/core/schema.go` (`ValidateArtifact`, keyed by `artifactSchemaMap`); `SaveArtifact` in `internal/core/artifact.go` (plus the `TaskStore.SaveArtifact` wrapper in `task_store.go`) only orchestrates the write. Failure raises `ArtifactValidationError` with a `field=$.path; reason=...` format (Python-compatible messages built by `pythonReason`/`jsonPointer` in `schema.go`).
+- **`07-trace.json` is append-only.** `EnsureTraceAppendOnly()` (`artifact.go`) rejects any save that shortens or rewrites existing `attempts[]` or `events[]`. New attempts/events are appended by persisting the grown payload through `SaveArtifact` — there is no separate append helper. A delegated `q-implement` dispatch is recorded in `attempts[]` with `phase: "execute"` (see `docs/adr/0011-attempt-reroute-blocked-trace.md`).
 - **`FindTaskDir()` resolves IDs in three priority tiers**: (1) `task_id` field inside `00-spec.yaml`, (2) exact directory name, (3) `<ID>-` prefix match. The third tier explicitly skips child-suffix-shaped names (e.g. `FEAT-001` will NOT match `FEAT-001-a-foo`) so parent and child IDs do not collide. Multiple matches abort with `AMBIGUITY ERROR`.
 - **`ProjectRoot()` is dynamic.** It calls `git rev-parse --show-toplevel` and then falls back to walking upward for `.git`, so the same code works from a worktree subdirectory or a cwd that's not the repo root.
 - **Schema lookup and init resources are separate concerns.** `SchemasDir()` first honors `QUORUM_SCHEMAS_DIR`, then searches the project root/current working directory and their ancestors for `.agents/schemas`. `quorum init` resources are resolved by `getResourceSrc()` from a usable `.agents` bundle near the project root, binary, source tree, or fallback project root.
@@ -254,7 +254,7 @@ If you find a skill that auto-chains into another skill or runs `back`, that is 
 
 ### Decomposition: parents and children
 
-A large feature can be split via `/q-decompose`, which writes a `decomposition: [...]` block into the parent's `00-spec.yaml`. `quorum task split <PARENT>` then materialises children with IDs `<PARENT>-a`, `<PARENT>-b`, ... (single lowercase letter — pattern enforced by `CHILD_ID_RE`/`PARENT_ID_RE` in `task_manager.go`).
+A large feature can be split via `/q-decompose`, which writes a `decomposition: [...]` block into the parent's `00-spec.yaml`. `quorum task split <PARENT>` then materialises children with IDs `<PARENT>-a`, `<PARENT>-b`, ... (single lowercase letter — pattern enforced by `parentIDRE` and `isChildSuffixRest` in `task_manager.go`).
 
 - The parent stays in `active/` as a coordinator and is never implemented directly.
 - Each child runs its own complete lifecycle, in its own worktree (`ai/<PARENT>-<x>` branch), and merges to `main` independently.
