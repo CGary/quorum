@@ -1,6 +1,6 @@
 # Patrón propuesto: `ReportService`
 
-**Estado:** Idea de refactorización.
+**Estado:** Implementada (RPT-008, 2026-07-26, commits c7ff06d + b952813): ReportService extraído a internal/core/report_service.go con tests; cmd/report.go reducido a shims. Archivada.
 **Prioridad:** Media.
 **Tipo:** Service layer para separar CLI de lógica de negocio.
 **Alcance inicial:** `cmd/report.go` y funciones relacionadas en `internal/core/report.go`.
