@@ -24,7 +24,7 @@ con `git mv` preservando historia y cada doc lleva un banner de estado). Este í
 | 09 — contract-checker | ✅ archivada | `docs/archive/fleet/09-contract-checker.md` |
 | 10 — Fase 0 medición (gate G1) | ✅ archivada | `docs/archive/fleet/10-fase-0-medicion.md` |
 | 11 — kill-switch + semáforo | ✅ archivada | `docs/archive/fleet/11-kill-switch-semaforo.md` |
-| 12 — protocolo BLOCKED pregunta rica | ⏳ parcial | se queda en `ideas/fleet/12-protocolo-blocked-pregunta-rica.md` (banner de estado en el doc) |
+| 12 — protocolo BLOCKED pregunta rica | ✅ archivada | `docs/archive/fleet/12-protocolo-blocked-pregunta-rica.md` |
 | 13 — router `fleet route` | ✅ archivada | `docs/archive/fleet/13-fleet-route.md` |
 | 14 — skill `/q-dispatch` | ✅ archivada | `docs/archive/fleet/14-skill-q-dispatch.md` |
 | 15 — `quorum serve` dashboard | ✅ archivada | `docs/archive/fleet/15-quorum-serve-dashboard.md` |
