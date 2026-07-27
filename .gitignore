@@ -31,6 +31,7 @@ wheels/
 worktrees/
 .ai/runtime/*
 !.ai/runtime/.gitkeep
+.ai/fleet-control.json
 .ai/tasks/active/*
 .ai/tasks/done/*
 .ai/tasks/failed/*
