@@ -1,5 +1,7 @@
 # Handoff — Skill `fleet-delegate` (sesión 2026-07-15/16)
 
+> **ARCHIVADO (2026-07-27).** Handoff de sesión ya cumplido: el skill `fleet-delegate` existe y está activo en `~/.claude/skills/fleet-delegate/`. Se conserva como registro histórico; antes vivía en `docs/handoffs/`.
+
 ## Objetivo
 
 Crear un skill global de Claude Code que delegue tareas a agentes externos vía

@@ -1,5 +1,7 @@
 # Política de uso de Aider para ahorro de tokens en tareas de desarrollo
 
+> Política viva. Ubicada antes en `ideas/aider.md`; movida a `docs/` el 2026-07-27 porque es normativa activa, no una propuesta diferida.
+
 ## 1. Objetivo
 
 Este documento define en qué situaciones debe usarse Aider como herramienta auxiliar para reducir consumo de tokens y costo operativo en tareas de desarrollo de software.
