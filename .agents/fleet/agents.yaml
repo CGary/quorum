@@ -156,15 +156,6 @@ transports:
       # Exact strings from legacy `agy models` output (Fase 0a §3), joined by canonical
       # provider/model name. agy now emits slugs, but display names are still accepted.
       # GPT-OSS 120B only ships a single effort tier.
-      google/gemini-3.6-flash-low:
-        provider: google
-        model_arg: Gemini 3.6 Flash (Low)
-      google/gemini-3.6-flash-medium:
-        provider: google
-        model_arg: Gemini 3.6 Flash (Medium)
-      google/gemini-3.6-flash-high:
-        provider: google
-        model_arg: Gemini 3.6 Flash (High)
       google/gemini-3.5-flash-low:
         provider: google
         model_arg: Gemini 3.5 Flash (Low)
@@ -195,6 +186,43 @@ transports:
       anthropic/claude-opus-4-6:
         provider: anthropic
         model_arg: Claude Opus 4.6 (Thinking)
+    contract_test: .agents/fleet/contract_tests/agy.yaml
+    active: true
+
+  agy_edit:
+    # Agentic-editing variant of agy: accepts edits, skips permissions, runs in
+    # sandbox with working-dir access. Same binary, prompt-pointer channel, and
+    # timeouts as base agy; argv augmented per FLEET-020.
+    binary: agy
+    argv_template:
+      - --model
+      - "{model_arg}"
+      - --mode
+      - accept-edits
+      - --dangerously-skip-permissions
+      - --sandbox
+      - --add-dir
+      - "{cwd}"
+      - --print-timeout
+      - "{print_timeout}"
+      - --print
+      - "{prompt}"
+    input_channel: prompt_pointer
+    output_format: text
+    timeouts:
+      default_s: 300
+    failure_signatures: []
+    quota_class: subscription
+    models:
+      google/gemini-3.6-flash-low:
+        provider: google
+        model_arg: Gemini 3.6 Flash (Low)
+      google/gemini-3.6-flash-medium:
+        provider: google
+        model_arg: Gemini 3.6 Flash (Medium)
+      google/gemini-3.6-flash-high:
+        provider: google
+        model_arg: Gemini 3.6 Flash (High)
     contract_test: .agents/fleet/contract_tests/agy.yaml
     active: true
 

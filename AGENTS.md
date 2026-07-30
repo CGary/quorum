@@ -142,14 +142,19 @@ decides routing itself, never auto-chains into another `/q-*` skill, and never c
 `quorum task back`.
 
 The ratified G1 cell set (see `.agents/config.yaml.levels[0]` and
-`.agents/policies/routing.yaml`) pins `agy` on `google/gemini-3.6-flash-low` (migrated from
-`gemini-3.5-flash-low` by FLEET-030; the 3.5 cells stay exposed in the `agy` transport for
-`fleet run` and rollback) as the primary cheap cell for level 0 (`low` risk / `S` band), with `opencode`-backed
-`nvidia/nemotron-3-ultra-550b-a55b-free` and `poolside/laguna-m.1-free` as $0 OpenRouter
-cross-provider secondaries; on reroute after an `agy` failure, the level-0 enumeration yields a
-cross-provider free cell first (`nemotron`/`laguna` via `opencode`), with `agy`'s
+`.agents/policies/routing.yaml`) pins `agy_edit` on `google/gemini-3.6-flash-low` as the primary
+cheap cell for level 0 (`low` risk / `S` band). `agy_edit` (2026-07-30) is the agentic-editing
+variant of the `agy` transport: same binary, argv adds `--mode accept-edits
+--dangerously-skip-permissions --sandbox --add-dir {cwd}` so the delegate edits the worktree in
+place (`--sandbox` WITHOUT `--add-dir` silently redirects writes to
+`~/.gemini/antigravity-cli/scratch/` — never ship it alone). The gemini-3.6-flash trio lives ONLY
+on `agy_edit`; base `agy` keeps the 3.5/3.1/sonnet/opus/gpt-oss cells for one-shot `--print`
+review/analysis and rollback (3.5 cells migrated from level 0 by FLEET-030). Secondaries:
+`opencode`-backed `nvidia/nemotron-3-ultra-550b-a55b-free` and `poolside/laguna-m.1-free` as $0
+OpenRouter cross-provider cells; on reroute after an `agy_edit` failure, the level-0 enumeration
+yields a cross-provider free cell first (`nemotron`/`laguna` via `opencode`), with `agy`'s
 `openai/gpt-oss-120b` fallback as a later candidate; `aider` stays restricted to mechanical
-single-file changes and sits mid-order (`[agy, opencode, aider, codex, claude]`) in
+single-file changes and sits mid-order (`[agy_edit, agy, opencode, aider, codex, claude]`) in
 `fleet_transport_order`. This cell set is expressed only as policy data (`config.yaml`,
 `routing.yaml`, `agents.yaml`); `core.Route` never hardcodes any of it.
 

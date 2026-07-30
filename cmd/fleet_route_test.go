@@ -301,7 +301,8 @@ func TestFleetRouteTraceAppend(t *testing.T) {
 }
 
 // TestFleetRouteRealPolicyFilesG1Cell is AC-5: against the REAL repo policy
-// files, phase=implement/risk=low/band=S resolves to agy + the level-0 primary
+// files, phase=implement/risk=low/band=S resolves to agy_edit (the agentic
+// editing variant, FLEET-031) + the level-0 primary
 // declared in config.yaml, and none of the G1 cell-set model-name literals
 // (read from config, never embedded here) appears in any cmd/ or internal/ .go
 // source.
@@ -321,8 +322,8 @@ func TestFleetRouteRealPolicyFilesG1Cell(t *testing.T) {
 	if res.Candidate == nil {
 		t.Fatalf("want a candidate, got blocked=%q reasons=%v", res.Blocked, res.Reasons)
 	}
-	if res.Candidate.Agent != "agy" {
-		t.Errorf("agent: got %q want agy", res.Candidate.Agent)
+	if res.Candidate.Agent != "agy_edit" {
+		t.Errorf("agent: got %q want agy_edit", res.Candidate.Agent)
 	}
 	if res.Candidate.Model != primary {
 		t.Errorf("model: got %q want level-0 primary %q", res.Candidate.Model, primary)

@@ -61,12 +61,15 @@ policies:
   human_merges: true
   # Deterministic transport preference order consumed by `quorum fleet route`
   # when building the ordered candidate transport slice. Expresses the
-  # cross-provider reroute preference as DATA (not Go): agy first (primary cheap
-  # cell's own transport), opencode before aider (cross-provider before the
+  # cross-provider reroute preference as DATA (not Go): agy_edit first so the
+  # gemini-3.6-flash models it exposes resolve to the agentic-editing variant
+  # (agy stays next and keeps owning every other gemini model for one-shot
+  # review/analysis), opencode before aider (cross-provider before the
   # mechanical-single-file fallback), then codex (reactivated 2026-07-22 on
   # finite free-tier credits) and claude (inactive) last.
   # A transport absent from this list is unreachable via `fleet route`.
   fleet_transport_order:
+    - agy_edit
     - agy
     - opencode
     - aider
