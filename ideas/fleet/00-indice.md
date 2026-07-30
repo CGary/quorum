@@ -30,7 +30,7 @@ con `git mv` preservando historia y cada doc lleva un banner de estado). Este í
 | 15 — `quorum serve` dashboard | ✅ archivada | `docs/archive/fleet/15-quorum-serve-dashboard.md` |
 | 16 — horizonte gated | 🚧 diferida | se queda en `ideas/fleet/16-horizonte-gated.md` (propuesta viva, no implementar sin sus condiciones) |
 | 17 — adapter aider | ✅ archivada | `docs/archive/fleet/17-adapter-aider.md` |
-| 18 — baja codex + modelos agy 3.6 | 📋 pendiente | `ideas/fleet/18-baja-codex-y-modelos-agy-3.6.md` (insumo de tarea, 2026-07-30) |
+| 18 — baja codex + modelos agy 3.6 | ✅ archivada | `docs/archive/fleet/18-baja-codex-y-modelos-agy-3.6.md` (implementada por FLEET-030, archivada 2026-07-30) |
 | resultados-fase-0a (evidencia de 01) | ✅ archivada | `docs/archive/fleet/resultados-fase-0a.md` |
 
 ## Decisiones ya tomadas (no re-litigar en los briefs)

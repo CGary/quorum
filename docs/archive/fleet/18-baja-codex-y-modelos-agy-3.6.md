@@ -1,5 +1,7 @@
 # 18 — Actualización de flota: baja de codex (créditos agotados) + modelos agy Gemini 3.6
 
+> **ARCHIVADO 2026-07-30 — IMPLEMENTADO por FLEET-030.** Celdas `google/gemini-3.6-flash-{low,medium,high}` añadidas a `agents.yaml` (display-name `model_arg`, sonda real OK); `config.yaml levels[0].primary` migrado a `gemini-3.6-flash-low` (las celdas 3.5 permanecen en el transporte para `fleet run` y rollback); baja de codex resuelta SOLO vía kill-switch (`quorum fleet disable codex`, reversible cuando vuelvan los créditos — sin cambio de política); test `TestFleetRouteLevel1DegradesWhenCodexDisabled` verifica la degradación transparente del nivel 1. Mergeado a `main` el 2026-07-30.
+
 **Fecha:** 2026-07-30
 **Origen:** revisión en vivo de la flota (sesión 2026-07-30): el humano reporta créditos de codex agotados; `agy models` muestra modelos nuevos no declarados en `agents.yaml`.
 **Uso:** insumo de UNA tarea Quorum (`/q-brief` cierra las "Decisiones abiertas"; `/q-blueprint` la estrategia).
