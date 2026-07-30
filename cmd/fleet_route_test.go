@@ -156,6 +156,64 @@ func TestFleetRouteControlFileMissingAndMalformed(t *testing.T) {
 	})
 }
 
+// TestFleetRouteLevel1DegradesWhenCodexDisabled is AC-4: with codex disabled via
+// the kill-switch, quorum fleet route for level 1 falls back cleanly to the
+// non-codex candidate (agy + google/gemini-3.1-pro-low) with no error;
+// re-enabling codex restores the original candidate order.
+func TestFleetRouteLevel1DegradesWhenCodexDisabled(t *testing.T) {
+	root := setupTempPolicyRoot(t)
+	reqJSON := `{"phase":"implement","risk":"medium","complexity_band":"S"}` // Level 1
+
+	// 1. Write the control file disabling codex
+	ctrlPath := filepath.Join(root, ".ai", "fleet-control.json")
+	if err := os.MkdirAll(filepath.Dir(ctrlPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ctrlJSON := `{"disabled":[{"target":"codex","reason":"ChatGPT free-tier credits exhausted"}]}`
+	if err := os.WriteFile(ctrlPath, []byte(ctrlJSON), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	code, out, errOut := runRoute(t, root, reqJSON)
+	if code != 0 {
+		t.Fatalf("run with codex disabled exit %d: %s", code, errOut)
+	}
+	var res core.RouteResult
+	if err := json.Unmarshal([]byte(out), &res); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+	if res.Candidate == nil {
+		t.Fatalf("want a candidate, got blocked=%q reasons=%v", res.Blocked, res.Reasons)
+	}
+	
+	// agy fallback
+	if res.Candidate.Agent != "agy" || res.Candidate.Model != "google/gemini-3.1-pro-low" {
+		t.Errorf("degraded candidate: got %s/%s want agy/google/gemini-3.1-pro-low", res.Candidate.Agent, res.Candidate.Model)
+	}
+
+	// 2. Remove the control file (or make it empty) to restore
+	if err := os.WriteFile(ctrlPath, []byte(`{}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	code2, out2, errOut2 := runRoute(t, root, reqJSON)
+	if code2 != 0 {
+		t.Fatalf("run with codex re-enabled exit %d: %s", code2, errOut2)
+	}
+	var res2 core.RouteResult
+	if err := json.Unmarshal([]byte(out2), &res2); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+	if res2.Candidate == nil {
+		t.Fatalf("want a candidate, got blocked=%q reasons=%v", res2.Blocked, res2.Reasons)
+	}
+	
+	// original primary
+	if res2.Candidate.Agent != "codex" || res2.Candidate.Model != "openai/gpt-5.5-medium" {
+		t.Errorf("restored candidate: got %s/%s want codex/openai/gpt-5.5-medium", res2.Candidate.Agent, res2.Candidate.Model)
+	}
+}
+
 // seedActiveTask writes a minimal valid 07-trace.json for a synthetic active
 // task and returns the task id. The dir name equals the id (exact-dir-name
 // resolution, mirroring cmd/fleet_dispatch_test.go).

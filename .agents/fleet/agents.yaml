@@ -153,8 +153,18 @@ transports:
     failure_signatures: []
     quota_class: subscription
     models:
-      # Exact strings from `agy models` (Fase 0a §3), joined by canonical
-      # provider/model name. GPT-OSS 120B only ships a single effort tier.
+      # Exact strings from legacy `agy models` output (Fase 0a §3), joined by canonical
+      # provider/model name. agy now emits slugs, but display names are still accepted.
+      # GPT-OSS 120B only ships a single effort tier.
+      google/gemini-3.6-flash-low:
+        provider: google
+        model_arg: Gemini 3.6 Flash (Low)
+      google/gemini-3.6-flash-medium:
+        provider: google
+        model_arg: Gemini 3.6 Flash (Medium)
+      google/gemini-3.6-flash-high:
+        provider: google
+        model_arg: Gemini 3.6 Flash (High)
       google/gemini-3.5-flash-low:
         provider: google
         model_arg: Gemini 3.5 Flash (Low)

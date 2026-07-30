@@ -197,6 +197,29 @@ func TestRouteControlFiltering(t *testing.T) {
 			t.Fatalf("got %v want runner-a/%s", res.Candidate, mL1Fallback)
 		}
 	})
+
+	t.Run("agent_target_disable_recovers_on_reenable", func(t *testing.T) {
+		r := req("medium", "S")
+		r.Control = ControlState{Disabled: []ControlEntry{{Target: "runner-a"}}}
+		res, err := Route(r, policy)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.Candidate.Agent != "runner-b" || res.Candidate.Model != mL1Primary {
+			t.Fatalf("disabled got %v want runner-b/%s", res.Candidate, mL1Primary)
+		}
+
+		// Re-enable (empty control)
+		r2 := req("medium", "S")
+		r2.Control = ControlState{}
+		res2, err := Route(r2, policy)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res2.Candidate.Agent != "runner-a" || res2.Candidate.Model != mL1Primary {
+			t.Fatalf("reenabled got %v want runner-a/%s", res2.Candidate, mL1Primary)
+		}
+	})
 }
 
 func TestRouteExclusionFiltering(t *testing.T) {

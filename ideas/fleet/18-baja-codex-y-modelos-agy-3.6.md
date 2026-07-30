@@ -66,10 +66,7 @@ Compatibilidad verificada en vivo:
    `quorum fleet disable codex --reason "ChatGPT free-tier credits exhausted 2026-07-30"`
    (escribe `.ai/fleet-control.json`, reversible con `quorum fleet enable`) — o bien
    `active: false` en `agents.yaml` si se decide que la baja es permanente (ver D1).
-2. Si la baja es permanente: retirar `codex` de
-   `config.yaml policies.fleet_transport_order` y de cualquier celda en
-   `routing.yaml` que lo referencie, dejando el bloque del transport en `agents.yaml`
-   como registro histórico con `active: false` (precedente: transport `claude`).
+2. Si la baja es permanente: retirar `codex` de `config.yaml` (`levels[1]`, `levels[2]` y `policies.fleet_transport_order`) y de `agents.yaml` (`transports.codex`), dejando el bloque como histórico. **Corrección:** codex nunca estuvo referenciado en `routing.yaml`.
 3. Fuera del repo (no es parte de la tarea, se anota para trazabilidad): actualizar la
    mención "codex free-tier" en la descripción del skill `q-orchestrate`
    (`~/.claude/skills/q-orchestrate/`) y el snapshot
@@ -106,25 +103,15 @@ Extender `.agents/fleet/contract_tests/agy.yaml` para cubrir al menos una celda 
 
 ---
 
-## 3. Decisiones abiertas (para `/q-brief`)
+## 3. Decisiones cerradas (D1-D4)
 
-- **D1 — ¿Baja temporal o permanente de codex?** Kill-switch (`fleet disable`, reversible,
-  cero cambios en git) vs `active: false` + retiro del transport_order (permanente,
-  auditado en git). Los créditos son "non-renewing" según el propio `agents.yaml`, lo que
-  sugiere permanente, pero el humano decide.
-- **D2 — Formato de `model_arg` para las entradas 3.6:** display name ("Gemini 3.6 Flash
-  (Low)", consistente con las entradas existentes y verificado que el backend acepta ese
-  formato) vs slug (`gemini-3.6-flash-low`, el formato que `agy models` emite hoy y
-  presumiblemente el canónico a futuro). Requiere UNA sonda real por formato antes de
-  ratificar (una sola llamada `--print` mínima, cuota subscription).
-- **D3 — ¿Migrar al flag `--effort` separado?** agy ahora soporta
-  `--model gemini-3.6-flash --effort high`. Migrar el `argv_template` alinearía con el
-  CLI moderno pero toca el template compartido por todas las celdas agy; mantener el
-  effort embebido en el modelo no requiere cambios. Riesgo/beneficio bajo — probablemente
-  diferir con gate (patrón doc 16).
-- **D4 — ¿Rutear 3.6-flash ya o solo exponerlo en `fleet run`?** Exponer sin rutear
-  (precedente: `anthropic/claude-sonnet-4-6`, "Exposed to 'quorum fleet run'; not routed
-  by any config.yaml level") hasta acumular telemetría comparativa vs 3.5.
+- **D1 — Baja de codex:** **Kill-switch temporal**. Se mantiene el transport intacto en los archivos de política (`active: true`). La baja se opera mediante `quorum fleet disable codex`, permitiendo que el nivel 1 caiga limpiamente al fallback de `agy` sin mutar la configuración ratificada.
+- **D2 — Formato de `model_arg` para 3.6:** **Display name** ("Gemini 3.6 Flash (Low)"). El backend de agy sigue aceptando este formato (comprobado en vivo). Mantenerlo evita desalinear las nuevas celdas de las existentes 3.5.
+- **D3 — Flag `--effort` separado:** **Diferido**. No se migra el `argv_template` general de `agy` en esta tarea. El effort se sigue pasando embebido en el string del modelo para no afectar colateralmente a los demás.
+- **D4 — Ruteo de 3.6-flash:** **Promovido a nivel 0 primario**. Se actualiza `levels[0].primary` a `google/gemini-3.6-flash-low`, reemplazando la única referencia a 3.5 en los niveles. Las celdas 3.5 quedan expuestas pero sin rutear.
+
+### Rollback (Nuevas celdas 3.6)
+Si los modelos 3.6 resultan inestables o rompen contratos antes de acumular telemetría suficiente, se puede usar `quorum fleet disable google/gemini-3.6-flash-low` (y las demás variantes) para sacarlos de rotación inmediatamente sin necesidad de revertir los cambios en `agents.yaml` o `config.yaml`.
 
 ---
 
