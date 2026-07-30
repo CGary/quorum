@@ -142,8 +142,9 @@ decides routing itself, never auto-chains into another `/q-*` skill, and never c
 `quorum task back`.
 
 The ratified G1 cell set (see `.agents/config.yaml.levels[0]` and
-`.agents/policies/routing.yaml`) pins `agy` on `google/gemini-3.5-flash-low` as the primary cheap
-cell for level 0 (`low` risk / `S` band), with `opencode`-backed
+`.agents/policies/routing.yaml`) pins `agy` on `google/gemini-3.6-flash-low` (migrated from
+`gemini-3.5-flash-low` by FLEET-030; the 3.5 cells stay exposed in the `agy` transport for
+`fleet run` and rollback) as the primary cheap cell for level 0 (`low` risk / `S` band), with `opencode`-backed
 `nvidia/nemotron-3-ultra-550b-a55b-free` and `poolside/laguna-m.1-free` as $0 OpenRouter
 cross-provider secondaries; on reroute after an `agy` failure, the level-0 enumeration yields a
 cross-provider free cell first (`nemotron`/`laguna` via `opencode`), with `agy`'s
