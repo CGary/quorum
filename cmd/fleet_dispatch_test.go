@@ -1252,3 +1252,43 @@ func TestFleetDispatchCommandCodexQuotaSignatureReroute(t *testing.T) {
 		t.Fatalf("want reroute/quota outcome, got class=%s cause=%v", res.Outcome.Class, res.Outcome.Cause)
 	}
 }
+
+func TestFleetDispatchPromptPointerNoFalsePositiveDirtyWhenAiNotIgnored(t *testing.T) {
+	root, taskID := setupFleetAgyPromptPointerFakeProject(t)
+	gitignorePath := filepath.Join(root, ".gitignore")
+	if err := os.WriteFile(gitignorePath, []byte(""), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitCmd(t, root, "add", ".gitignore")
+	gitCmd(t, root, "commit", "-q", "-m", "unignore .ai in root")
+
+	worktree := filepath.Join(root, "worktrees", taskID)
+	gitCmd(t, worktree, "merge", "-q", "main")
+
+	bundlePath := filepath.Join(t.TempDir(), "prompt.md")
+	if err := os.WriteFile(bundlePath, []byte("test prompt"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	resultPath, err := runFleetDispatch(core.NewTaskStore(root), fleetDispatchRequest{
+		TaskID: taskID, Agent: "agy-pointer-fake", Model: "test/model-a", DispatchID: "ap-dirty1", TimeoutS: 30,
+		BundlePath: bundlePath,
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "dirty") {
+			t.Fatalf("unexpected dirty error: %v", err)
+		}
+		t.Fatalf("runFleetDispatch: %v", err)
+	}
+	raw, err := os.ReadFile(resultPath)
+	if err != nil {
+		t.Fatalf("read result.json: %v", err)
+	}
+	var res core.DispatchResult
+	if err := json.Unmarshal(raw, &res); err != nil {
+		t.Fatalf("unmarshal result.json: %v", err)
+	}
+	if res.Outcome.Class == "reroute" {
+		t.Fatalf("want outcome class != reroute, got %q", res.Outcome.Class)
+	}
+}
+

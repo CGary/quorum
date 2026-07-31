@@ -146,6 +146,7 @@ func runFleetDispatch(store core.TaskStore, req fleetDispatchRequest) (string, e
 		"reasoning_effort": stringField(transport.Models[req.Model], "reasoning_effort"),
 		"print_timeout":    formatPrintTimeout(timeoutS),
 	}
+	var promptPointerRelPath string
 	if transport.InputChannel == "prompt_pointer" {
 		if req.BundlePath == "" {
 			return "", fmt.Errorf("transport %q requires input_channel prompt_pointer but no bundle_path was provided", req.Agent)
@@ -156,6 +157,9 @@ func runFleetDispatch(store core.TaskStore, req fleetDispatchRequest) (string, e
 		}
 		defer cleanup()
 		vars["prompt"] = renderPromptPointer(copyPath)
+		if rel, err := filepath.Rel(worktree, copyPath); err == nil {
+			promptPointerRelPath = rel
+		}
 	}
 	argv := substituteFleetArgv(transport.ArgvTemplate, vars)
 	stdinPrompt := prompt
@@ -175,6 +179,7 @@ func runFleetDispatch(store core.TaskStore, req fleetDispatchRequest) (string, e
 		DispatchID: req.DispatchID, BundleHash: bundleHash, Worktree: worktree, Binary: transport.Binary,
 		Argv: argv, StdinPrompt: stdinPrompt,
 		TimeoutS: timeoutS, FailureSignatures: transport.FailureSignatures, OutputFormat: transport.OutputFormat,
+		PromptPointerRelPath: promptPointerRelPath,
 	}
 	res, err := core.Dispatch(spec)
 	if err != nil {

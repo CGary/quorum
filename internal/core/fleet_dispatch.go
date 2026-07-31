@@ -42,6 +42,7 @@ type DispatchSpec struct {
 	TimeoutS          int
 	FailureSignatures []string
 	OutputFormat      string
+	PromptPointerRelPath string
 }
 
 // Dispatch runs one delegated dispatch and returns the normalized result; an
@@ -66,7 +67,17 @@ func Dispatch(spec DispatchSpec) (DispatchResult, error) {
 	}
 	baseline := strings.TrimSpace(baselineOut)
 	startedAt := time.Now().UTC()
-	if IsWorktreeDirty(spec.Worktree) {
+	dirtyPaths := WorktreeDirtyPaths(spec.Worktree)
+	if spec.PromptPointerRelPath != "" {
+		filtered := make([]string, 0, len(dirtyPaths))
+		for _, p := range dirtyPaths {
+			if !isDirtyPathOnlyPromptPointer(spec.Worktree, p, spec.PromptPointerRelPath) {
+				filtered = append(filtered, p)
+			}
+		}
+		dirtyPaths = filtered
+	}
+	if len(dirtyPaths) > 0 {
 		res := newBaseResult(spec, startedAt, baseline, notesRel)
 		res.EndedAt = time.Now().UTC().Format(time.RFC3339)
 		res.Outcome = DispatchOutcome{Class: "reroute"}
@@ -101,7 +112,7 @@ func Dispatch(spec DispatchSpec) (DispatchResult, error) {
 		return res, nil
 	}
 
-	diffStat, diffErr := stageAndDiffStat(spec.Worktree, baseline)
+	diffStat, diffErr := stageAndDiffStat(spec.Worktree, baseline, spec.PromptPointerRelPath)
 	var outcome classifiedOutcome
 	if diffErr != nil {
 		// Staging or diff computation failed (disk full, index.lock, permissions,
@@ -395,11 +406,19 @@ func outputParses(format, output string) bool {
 
 // stageAndDiffStat stages every change (add -A) and computes the numstat of the
 // staged tree against the baseline commit.
-func stageAndDiffStat(worktree, baseline string) (DispatchDiffStat, error) {
-	if err := gitRun(worktree, "add", "-A"); err != nil {
+func stageAndDiffStat(worktree, baseline, promptPointerRelPath string) (DispatchDiffStat, error) {
+	addArgs := []string{"add", "-A"}
+	if promptPointerRelPath != "" {
+		addArgs = append(addArgs, "--", ":!"+promptPointerRelPath)
+	}
+	if err := gitRun(worktree, addArgs...); err != nil {
 		return DispatchDiffStat{Empty: true}, err
 	}
-	out, err := gitOutput(worktree, "diff", "--cached", "--numstat", baseline)
+	diffArgs := []string{"diff", "--cached", "--numstat", baseline}
+	if promptPointerRelPath != "" {
+		diffArgs = append(diffArgs, "--", ":!"+promptPointerRelPath)
+	}
+	out, err := gitOutput(worktree, diffArgs...)
 	if err != nil {
 		return DispatchDiffStat{Empty: true}, err
 	}
@@ -638,3 +657,29 @@ func gitOutput(dir string, args ...string) (string, error) {
 	}
 	return string(out), nil
 }
+
+func isDirtyPathOnlyPromptPointer(worktree, dirtyPath, promptPointerRelPath string) bool {
+	pClean := filepath.Clean(dirtyPath)
+	relClean := filepath.Clean(promptPointerRelPath)
+	if pClean == relClean {
+		return true
+	}
+	if strings.HasPrefix(relClean, pClean+string(filepath.Separator)) {
+		absDir := filepath.Join(worktree, pClean)
+		hasOtherFiles := false
+		_ = filepath.Walk(absDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil || info.IsDir() {
+				return nil
+			}
+			rel, rerr := filepath.Rel(worktree, path)
+			if rerr != nil || filepath.Clean(rel) != relClean {
+				hasOtherFiles = true
+				return filepath.SkipAll
+			}
+			return nil
+		})
+		return !hasOtherFiles
+	}
+	return false
+}
+
