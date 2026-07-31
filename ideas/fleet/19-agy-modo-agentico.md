@@ -56,4 +56,4 @@ No es reemplazar: el modo `--print` sigue siendo el correcto para el nivel-1 de 
 
 ## Nota de actualización aguas abajo (fuera de quorum)
 
-Independiente de esta tarea: el `SKILL.md` de `fleet-delegate` (repo `claude-skills`) dice *"agy is `--print` one-shot text (NO agentic file editing)"*. Esa frase es correcta HOY. Si esta tarea se implementa y agy gana modo editor, el wording del skill debe corregirse para reflejar que agy pasa a ser transporte editor. No tocar el skill antes de que esta tarea aterrice.
+**RESUELTA (2026-07-30).** La tarea aterrizó: `agents.yaml` define `agy_edit` (`--mode accept-edits --dangerously-skip-permissions --sandbox --add-dir {cwd}`, `quota_class: subscription`), verificada pass@3 en dificultad S y M. El `SKILL.md` de `fleet-delegate` ya fue actualizado el mismo día: `agy_edit` ocupa el peldaño 2 de la escalera y el wording "opencode is the only active agentic editor" fue corregido. Este doc queda como registro histórico; archivar con `git mv` en la próxima pasada.

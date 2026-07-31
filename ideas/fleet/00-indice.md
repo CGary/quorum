@@ -31,7 +31,7 @@ con `git mv` preservando historia y cada doc lleva un banner de estado). Este í
 | 16 — horizonte gated | 🚧 diferida | se queda en `ideas/fleet/16-horizonte-gated.md` (propuesta viva, no implementar sin sus condiciones) |
 | 17 — adapter aider | ✅ archivada | `docs/archive/fleet/17-adapter-aider.md` |
 | 18 — baja codex + modelos agy 3.6 | ✅ archivada | `docs/archive/fleet/18-baja-codex-y-modelos-agy-3.6.md` (implementada por FLEET-030, archivada 2026-07-30) |
-| 19 — agy modo agéntico (2º transporte editor) | 💡 propuesta viva | `ideas/fleet/19-agy-modo-agentico.md` (pasar por `/q-brief`; leer Decisiones abiertas antes de implementar) |
+| 19 — agy modo agéntico (2º transporte editor) | ✅ implementada (pendiente de archivar) | `ideas/fleet/19-agy-modo-agentico.md` — implementada como `agy_edit` en `agents.yaml` (pass@3 S/M verificado 2026-07-30); archivar a `docs/archive/fleet/` con `git mv` cuando se haga la pasada de archivado |
 | resultados-fase-0a (evidencia de 01) | ✅ archivada | `docs/archive/fleet/resultados-fase-0a.md` |
 
 ## Decisiones ya tomadas (no re-litigar en los briefs)

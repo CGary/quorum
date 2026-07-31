@@ -148,8 +148,10 @@ transports:
     input_channel: prompt_pointer
     output_format: text
     timeouts:
-      # agy's own documented default for --print-timeout (Fase 0a §3).
-      default_s: 300
+      # Raised from agy's documented 300s --print-timeout default (Fase 0a §3):
+      # a real agentic dispatch was killed at 300s mid-work in hexcell
+      # (2026-07-31) while the model was still productive.
+      default_s: 600
     failure_signatures: []
     quota_class: subscription
     models:
@@ -210,7 +212,8 @@ transports:
     input_channel: prompt_pointer
     output_format: text
     timeouts:
-      default_s: 300
+      # Same 600s rationale as base agy (hexcell 2026-07-31 timeout evidence).
+      default_s: 600
     failure_signatures: []
     quota_class: subscription
     models:
@@ -223,6 +226,16 @@ transports:
       google/gemini-3.6-flash-high:
         provider: google
         model_arg: Gemini 3.6 Flash (High)
+      # Non-gemini subscription cells verified agentic under accept-edits (smoke 3/3, 2026-07-31).
+      openai/gpt-oss-120b:
+        provider: openai
+        model_arg: GPT-OSS 120B (Medium)
+      anthropic/claude-sonnet-4-6:
+        provider: anthropic
+        model_arg: Claude Sonnet 4.6 (Thinking)
+      anthropic/claude-opus-4-6:
+        provider: anthropic
+        model_arg: Claude Opus 4.6 (Thinking)
     contract_test: .agents/fleet/contract_tests/agy.yaml
     active: true
 

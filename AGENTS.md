@@ -148,8 +148,13 @@ variant of the `agy` transport: same binary, argv adds `--mode accept-edits
 --dangerously-skip-permissions --sandbox --add-dir {cwd}` so the delegate edits the worktree in
 place (`--sandbox` WITHOUT `--add-dir` silently redirects writes to
 `~/.gemini/antigravity-cli/scratch/` — never ship it alone). The gemini-3.6-flash trio lives ONLY
-on `agy_edit`; base `agy` keeps the 3.5/3.1/sonnet/opus/gpt-oss cells for one-shot `--print`
-review/analysis and rollback (3.5 cells migrated from level 0 by FLEET-030). Secondaries:
+on `agy_edit`; since 2026-07-31 `agy_edit` also exposes `gpt-oss-120b`, `claude-sonnet-4-6`, and
+`claude-opus-4-6` (verified agentic under accept-edits, smoke 3/3), which makes level 2's
+`primary: anthropic/claude-opus-4-6` resolvable as an agentic cell (the old `claude-opus-4-7`
+reference was dead — no active transport exposed it). Base `agy` keeps the same non-3.6 cells for
+one-shot `--print` review/analysis and rollback (3.5 cells migrated from level 0 by FLEET-030).
+Both agy transports run with `timeouts.default_s: 600` (raised from 300 after a real hexcell
+dispatch was killed mid-work at 300s, 2026-07-31). Secondaries:
 `opencode`-backed `nvidia/nemotron-3-ultra-550b-a55b-free` and `poolside/laguna-m.1-free` as $0
 OpenRouter cross-provider cells; on reroute after an `agy_edit` failure, the level-0 enumeration
 yields a cross-provider free cell first (`nemotron`/`laguna` via `opencode`), with `agy`'s
