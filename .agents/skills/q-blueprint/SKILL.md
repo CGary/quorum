@@ -33,11 +33,10 @@ cat .ai/tasks/<state>/<TASK_ID>/feedback.json | quorum analyze feedback-partitio
 - If `partitioned["semantic"]` is non-empty, surface the semantic feedback findings verbatim to the human, do NOT auto-apply semantic findings, and do NOT consume `feedback.json`. Stop for a human decision; do not auto-chain another `/q-*` skill.
 - If only mechanical findings exist, apply only formal corrections (typos, missing quotes, malformed field names, broken file references), then run `quorum task feedback-consume <TASK_ID>` once to remove stale feedback. Stop at this skill's normal single-phase boundary; do not auto-chain another `/q-*` skill beyond the explicitly authorized transition for this skill.
 
-### Phase 1: Code Discovery
+### Phase 1a: Deterministic Discovery & Graph
 1. Read `.ai/tasks/active/<ID>/00-spec.yaml`.
-2. Use search/listing tools to find relevant code, tests, and documentation.
-3. Identify dependencies: who calls this, what this calls, and which tests cover it.
-4. Query related failed tasks. Read `.ai/tasks/failed/` for tasks whose blueprint touches the same files. Use the helper:
+2. Extract starting file-path seeds: derive a starting file-path seed list by extracting path-shaped tokens from `00-spec.yaml`'s free-text fields (`summary`, `goal`, `invariants`, `constraints`, `non_goals`) and keeping only tokens that resolve to real files in the repository. (Note: `00-spec.yaml` has no structured `affected_files` field, so this deterministic extraction is the seeding mechanism).
+3. Query related failed tasks: read `.ai/tasks/failed/` for tasks whose blueprint touches the same files. Run:
 
    ```bash
    cat << 'EOF' | quorum analyze failure-lookup
@@ -58,7 +57,7 @@ cat .ai/tasks/<state>/<TASK_ID>/feedback.json | quorum analyze feedback-partitio
 
    Do NOT copy `forbid.behaviors` from prior contracts automatically; the Cartographer decides which lessons translate to the new contract.
 
-5. Before finalizing `01-blueprint.yaml`, enrich the draft blueprint with retriever context so orphaned retrievers remain wired into this phase:
+4. Enrich draft blueprint with retriever context: feed the seed list as `blueprint.affected_files` stdin into `quorum analyze blueprint-context`:
 
    ```bash
    cat << 'EOF' | quorum analyze blueprint-context
@@ -70,7 +69,24 @@ cat .ai/tasks/<state>/<TASK_ID>/feedback.json | quorum analyze feedback-partitio
    EOF
    ```
 
-   The helper consumes `retrievers.ast_neighbors` and `retrievers.import_graph`; its output MUST be considered before writing `affected_files` and `dependencies` to YAML. This is still a human-operated blueprint step, not an automatic dispatcher or phase runner.
+   The helper consumes `retrievers.ast_neighbors` and `retrievers.import_graph`; its output MUST be considered before finalizing `affected_files` and `dependencies` in YAML.
+5. The union of `{seed, AST neighbors, import-graph files, failure matches}` becomes Phase 1a's file set.
+
+### Phase 1b: Blind External Bounded Summarization
+1. Bundle Phase 1a's file set into one scratch file via shell redirection (`cat <files> > $(mktemp)` or an equivalent transient path outside the repo tree — never a tracked file).
+2. Run `quorum fleet run`: launch a blind one-shot summarization cell using:
+
+   ```bash
+   quorum fleet run --agent agy --model google/gemini-3.6-flash-medium --cwd <repo-root> --input <bundle> --no-input --json
+   ```
+
+   Specify `<repo-root>` as the `cwd` (since `q-blueprint` runs before `quorum task start` creates the worktree). Embed an explicit bounded question in the prompt: for each file, answer in <=80 words covering purpose, public symbols, and tests covering it, and do not exceed this cap per file.
+3. Context boundary invariant: full file contents of Phase 1a's set must NEVER enter the blueprint agent's own context window; only the bounded summary text returned in the JSON envelope's `data` field does.
+
+> [!IMPORTANT]
+> **Guardrail: External summary is evidence, not truth**
+> Blind external cells have been measured returning `DONE` for work they never performed; their prose is never self-certifying. The Phase 1b summary is evidence to inform design, not ground truth.
+> If Phase 1b's external call fails or degrades, or if the summary leaves a specific detail needed for Phase 2 ambiguous, a direct targeted read of that specific file by Claude is explicitly permitted and not penalized. This direct read must remain targeted strictly to the ambiguous file(s), not a blanket re-read of the whole bundle.
 
 
 ### Phase 2: Technical Strategy
