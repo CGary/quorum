@@ -31,7 +31,62 @@ Read:
 
 Confirm required artifacts exist. If validation is missing, set verdict `revise` or stop and tell the user to run `/q-verify`.
 
-### 2. Inspect Diff
+### 2. Deterministic Gate
+
+Run automated structural and contract analysis before inspecting the diff by hand:
+
+1. **Contract Check**:
+   Build a base-branch-scoped diff from the repo root (`02-contract.yaml` lives in `.ai/tasks/active/<TASK>/`, outside the worktree):
+
+   `<BASE_BRANCH>` is the repo's LOCAL base branch (what `GetBaseBranch()` resolves, typically `main`) — never `origin/<base>` or another remote ref, which can be stale and produces false contract violations (lesson F2).
+
+   ```bash
+   git -C worktrees/<TASK_ID> diff --name-only <BASE_BRANCH>...HEAD
+   git -C worktrees/<TASK_ID> diff --shortstat <BASE_BRANCH>...HEAD
+   git -C worktrees/<TASK_ID> diff --numstat <BASE_BRANCH>...HEAD
+   ```
+
+   Transcribe those plain-text outputs into a stdin JSON request:
+
+   ```bash
+   cat << 'EOF' | quorum analyze contract-check
+   {
+     "contract_path": ".ai/tasks/active/<TASK_ID>-<slug>/02-contract.yaml",
+     "changed_files": ["path/to/file.go"],
+     "diff_stat": {"insertions": 0, "deletions": 0},
+     "file_diffs": [{"path": "path/to/file.go", "insertions": 0, "deletions": 0}]
+   }
+   EOF
+   ```
+
+   `changed_files` comes from `--name-only`, `diff_stat` from `--shortstat`, and `file_diffs` from `--numstat` (one entry per changed file). The result is `{ok, violations, not_checked}`.
+
+2. **Acceptance Coverage**:
+   Cross-check `00-spec.yaml` acceptance criteria against `01-blueprint.yaml` test scenarios:
+
+   ```bash
+   cat << 'EOF' | quorum analyze acceptance-coverage
+   {
+     "spec_path": ".ai/tasks/active/<TASK_ID>-<slug>/00-spec.yaml",
+     "blueprint_path": ".ai/tasks/active/<TASK_ID>-<slug>/01-blueprint.yaml"
+   }
+   EOF
+   ```
+
+   The result shape is `{status, coverage, gaps, findings}`.
+
+3. **Produce FACTS Block**:
+   Combine the deterministic automated findings into an explicit FACTS block covering:
+   - Contract violations and `not_checked` entries from `quorum analyze contract-check`.
+   - Coverage gaps from `quorum analyze acceptance-coverage`.
+   - Exit codes and `overall_result` already recorded in `.ai/tasks/active/<TASK>/05-validation.json`.
+
+   This FACTS block is consumed by the subsequent Inspect Diff and Write `06-review.json` steps.
+
+> [!IMPORTANT]
+> **ANTI-ANCHORING GUARDRAIL**: The FACTS block contains deterministic evidence, NOT a verdict. The absence of automatic contract violations or acceptance-coverage gaps must NEVER be treated as automatic approval. Automatic checks only evaluate what they were built to measure (touch/forbid globs, line/file limits, AC-id mapping, exit codes), never semantic correctness or software design quality. You MUST still perform the full Inspect Diff step by hand and report any semantic finding or defect that no automatic check covers.
+
+### 3. Inspect Diff
 
 Run:
 
@@ -41,50 +96,13 @@ git -C worktrees/<TASK_ID> diff --stat
 git -C worktrees/<TASK_ID> diff
 ```
 
-Check:
+Review the diff by hand, referencing the FACTS block produced in step 2:
 
-- Every changed file is allowed by `touch`.
-- No changed file matches `forbid.files`.
-- No forbidden behavior occurred.
-- Acceptance criteria are implemented.
+- Verify contract compliance, touch/forbid.files, line/file limits, and `05-validation.json` exit codes via the FACTS block.
+- Acceptance criteria are genuinely implemented and satisfied.
 - Invariants remain protected.
+- No unrequested refactoring or forbidden behavior occurred.
 - Tests exist for new behavior when appropriate.
-- `05-validation.json.overall_result` is `passed`.
-- Diff is within `limits.max_files_changed` and `limits.max_diff_lines` when measurable, including any optional `limits.per_class` per-file-category budgets the contract declares.
-
-### 3. Contract Gate
-
-The step-2 diff commands have no revision range, so they cannot feed
-`contract-check`. Build a separate base-branch-scoped diff for that purpose,
-from the repo root (`02-contract.yaml` lives in `.ai/tasks/active/<TASK>/`,
-outside the worktree):
-
-`<BASE_BRANCH>` is the repo's LOCAL base branch (what `GetBaseBranch()` resolves,
-typically `main`) — never `origin/<base>` or another remote ref, which can be
-stale and produces false contract violations (lesson F2).
-
-```bash
-git -C worktrees/<TASK_ID> diff --name-only <BASE_BRANCH>...HEAD
-git -C worktrees/<TASK_ID> diff --shortstat <BASE_BRANCH>...HEAD
-git -C worktrees/<TASK_ID> diff --numstat <BASE_BRANCH>...HEAD
-```
-
-Transcribe those plain-text outputs into a stdin JSON request:
-
-```bash
-cat << 'EOF' | quorum analyze contract-check
-{
-  "contract_path": ".ai/tasks/active/<TASK_ID>-<slug>/02-contract.yaml",
-  "changed_files": ["path/to/file.go"],
-  "diff_stat": {"insertions": 0, "deletions": 0},
-  "file_diffs": [{"path": "path/to/file.go", "insertions": 0, "deletions": 0}]
-}
-EOF
-```
-
-`changed_files` comes from `--name-only`, `diff_stat` from `--shortstat`, and
-`file_diffs` from `--numstat` (one entry per changed file). The result is
-`{ok, violations, not_checked}`.
 
 ### 4. Write `06-review.json`
 
