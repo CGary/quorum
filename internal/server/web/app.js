@@ -414,13 +414,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const renderSemanticReport = () => {
             const content = data.content;
             const presentation = data.presentation || {};
-            const profile = presentation.profile || 'cognitive';
-
             // 1. Render Header (title, kicker, verdict, summary)
             renderSemanticHeader(content, presentation);
 
-            // 2. Order sections according to presentation.profile
-            const orderedSections = orderSections(content.sections || [], profile);
+            // 2. Sections render in authored order: the author owns the inverted
+            //    pyramid (most-decision-relevant first), the viewer never re-sorts.
+            const orderedSections = content.sections || [];
 
             // 3. Render Navigation
             if (orderedSections.length > 1) {
@@ -475,53 +474,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             reportContent.appendChild(headerWrap);
-        };
-
-        // PROFILE_ORDER definition
-        const PROFILE_ORDER = {
-            cognitive: [
-                'decision_surface', 'verification', 'callout', 'findings',
-                'diagram', 'analysis', 'tradeoffs', 'risks',
-                'action_plan', 'evidence', 'metrics', 'appendix'
-            ],
-            executive: [
-                'decision_surface', 'risks', 'tradeoffs', 'action_plan'
-            ],
-            audit: [
-                'verification', 'findings', 'evidence', 'risks',
-                'action_plan', 'appendix'
-            ],
-            teaching: [
-                'diagram', 'analysis', 'action_plan', 'verification', 'appendix'
-            ],
-            raw: [] // preserves authoring order
-        };
-
-        const orderSections = (sections, profile) => {
-            const order = PROFILE_ORDER[profile] || PROFILE_ORDER.cognitive;
-            if (profile === 'raw' || order.length === 0) {
-                return [...sections];
-            }
-
-            // Sort logic: stable sort placing non-enumerated roles at the end in authoring order
-            const mapped = sections.map((sec, idx) => ({ sec, idx }));
-            mapped.sort((a, b) => {
-                const idxA = order.indexOf(a.sec.role);
-                const idxB = order.indexOf(b.sec.role);
-
-                const hasA = idxA !== -1;
-                const hasB = idxB !== -1;
-
-                if (hasA && hasB) {
-                    if (idxA !== idxB) return idxA - idxB;
-                    return a.idx - b.idx; // Keep author order for same role
-                }
-                if (hasA && !hasB) return -1;
-                if (!hasA && hasB) return 1;
-                return a.idx - b.idx; // Keep author order for both non-enumerated
-            });
-
-            return mapped.map(item => item.sec);
         };
 
         const renderSemanticSection = (sec, body, presentation) => {

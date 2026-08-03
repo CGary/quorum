@@ -75,35 +75,19 @@ func TestViewerRoleRenderersCoverSchema(t *testing.T) {
 	}
 }
 
-// TestViewerProfileOrderCoversSchema guards proposal §11.2: every presentation
-// profile the schema accepts must have a PROFILE_ORDER entry in app.js, so a new
-// profile cannot ship without a defined section order.
-func TestViewerProfileOrderCoversSchema(t *testing.T) {
-	profiles := readReportSchemaEnum(t, "presentationModel", "profile")
+// TestViewerPreservesAuthoredSectionOrder guards the inverted-pyramid contract
+// (q-report cognitive-load directives, 2026-08-03): the author owns section
+// order, so app.js must render content.sections exactly as authored and never
+// re-sort by presentation profile.
+func TestViewerPreservesAuthoredSectionOrder(t *testing.T) {
 	app := readAppJS(t)
-
-	start := strings.Index(app, "const PROFILE_ORDER = {")
-	if start == -1 {
-		t.Fatal("app.js does not declare `const PROFILE_ORDER = {`")
-	}
-	block := app[start:]
-	if end := strings.Index(block, "};"); end != -1 {
-		block = block[:end]
-	}
-
-	for _, profile := range profiles {
-		// Match the object key `profile:` at the start of a (trimmed) line.
-		key := profile + ":"
-		found := false
-		for _, line := range strings.Split(block, "\n") {
-			if strings.HasPrefix(strings.TrimSpace(line), key) {
-				found = true
-				break
-			}
+	for _, forbidden := range []string{"PROFILE_ORDER", "orderSections("} {
+		if strings.Contains(app, forbidden) {
+			t.Errorf("app.js reintroduces %q — sections must render in authored order (inverted pyramid)", forbidden)
 		}
-		if !found {
-			t.Errorf("PROFILE_ORDER in app.js has no entry for schema profile %q (viewer/schema drift)", profile)
-		}
+	}
+	if !strings.Contains(app, "const orderedSections = content.sections || [];") {
+		t.Error("app.js no longer renders content.sections in authored order")
 	}
 }
 
