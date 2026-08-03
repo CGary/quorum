@@ -407,12 +407,11 @@ func outputParses(format, output string) bool {
 // stageAndDiffStat stages every change (add -A) and computes the numstat of the
 // staged tree against the baseline commit.
 func stageAndDiffStat(worktree, baseline, promptPointerRelPath string) (DispatchDiffStat, error) {
-	addArgs := []string{"add", "-A"}
-	if promptPointerRelPath != "" {
-		addArgs = append(addArgs, "--", ":!"+promptPointerRelPath)
+	if err := gitRun(worktree, "add", "-A"); err != nil {
+		return DispatchDiffStat{Indeterminate: true}, err
 	}
-	if err := gitRun(worktree, addArgs...); err != nil {
-		return DispatchDiffStat{Empty: true}, err
+	if promptPointerRelPath != "" {
+		_ = gitRun(worktree, "reset", baseline, "--", promptPointerRelPath)
 	}
 	diffArgs := []string{"diff", "--cached", "--numstat", baseline}
 	if promptPointerRelPath != "" {
@@ -420,7 +419,7 @@ func stageAndDiffStat(worktree, baseline, promptPointerRelPath string) (Dispatch
 	}
 	out, err := gitOutput(worktree, diffArgs...)
 	if err != nil {
-		return DispatchDiffStat{Empty: true}, err
+		return DispatchDiffStat{Indeterminate: true}, err
 	}
 	stat := DispatchDiffStat{Empty: true}
 	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
@@ -624,7 +623,7 @@ func appendDispatchTrace(spec DispatchSpec, res DispatchResult, outcome classifi
 	events = append(events, map[string]any{
 		"type": "dispatch_finished", "ts": ts, "dispatch_id": spec.DispatchID,
 		"outcome_class": outcome.class, "cause": causeVal, "noop": outcome.noop,
-		"diff_stat":    map[string]any{"empty": res.Diff.Empty, "files_changed": res.Diff.FilesChanged, "insertions": res.Diff.Insertions, "deletions": res.Diff.Deletions},
+		"diff_stat":    map[string]any{"empty": res.Diff.Empty, "indeterminate": res.Diff.Indeterminate, "files_changed": res.Diff.FilesChanged, "insertions": res.Diff.Insertions, "deletions": res.Diff.Deletions},
 		"forensic_ref": forensic, "usage_source": res.Usage.Source, "applied": res.Applied,
 	})
 	trace["events"] = events

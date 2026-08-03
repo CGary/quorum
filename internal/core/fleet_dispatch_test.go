@@ -169,8 +169,11 @@ func TestFleetDispatchStagingFailurePreservesWorktree(t *testing.T) {
 	if res.Applied {
 		t.Fatal("staging failure must never be marked applied")
 	}
-	if !res.Diff.Empty {
-		t.Fatal("diff stat is expected Empty:true on staging failure (indeterminate, not authoritative)")
+	if !res.Diff.Indeterminate {
+		t.Fatal("diff stat is expected Indeterminate:true on staging failure")
+	}
+	if res.Diff.Empty {
+		t.Fatal("diff stat is expected Empty:false on staging failure (indeterminate, not authoritative empty diff)")
 	}
 	if _, e := os.Stat(filepath.Join(env.worktree, "delegate_change.txt")); e != nil {
 		t.Fatalf("delegate work must survive an aborted staging step: %v", e)
@@ -178,8 +181,12 @@ func TestFleetDispatchStagingFailurePreservesWorktree(t *testing.T) {
 	if strings.TrimSpace(run(t, env.worktree, "git", "status", "--porcelain")) == "" {
 		t.Fatal("worktree must NOT be reset --hard when staging itself failed")
 	}
-	if loadResult(t, filepath.Join(env.dispatchDir("d1"), "result.json")).Outcome.Class != "staging_failed" {
+	savedRes := loadResult(t, filepath.Join(env.dispatchDir("d1"), "result.json"))
+	if savedRes.Outcome.Class != "staging_failed" {
 		t.Fatal("result.json class should be staging_failed")
+	}
+	if !savedRes.Diff.Indeterminate || savedRes.Diff.Empty {
+		t.Fatalf("result.json diff expected Indeterminate:true, Empty:false, got %+v", savedRes.Diff)
 	}
 }
 
@@ -519,5 +526,38 @@ func TestFleetDispatchSpawnFailure(t *testing.T) {
 	types := eventTypesInTrace(events)
 	if len(types) != 2 || types[0] != "dispatch_started" || types[1] != "dispatch_finished" {
 		t.Fatalf("expected exactly [dispatch_started dispatch_finished], got %v", types)
+	}
+}
+
+func TestFleetDispatchGitignoredPromptPointerSucceeds(t *testing.T) {
+	env := setupDispatchEnv(t)
+	if err := os.WriteFile(filepath.Join(env.worktree, ".gitignore"), []byte("dispatch-prompt-*.md\n"), 0o644); err != nil {
+		t.Fatalf("write .gitignore: %v", err)
+	}
+	run(t, env.worktree, "git", "add", ".gitignore")
+	run(t, env.worktree, "git", "commit", "-m", "add gitignore")
+
+	t.Setenv("FLEET_FAKE_MODE", "success_diff_gitignored_pointer")
+	spec := env.fakeSpec("d1")
+	spec.PromptPointerRelPath = "dispatch-prompt-d1.md"
+	if err := os.WriteFile(filepath.Join(env.worktree, "dispatch-prompt-d1.md"), []byte("prompt\n"), 0o644); err != nil {
+		t.Fatalf("write prompt pointer: %v", err)
+	}
+
+	res, err := Dispatch(spec)
+	if err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	if res.Outcome.Class != "attempt" {
+		t.Fatalf("outcome class = %q, want attempt", res.Outcome.Class)
+	}
+	if !res.Applied {
+		t.Fatal("expected applied to be true")
+	}
+	if res.Diff.Empty {
+		t.Fatal("expected diff.empty to be false")
+	}
+	if res.Diff.Indeterminate {
+		t.Fatal("expected diff.indeterminate to be false")
 	}
 }

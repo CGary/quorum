@@ -25,6 +25,10 @@ func runFakeDelegate(mode string) int {
 		_ = os.WriteFile("delegate_change.txt", []byte("delegate change\n"), 0o644)
 		fmt.Println("NOTES: applied the requested change")
 		return 0
+	case "success_diff_gitignored_pointer":
+		_ = os.WriteFile("delegate_change.txt", []byte("delegate change\n"), 0o644)
+		fmt.Println("NOTES: applied change with gitignored prompt pointer")
+		return 0
 	case "diff_then_fail":
 		_ = os.WriteFile("delegate_partial.txt", []byte("partial work\n"), 0o644)
 		fmt.Fprintln(os.Stderr, "delegate produced a partial change then failed")

@@ -16,10 +16,11 @@ type DispatchOutcome struct {
 }
 
 type DispatchDiffStat struct {
-	Empty        bool `json:"empty"`
-	FilesChanged int  `json:"files_changed"`
-	Insertions   int  `json:"insertions"`
-	Deletions    int  `json:"deletions"`
+	Empty         bool `json:"empty"`
+	Indeterminate bool `json:"indeterminate"`
+	FilesChanged  int  `json:"files_changed"`
+	Insertions    int  `json:"insertions"`
+	Deletions     int  `json:"deletions"`
 }
 
 type DispatchUsage struct {
