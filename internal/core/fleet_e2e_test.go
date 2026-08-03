@@ -27,7 +27,8 @@ import (
 // structural coupling is documented, not eliminated, by this task.
 type e2eAgentsYAML struct {
 	Transports map[string]struct {
-		Active bool `yaml:"active"`
+		Active bool   `yaml:"active"`
+		Mode   string `yaml:"mode"`
 		Models map[string]struct {
 			Provider string `yaml:"provider"`
 		} `yaml:"models"`
@@ -100,7 +101,7 @@ func loadRealRoutePolicy(t *testing.T) RoutePolicy {
 		if !ok {
 			continue // absent from agents.yaml -> unreachable via fleet route
 		}
-		ta := TransportAvailability{Agent: name, Active: tr.Active}
+		ta := TransportAvailability{Agent: name, Active: tr.Active, Mode: tr.Mode}
 		for model, m := range tr.Models {
 			ta.Models = append(ta.Models, ModelAvailability{Model: model, Family: m.Provider})
 		}

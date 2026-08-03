@@ -117,6 +117,8 @@ transports:
         reasoning_effort: medium
         effort_whitelist: [none, low, medium, high, xhigh]
     contract_test: .agents/fleet/contract_tests/codex.yaml
+    # Edits the worktree via exec + --sandbox workspace-write.
+    mode: agentic
     # Reactivated 2026-07-22: ChatGPT free-tier credits are available for
     # gpt-5.6-terra / gpt-5.6-luna / gpt-5.5 / gpt-5.4-mini. Credits are
     # LIMITED and non-renewing: prefer the $0 transports (agy/opencode) for
@@ -158,6 +160,18 @@ transports:
       # Exact strings from legacy `agy models` output (Fase 0a §3), joined by canonical
       # provider/model name. agy now emits slugs, but display names are still accepted.
       # GPT-OSS 120B only ships a single effort tier.
+      # gemini-3.6-flash trio: same cells as agy_edit (symmetric catalog, same
+      # binary/subscription). On base agy they serve one-shot review/analysis
+      # only; mode:oneshot keeps them out of implement-phase routing.
+      google/gemini-3.6-flash-low:
+        provider: google
+        model_arg: Gemini 3.6 Flash (Low)
+      google/gemini-3.6-flash-medium:
+        provider: google
+        model_arg: Gemini 3.6 Flash (Medium)
+      google/gemini-3.6-flash-high:
+        provider: google
+        model_arg: Gemini 3.6 Flash (High)
       google/gemini-3.5-flash-low:
         provider: google
         model_arg: Gemini 3.5 Flash (Low)
@@ -189,6 +203,9 @@ transports:
         provider: anthropic
         model_arg: Claude Opus 4.6 (Thinking)
     contract_test: .agents/fleet/contract_tests/agy.yaml
+    # Blind one-shot --print output: cannot edit files, so `quorum fleet route`
+    # never picks base agy for implement-phase candidates.
+    mode: oneshot
     active: true
 
   agy_edit:
@@ -237,6 +254,8 @@ transports:
         provider: anthropic
         model_arg: Claude Opus 4.6 (Thinking)
     contract_test: .agents/fleet/contract_tests/agy.yaml
+    # Edits the worktree in place via accept-edits + --sandbox --add-dir.
+    mode: agentic
     active: true
 
   aider:
@@ -320,6 +339,8 @@ transports:
         model_arg: openrouter/nvidia/nemotron-nano-9b-v2:free
         max_cost_per_call_usd: 0.5
     contract_test: .agents/fleet/contract_tests/aider.yaml
+    # Applies edits directly to the files listed in {files}.
+    mode: agentic
     active: true
 
   opencode:
@@ -412,6 +433,8 @@ transports:
         provider: openrouter-poolside
         model_arg: openrouter/poolside/laguna-m.1:free
     contract_test: .agents/fleet/contract_tests/opencode.yaml
+    # Agentic tool-use loop editing inside --dir {cwd}.
+    mode: agentic
     active: true
 
   claude:
@@ -434,4 +457,6 @@ transports:
     quota_class: subscription
     models: {}
     contract_test: .agents/fleet/contract_tests/claude.yaml
+    # Headless -p still runs the full agentic tool loop in the cwd.
+    mode: agentic
     active: false

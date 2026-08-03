@@ -100,6 +100,11 @@
           "type": "boolean",
           "description": "Whether config.yaml.levels may route to this transport in v1. false means declared-but-inactive (e.g. claude in v1)."
         },
+        "mode": {
+          "type": "string",
+          "enum": ["agentic", "oneshot"],
+          "description": "Execution capability of this transport: agentic (edits/acts inside the cwd/worktree) or oneshot (blind one-shot print output that cannot edit files, e.g. agy --print). quorum fleet route skips oneshot transports when enumerating implement-phase candidates. Optional; absent means agentic (backward compatible)."
+        },
         "env": {
           "type": "object",
           "description": "Optional extra environment variables applied (via os.Setenv at the cmd layer) before invoking this transport. Absent means no extra env is set; existing transports omit this field and are unaffected.",

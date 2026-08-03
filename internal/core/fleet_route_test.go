@@ -430,6 +430,101 @@ func TestRouteCustomRouterVersion(t *testing.T) {
 	}
 }
 
+// oneshotFilterPolicy models the symmetric-catalog scenario: the level-0
+// primary model exists on BOTH an agentic transport and a oneshot transport
+// (same subscription, different capability), and the oneshot transport comes
+// FIRST in the ordered slice so any filtering gap would surface immediately.
+// The fallback lives only on a cross-family agentic transport, mirroring the
+// ratified cross-provider reroute order.
+func oneshotFilterPolicy() RoutePolicy {
+	oneshot := TransportAvailability{
+		Agent:  "oneshot-runner",
+		Active: true,
+		Mode:   "oneshot",
+		Models: []ModelAvailability{{Model: mL0Primary, Family: "nimbus"}},
+	}
+	editor := TransportAvailability{
+		Agent:  "editor",
+		Active: true,
+		Mode:   "agentic",
+		Models: []ModelAvailability{{Model: mL0Primary, Family: "nimbus"}},
+	}
+	// Mode deliberately empty: absent mode must count as agentic.
+	cross := TransportAvailability{
+		Agent:  "cross",
+		Active: true,
+		Models: []ModelAvailability{{Model: mL0Fallback, Family: "orbit"}},
+	}
+	// Trailing catch-all rule (empty match), mirroring the real routing.yaml,
+	// so non-implement phases resolve instead of erroring.
+	rules := append(fixtureRules(), RoutingRule{ExecutorLevel: 0, MaxAttempts: 1})
+	return RoutePolicy{
+		Routing:    rules,
+		Levels:     map[int]LevelModels{0: {Primary: mL0Primary, Fallback: mL0Fallback}},
+		Transports: []TransportAvailability{oneshot, editor, cross},
+	}
+}
+
+// TestRouteOneshotFilteredOnImplement asserts the capability filter: a
+// mode:oneshot transport is never an implement-phase candidate, even when it
+// is the first transport in order and shares the level primary with an
+// agentic transport; after excluding the agentic pair, the reroute lands on
+// the cross-family agentic fallback, never on the oneshot twin of the
+// excluded model.
+func TestRouteOneshotFilteredOnImplement(t *testing.T) {
+	policy := oneshotFilterPolicy()
+
+	t.Run("primary_resolves_to_agentic_transport", func(t *testing.T) {
+		res, err := Route(req("low", "S"), policy)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.Candidate == nil {
+			t.Fatalf("expected a candidate, got blocked=%q reasons=%v", res.Blocked, res.Reasons)
+		}
+		if res.Candidate.Agent != "editor" || res.Candidate.Model != mL0Primary {
+			t.Fatalf("got %v want editor/%s (oneshot-runner skipped)", res.Candidate, mL0Primary)
+		}
+	})
+
+	t.Run("reroute_skips_oneshot_twin_and_goes_cross_family", func(t *testing.T) {
+		r := req("low", "S")
+		r.Exclusions = []Candidate{{Agent: "editor", Model: mL0Primary}}
+		res, err := Route(r, policy)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.Candidate == nil {
+			t.Fatalf("expected a candidate, got blocked=%q reasons=%v", res.Blocked, res.Reasons)
+		}
+		if res.Candidate.Agent == "oneshot-runner" {
+			t.Fatalf("reroute regressed to the oneshot transport with the excluded model: %v", res.Candidate)
+		}
+		if res.Candidate.Agent != "cross" || res.Candidate.Model != mL0Fallback {
+			t.Fatalf("got %v want cross/%s (cross-family agentic fallback)", res.Candidate, mL0Fallback)
+		}
+	})
+}
+
+// TestRouteOneshotEligibleOnNonImplementPhase proves the filter is
+// phase-scoped: outside implement (here a review phase resolved by the
+// catch-all rule), the oneshot transport keeps its slice-order priority and
+// wins the candidate slot.
+func TestRouteOneshotEligibleOnNonImplementPhase(t *testing.T) {
+	policy := oneshotFilterPolicy()
+	r := RouteRequest{Phase: "review", Risk: "low", ComplexityBand: "S"}
+	res, err := Route(r, policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Candidate == nil {
+		t.Fatalf("expected a candidate, got blocked=%q reasons=%v", res.Blocked, res.Reasons)
+	}
+	if res.Candidate.Agent != "oneshot-runner" || res.Candidate.Model != mL0Primary {
+		t.Fatalf("got %v want oneshot-runner/%s (oneshot eligible off-implement)", res.Candidate, mL0Primary)
+	}
+}
+
 // TestRoutePurityNoHardcodedModelNames enforces the zero-hardcoded-model-names
 // invariant mechanically: it reads fleet_route.go's source and asserts no
 // fixture model-name literal appears in it.

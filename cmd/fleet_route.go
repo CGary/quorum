@@ -38,7 +38,8 @@ type fleetRouteRequest struct {
 // the full transport contract stays owned by cmd/fleet_dispatch.go.
 type fleetRouteAgentsFile struct {
 	Transports map[string]struct {
-		Active bool `yaml:"active"`
+		Active bool   `yaml:"active"`
+		Mode   string `yaml:"mode"`
 		Models map[string]struct {
 			Provider string `yaml:"provider"`
 		} `yaml:"models"`
@@ -186,7 +187,7 @@ func buildRoutePolicyFromDisk(projectRoot string) (core.RoutePolicy, error) {
 		if !ok {
 			continue // absent from agents.yaml -> unreachable via fleet route
 		}
-		ta := core.TransportAvailability{Agent: name, Active: t.Active}
+		ta := core.TransportAvailability{Agent: name, Active: t.Active, Mode: t.Mode}
 		for model, m := range t.Models {
 			ta.Models = append(ta.Models, core.ModelAvailability{Model: model, Family: m.Provider})
 		}

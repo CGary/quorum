@@ -27,13 +27,25 @@ levels:
       - review
       - diagnose_verify_failure
       - small_corrections
-    primary: openai/gpt-5.5-medium
-    fallback: google/gemini-3.1-pro-low
-    # gpt-5.6 free-tier cells (2026-07-22): listed in the order the human gave
-    # them; no capability ranking between terra and luna is asserted. They sit
-    # in secondary so the proven gpt-5.5-medium primary and the $0 agy fallback
-    # are enumerated first — codex free credits are finite.
+    # Rebuilt 2026-07-31 after the hexcell-2 audit: this level owns {low,M},
+    # {medium,S} and {medium,M} -- the band most SDC tasks land in -- yet its
+    # chain resolved to nothing routable (codex disabled by kill-switch since
+    # 2026-07-27; the old google/gemini-3.1-pro-low fallback lives only on the
+    # oneshot `agy` transport, which core.Route excludes from implement), so
+    # every level-1 implement fell back to an internal Claude subagent.
+    primary: google/gemini-3.6-flash-medium
+    # Same G1 invariant as level 0: the FIRST reroute candidate after the
+    # primary is excluded MUST be cross-provider (opencode-backed, $0
+    # OpenRouter free tier), never another agy_edit-provided model.
+    fallback: poolside/laguna-m.1-free
+    # Second cross-provider free cell, then the agy-provided gpt-oss-120b.
+    # The codex cells stay reachable but last: that account is retired
+    # (kill-switch 2026-07-27) and its free credits are finite. gpt-5.6
+    # terra/luna keep the human-given order; no capability ranking asserted.
     secondary:
+      - nvidia/nemotron-3-ultra-550b-a55b-free
+      - openai/gpt-oss-120b
+      - openai/gpt-5.5-medium
       - openai/gpt-5.6-terra-medium
       - openai/gpt-5.6-luna-medium
     max_cost_per_call_usd: 0.50

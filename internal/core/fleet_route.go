@@ -8,6 +8,17 @@ import "fmt"
 // RoutePolicy.RouterVersion, that value wins and this const is the fallback.
 const RouterVersion = "fleet-route/v1"
 
+// phaseImplement is the routing-request phase whose candidate must be able to
+// edit the task worktree. It is a lifecycle phase name (the same string
+// routing.yaml rules match on), never a model or agent name.
+const phaseImplement = "implement"
+
+// transportModeOneshot marks a transport declared (in agents.yaml) as blind
+// one-shot output that cannot edit files in the cwd. Any other Mode value —
+// including the empty string, for backward compatibility — is treated as
+// agentic.
+const transportModeOneshot = "oneshot"
+
 // Candidate is the single executor identity used everywhere in this package:
 // the returned pick, exclusion entries, and the reroute append. Level is the
 // executor level the candidate was resolved at.
@@ -93,6 +104,10 @@ type TransportAvailability struct {
 	Agent  string              `json:"agent" yaml:"agent"`
 	Active bool                `json:"active" yaml:"active"`
 	Models []ModelAvailability `json:"models" yaml:"models"`
+	// Mode is the transport's declared execution capability ("agentic" or
+	// "oneshot", agents.yaml `mode`). Empty means agentic, so policies that
+	// predate the field keep every transport eligible.
+	Mode string `json:"mode,omitempty" yaml:"mode,omitempty"`
 }
 
 // RoutePolicy is the caller-supplied policy aggregate. Levels is a map indexed
@@ -175,7 +190,9 @@ func Route(req RouteRequest, policy RoutePolicy) (RouteResult, error) {
 		Hashes:          policy.Hashes,
 	}
 
-	enumerated := enumerateCandidates(level, models, policy.Transports)
+	// Implement-phase candidates must be able to edit the worktree, so oneshot
+	// transports are filtered out; every other phase keeps them eligible.
+	enumerated := enumerateCandidates(level, models, policy.Transports, req.Phase == phaseImplement)
 
 	var survivors []candidateWithFamily
 	var reasons []string
@@ -241,8 +258,11 @@ func resolveRule(rules []RoutingRule, req RouteRequest) (RoutingRule, bool) {
 // enumerateCandidates builds the deterministic ordered candidate list: preference
 // order (primary, fallback, secondaries) as the outer loop, the ordered
 // transport slice as the inner loop. A candidate is emitted when a transport is
-// active and lists the model.
-func enumerateCandidates(level int, models LevelModels, transports []TransportAvailability) []candidateWithFamily {
+// active and lists the model. With requireAgentic, transports declared
+// mode:oneshot are skipped entirely (they cannot edit files, so a model shared
+// with an agentic transport never resolves to the oneshot one on reroute);
+// an empty mode counts as agentic.
+func enumerateCandidates(level int, models LevelModels, transports []TransportAvailability, requireAgentic bool) []candidateWithFamily {
 	ordered := make([]string, 0, 2+len(models.Secondary))
 	if models.Primary != "" {
 		ordered = append(ordered, models.Primary)
@@ -260,6 +280,9 @@ func enumerateCandidates(level int, models LevelModels, transports []TransportAv
 	for _, model := range ordered {
 		for _, t := range transports {
 			if !t.Active {
+				continue
+			}
+			if requireAgentic && t.Mode == transportModeOneshot {
 				continue
 			}
 			for _, m := range t.Models {

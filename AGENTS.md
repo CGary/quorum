@@ -147,11 +147,24 @@ cheap cell for level 0 (`low` risk / `S` band). `agy_edit` (2026-07-30) is the a
 variant of the `agy` transport: same binary, argv adds `--mode accept-edits
 --dangerously-skip-permissions --sandbox --add-dir {cwd}` so the delegate edits the worktree in
 place (`--sandbox` WITHOUT `--add-dir` silently redirects writes to
-`~/.gemini/antigravity-cli/scratch/` — never ship it alone). The gemini-3.6-flash trio lives ONLY
-on `agy_edit`; since 2026-07-31 `agy_edit` also exposes `gpt-oss-120b`, `claude-sonnet-4-6`, and
+`~/.gemini/antigravity-cli/scratch/` — never ship it alone). Since 2026-07-31 the model catalog is
+SYMMETRIC across both agy transports: the gemini-3.6-flash trio exists on `agy_edit` (agentic
+pass@3, FLEET-19) AND on base `agy` (one-shot smoke 3/3, task 21). Capability is declared as
+policy data via a per-transport `mode: agentic | oneshot` field in `agents.yaml` (`agy` is the
+only `oneshot`; absent = agentic), and `core.Route` excludes `oneshot` transports from
+implement-phase candidate enumeration — this preserves the G1 cross-provider reroute guarantee
+despite the symmetric catalog. Side effect: level 1's old fallback `google/gemini-3.1-pro-low`
+(only on `agy`) is no longer routable for implement — it was a latent bug (a one-shot transport
+can never execute an implement). That left level 1 — which owns `{low,M}`, `{medium,S}` and
+`{medium,M}`, the band most SDC tasks land in — resolving to nothing routable, so every level-1
+implement silently fell back to an internal Claude subagent. Level 1 was therefore REBUILT on
+2026-07-31: `primary: google/gemini-3.6-flash-medium` (agentic on `agy_edit`) with
+`fallback: poolside/laguna-m.1-free` keeping the G1 cross-provider invariant, and the codex cells
+demoted to the tail of `secondary`. First real exercise: FLEET-032 (`risk=low`, `band=M`) routed to
+the primary and completed its implement externally. Since 2026-07-31 `agy_edit` also exposes `gpt-oss-120b`, `claude-sonnet-4-6`, and
 `claude-opus-4-6` (verified agentic under accept-edits, smoke 3/3), which makes level 2's
 `primary: anthropic/claude-opus-4-6` resolvable as an agentic cell (the old `claude-opus-4-7`
-reference was dead — no active transport exposed it). Base `agy` keeps the same non-3.6 cells for
+reference was dead — no active transport exposed it). Base `agy` keeps its 3.5/3.1 cells for
 one-shot `--print` review/analysis and rollback (3.5 cells migrated from level 0 by FLEET-030).
 Both agy transports run with `timeouts.default_s: 600` (raised from 300 after a real hexcell
 dispatch was killed mid-work at 300s, 2026-07-31). Secondaries:

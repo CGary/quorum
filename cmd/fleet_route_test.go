@@ -156,15 +156,34 @@ func TestFleetRouteControlFileMissingAndMalformed(t *testing.T) {
 	})
 }
 
-// TestFleetRouteLevel1DegradesWhenCodexDisabled is AC-4: with codex disabled via
-// the kill-switch, quorum fleet route for level 1 falls back cleanly to the
-// non-codex candidate (agy + google/gemini-3.1-pro-low) with no error;
-// re-enabling codex restores the original candidate order.
+// TestFleetRouteLevel1DegradesWhenCodexDisabled is AC-4, rewritten 2026-07-31
+// after the level-1 chain was rebuilt. Level 1 no longer depends on codex at
+// all: its primary is an agentic subscription cell and its fallback is a
+// cross-provider $0 cell, so a disabled codex is simply irrelevant to the
+// route. What AC-4 still asserts is that the kill-switch degrades gracefully
+// -- disabling the live primary target hands the route to the cross-provider
+// fallback (never a block, never an error), and re-enabling restores it.
 func TestFleetRouteLevel1DegradesWhenCodexDisabled(t *testing.T) {
 	root := setupTempPolicyRoot(t)
 	reqJSON := `{"phase":"implement","risk":"medium","complexity_band":"S"}` // Level 1
 
-	// 1. Write the control file disabling codex
+	routeOK := func(t *testing.T, label string) core.RouteResult {
+		t.Helper()
+		code, out, errOut := runRoute(t, root, reqJSON)
+		if code != 0 {
+			t.Fatalf("%s: exit %d: %s", label, code, errOut)
+		}
+		var res core.RouteResult
+		if err := json.Unmarshal([]byte(out), &res); err != nil {
+			t.Fatalf("%s: unmarshal result: %v", label, err)
+		}
+		if res.Candidate == nil {
+			t.Fatalf("%s: want a candidate, got blocked=%q reasons=%v", label, res.Blocked, res.Reasons)
+		}
+		return res
+	}
+
+	// 1. Codex disabled: level 1 still resolves, on its own agentic primary.
 	ctrlPath := filepath.Join(root, ".ai", "fleet-control.json")
 	if err := os.MkdirAll(filepath.Dir(ctrlPath), 0o755); err != nil {
 		t.Fatal(err)
@@ -173,44 +192,34 @@ func TestFleetRouteLevel1DegradesWhenCodexDisabled(t *testing.T) {
 	if err := os.WriteFile(ctrlPath, []byte(ctrlJSON), 0o644); err != nil {
 		t.Fatal(err)
 	}
-
-	code, out, errOut := runRoute(t, root, reqJSON)
-	if code != 0 {
-		t.Fatalf("run with codex disabled exit %d: %s", code, errOut)
+	res := routeOK(t, "codex disabled")
+	if res.Candidate.Agent == "codex" {
+		t.Fatalf("codex disabled: router picked a disabled target %s/%s", res.Candidate.Agent, res.Candidate.Model)
 	}
-	var res core.RouteResult
-	if err := json.Unmarshal([]byte(out), &res); err != nil {
-		t.Fatalf("unmarshal result: %v", err)
-	}
-	if res.Candidate == nil {
-		t.Fatalf("want a candidate, got blocked=%q reasons=%v", res.Blocked, res.Reasons)
-	}
-	
-	// agy fallback
-	if res.Candidate.Agent != "agy" || res.Candidate.Model != "google/gemini-3.1-pro-low" {
-		t.Errorf("degraded candidate: got %s/%s want agy/google/gemini-3.1-pro-low", res.Candidate.Agent, res.Candidate.Model)
+	primary := *res.Candidate
+	if primary.Level != 1 {
+		t.Errorf("codex disabled: level got %d want 1", primary.Level)
 	}
 
-	// 2. Remove the control file (or make it empty) to restore
+	// 2. Disable the live primary agent too: the route must degrade to the
+	// cross-provider fallback, not block.
+	ctrlJSON = `{"disabled":[{"target":"codex","reason":"account retired"},{"target":"` + primary.Agent + `","reason":"simulated outage"}]}`
+	if err := os.WriteFile(ctrlPath, []byte(ctrlJSON), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	degraded := routeOK(t, "primary disabled")
+	if degraded.Candidate.Agent == primary.Agent {
+		t.Fatalf("primary disabled: router picked the disabled agent %s/%s", degraded.Candidate.Agent, degraded.Candidate.Model)
+	}
+
+	// 3. Restore: the primary comes back.
 	if err := os.WriteFile(ctrlPath, []byte(`{}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-
-	code2, out2, errOut2 := runRoute(t, root, reqJSON)
-	if code2 != 0 {
-		t.Fatalf("run with codex re-enabled exit %d: %s", code2, errOut2)
-	}
-	var res2 core.RouteResult
-	if err := json.Unmarshal([]byte(out2), &res2); err != nil {
-		t.Fatalf("unmarshal result: %v", err)
-	}
-	if res2.Candidate == nil {
-		t.Fatalf("want a candidate, got blocked=%q reasons=%v", res2.Blocked, res2.Reasons)
-	}
-	
-	// original primary
-	if res2.Candidate.Agent != "codex" || res2.Candidate.Model != "openai/gpt-5.5-medium" {
-		t.Errorf("restored candidate: got %s/%s want codex/openai/gpt-5.5-medium", res2.Candidate.Agent, res2.Candidate.Model)
+	restored := routeOK(t, "restored")
+	if restored.Candidate.Agent != primary.Agent || restored.Candidate.Model != primary.Model {
+		t.Errorf("restored candidate: got %s/%s want %s/%s",
+			restored.Candidate.Agent, restored.Candidate.Model, primary.Agent, primary.Model)
 	}
 }
 
