@@ -94,6 +94,11 @@ content:
 - **Surface human decisions**: use `callouts` for pending human choices, warnings, or notes that should be visible before detail. Keep it to 3 or fewer so alert fatigue does not replace cognitive fatigue.
 - **Use diagrams only for relationships**: include `diagrams` when prose would force the reader to mentally simulate flow, dependency, sequence, state, ownership, or phases. Keep Mermaid diagrams small (about 5–9 nodes), prefer `flowchart LR` for left-to-right process flow, `flowchart TD` for hierarchies, `sequenceDiagram` for temporal interactions, `stateDiagram-v2` for lifecycle states, and `timeline` for phased plans. Do not use diagrams as decoration.
 - **Concise field values**: every field value is plain text rendered by the viewer (no Markdown emphasis); keep values short and scannable.
+- **Inverted pyramid**: `verdict.text` is a 1–2 sentence bottom line with zero filler; order `sections` most-decision-relevant first, background and raw material last (`appendix`).
+- **Defer technical detail within the sentence**: lead each sentence with what it means for the reader; push identifiers, flags, and internals to the end of the sentence so the reader can stop early without losing the point.
+- **Tag certainty**: never present an inference as a fact — prefix claims as "verified:", "inferred:", or "assumption:" in `findings`/`analysis` rows, and route anything unverified to `verify`.
+- **Match the audience**: when `presentation.audience` is `manager` or `user`, exclude code, logs, and stack traces entirely and keep the report near one page of rendered output.
+- **Respect a length budget**: treat `presentation.density` as a word budget — `compact` says only what changes a decision; if a section fights the budget, move it to `appendix` instead of inflating the body.
 
 ### Phase 2: Produce the draft in `.tmp/` (two equally valid paths)
 The goal is a `.tmp/<id>.yaml` draft. Pick whichever path is cheaper:
