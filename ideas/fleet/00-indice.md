@@ -33,6 +33,9 @@ con `git mv` preservando historia y cada doc lleva un banner de estado). Este í
 | 18 — baja codex + modelos agy 3.6 | ✅ archivada | `docs/archive/fleet/18-baja-codex-y-modelos-agy-3.6.md` (implementada por FLEET-030, archivada 2026-07-30) |
 | 19 — agy modo agéntico (2º transporte editor) | ✅ implementada (pendiente de archivar) | `ideas/fleet/19-agy-modo-agentico.md` — implementada como `agy_edit` en `agents.yaml` (pass@3 S/M verificado 2026-07-30); archivar a `docs/archive/fleet/` con `git mv` cuando se haga la pasada de archivado |
 | resultados-fase-0a (evidencia de 01) | ✅ archivada | `docs/archive/fleet/resultados-fase-0a.md` |
+| 20 — registro persistente de runs en `fleet run` | ⛔ diferida (rechazada en revisión 2026-07-31; gate: 2–3 semanas de evidencia `tee` desde el invocador) | `ideas/fleet/20-registro-runs-fleet-run.md` |
+| 21 — gemini-3.6-flash en `agy` base (one-shot) | ✅ implementada (2026-07-31, diseño ampliado: catálogo simétrico + campo `mode` por transporte + filtro por capacidad en `core.Route`; smoke one-shot 3/3) | `ideas/fleet/21-gemini-36-en-agy-base.md` |
+| 22 — medición del ahorro (campos de coste en el ledger + agregador) | 🚧 diferida (decisión del usuario 2026-08-02: implementar después con calma; gate: ~10 tareas con `/q-orchestrate` v1.7) | `ideas/fleet/22-medicion-ahorro-ledger.md` |
 
 ## Decisiones ya tomadas (no re-litigar en los briefs)
 
