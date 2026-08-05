@@ -18,10 +18,11 @@ type ComplexityBlueprint struct {
 // caller (populated from .agents/policies/complexity.yaml at runtime) and is
 // never hardcoded in this file.
 type ComplexityPolicy struct {
-	Calibrated  bool `json:"calibrated" yaml:"calibrated"`
-	SMaxFiles   int  `json:"s_max_files" yaml:"s_max_files"`
-	SMaxSymbols int  `json:"s_max_symbols" yaml:"s_max_symbols"`
-	LMaxFiles   int  `json:"l_max_files" yaml:"l_max_files"`
+	Calibrated      bool     `json:"calibrated" yaml:"calibrated"`
+	SMaxFiles       int      `json:"s_max_files" yaml:"s_max_files"`
+	SMaxSymbols     int      `json:"s_max_symbols" yaml:"s_max_symbols"`
+	LMaxFiles       int      `json:"l_max_files" yaml:"l_max_files"`
+	NoncountedGlobs []string `json:"noncounted_globs" yaml:"noncounted_globs"`
 }
 
 // ComplexityInputs echoes the raw values used to compute the band, for
@@ -68,7 +69,21 @@ func ScoreComplexity(bp ComplexityBlueprint, policy ComplexityPolicy) (Complexit
 		symbols = []string{}
 	}
 
-	filesCount := len(affected)
+	var countedFiles []string
+	for _, f := range affected {
+		excluded := false
+		for _, g := range policy.NoncountedGlobs {
+			if safeGlobMatch(f, g) {
+				excluded = true
+				break
+			}
+		}
+		if !excluded {
+			countedFiles = append(countedFiles, f)
+		}
+	}
+
+	filesCount := len(countedFiles)
 	symbolsCount := len(symbols)
 
 	inputs := ComplexityInputs{
