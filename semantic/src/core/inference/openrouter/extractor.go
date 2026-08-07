@@ -204,7 +204,6 @@ func parseExtractedKG(raw string) (worker.KnowledgeGraph, error) {
 					if err := json.Unmarshal([]byte(trimmed[start:i+1]), &kg); err == nil {
 						return kg, nil
 					}
-					break
 				}
 			}
 		}

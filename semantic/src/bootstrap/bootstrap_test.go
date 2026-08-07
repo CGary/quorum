@@ -3,6 +3,9 @@
 package bootstrap
 
 import (
+	"fmt"
+	"github.com/hsme/core/src/core/inference/ollama"
+	"github.com/hsme/core/src/core/inference/openrouter"
 	"os"
 	"path/filepath"
 	"testing"
@@ -78,6 +81,27 @@ func TestOpenDB(t *testing.T) {
 	// Verify it's actually a DB by pinging
 	if err := db.Ping(); err != nil {
 		t.Errorf("db ping failed: %v", err)
+	}
+}
+
+func TestOpenWithWorkerProviderBranch(t *testing.T) {
+	tmpDir := t.TempDir()
+	cases := []struct {
+		provider     string
+		wantFallback bool
+	}{{"", false}, {"openrouter", true}}
+	for i, tc := range cases {
+		cfg := Config{DBPath: filepath.Join(tmpDir, fmt.Sprintf("test-%d.db", i)), ExtractionProvider: tc.provider, ExtractionModel: "test-model", OpenRouterBaseURL: "http://127.0.0.1:0"}
+		db, _, extractor, err := OpenWithWorker(cfg)
+		if err != nil {
+			t.Fatalf("provider %q: OpenWithWorker failed: %v", tc.provider, err)
+		}
+		db.Close()
+		_, isFallback := extractor.(*openrouter.FallbackExtractor)
+		_, isOllama := extractor.(*ollama.Extractor)
+		if tc.wantFallback != isFallback || tc.wantFallback == isOllama {
+			t.Errorf("provider %q: got %T, wantFallback=%v", tc.provider, extractor, tc.wantFallback)
+		}
 	}
 }
 

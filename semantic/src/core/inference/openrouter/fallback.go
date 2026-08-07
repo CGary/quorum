@@ -2,6 +2,7 @@ package openrouter
 
 import (
 	"context"
+	"log"
 
 	"github.com/hsme/core/src/core/worker"
 )
@@ -21,6 +22,7 @@ func NewFallbackExtractor(primary, fallback worker.GraphExtractor) *FallbackExtr
 func (f *FallbackExtractor) ExtractEntities(ctx context.Context, text string) (worker.KnowledgeGraph, error) {
 	kg, err := f.primary.ExtractEntities(ctx, text)
 	if err != nil {
+		log.Printf("openrouter: primary extractor failed, falling back to ollama: %v", err)
 		return f.fallback.ExtractEntities(ctx, text)
 	}
 	return kg, nil
