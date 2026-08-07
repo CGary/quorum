@@ -7,7 +7,9 @@ import (
 	"fmt"
 
 	"github.com/hsme/core/src/core/inference/ollama"
+	"github.com/hsme/core/src/core/inference/openrouter"
 	"github.com/hsme/core/src/core/search"
+	"github.com/hsme/core/src/core/worker"
 	"github.com/hsme/core/src/storage/sqlite"
 )
 
@@ -53,13 +55,20 @@ func OpenWithEmbedder(cfg Config) (*sql.DB, *ollama.Embedder, error) {
 }
 
 // OpenWithWorker opens the database and initializes embedder and extractor.
-func OpenWithWorker(cfg Config) (*sql.DB, *ollama.Embedder, *ollama.Extractor, error) {
+func OpenWithWorker(cfg Config) (*sql.DB, *ollama.Embedder, worker.GraphExtractor, error) {
 	db, client, embedder, err := openWithEmbedderInternal(cfg)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	extractor := ollama.NewExtractor(client, cfg.ExtractionModel)
+	ollamaExtractor := ollama.NewExtractor(client, cfg.ExtractionModel)
 
-	return db, embedder, extractor, nil
+	if cfg.ExtractionProvider == "openrouter" {
+		orClient := openrouter.NewClient(cfg.OpenRouterBaseURL, cfg.OpenRouterAPIKey)
+		orExtractor := openrouter.NewExtractor(orClient, cfg.ExtractionModel)
+		fallbackExtractor := openrouter.NewFallbackExtractor(orExtractor, ollamaExtractor)
+		return db, embedder, fallbackExtractor, nil
+	}
+
+	return db, embedder, ollamaExtractor, nil
 }
