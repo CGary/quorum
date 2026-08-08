@@ -66,7 +66,8 @@ func OpenWithWorker(cfg Config) (*sql.DB, *ollama.Embedder, worker.GraphExtracto
 	if cfg.ExtractionProvider == "openrouter" {
 		orClient := openrouter.NewClient(cfg.OpenRouterBaseURL, cfg.OpenRouterAPIKey)
 		orExtractor := openrouter.NewExtractor(orClient, cfg.ExtractionModel)
-		fallbackExtractor := openrouter.NewFallbackExtractor(orExtractor, ollamaExtractor)
+		ollamaFallback := ollama.NewExtractor(client, cfg.FallbackExtractionModel)
+		fallbackExtractor := openrouter.NewFallbackExtractor(orExtractor, ollamaFallback)
 		return db, embedder, fallbackExtractor, nil
 	}
 

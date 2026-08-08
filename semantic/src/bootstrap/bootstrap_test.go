@@ -105,6 +105,22 @@ func TestOpenWithWorkerProviderBranch(t *testing.T) {
 	}
 }
 
+func TestLoadFromEnvFallbackExtractionModel(t *testing.T) {
+	t.Setenv("EXTRACTION_PROVIDER", "openrouter")
+	t.Setenv("FALLBACK_EXTRACTION_MODEL", "")
+
+	cfg := LoadFromEnv()
+	if cfg.FallbackExtractionModel != "phi3.5" {
+		t.Errorf("expected default FallbackExtractionModel phi3.5, got %s", cfg.FallbackExtractionModel)
+	}
+
+	t.Setenv("FALLBACK_EXTRACTION_MODEL", "somemodel")
+	cfg = LoadFromEnv()
+	if cfg.FallbackExtractionModel != "somemodel" {
+		t.Errorf("expected FallbackExtractionModel somemodel, got %s", cfg.FallbackExtractionModel)
+	}
+}
+
 func TestOpenDBInvalidPath(t *testing.T) {
 	cfg := Config{
 		DBPath: "/nonexistent/path/to/db.db",

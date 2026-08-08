@@ -7,14 +7,15 @@ import (
 
 // Config holds the application configuration.
 type Config struct {
-	DBPath             string // SQLITE_DB_PATH or --db; default "data/engram.db"
-	OllamaHost         string // OLLAMA_HOST or --ollama-host; default "" → driver picks default
-	EmbeddingModel     string // EMBEDDING_MODEL or --embedding-model; default "nomic-embed-text"
-	EmbeddingDim       int    // hard-coded to 768 (matches existing code)
-	ExtractionModel    string // EXTRACTION_MODEL or --extraction-model; default "phi3.5" (or "nvidia/nemotron-nano-9b-v2:free" for openrouter)
-	ExtractionProvider string // EXTRACTION_PROVIDER or --extraction-provider; default "ollama"
-	OpenRouterAPIKey   string // OPENROUTER_API_KEY
-	OpenRouterBaseURL  string // OPENROUTER_BASE_URL; default "https://openrouter.ai/api/v1"
+	DBPath                  string // SQLITE_DB_PATH or --db; default "data/engram.db"
+	OllamaHost              string // OLLAMA_HOST or --ollama-host; default "" → driver picks default
+	EmbeddingModel          string // EMBEDDING_MODEL or --embedding-model; default "nomic-embed-text"
+	EmbeddingDim            int    // hard-coded to 768 (matches existing code)
+	ExtractionModel         string // EXTRACTION_MODEL or --extraction-model; default "phi3.5" (or "nvidia/nemotron-nano-9b-v2:free" for openrouter)
+	ExtractionProvider      string // EXTRACTION_PROVIDER or --extraction-provider; default "ollama"
+	FallbackExtractionModel string // FALLBACK_EXTRACTION_MODEL; default "phi3.5"
+	OpenRouterAPIKey        string // OPENROUTER_API_KEY
+	OpenRouterBaseURL       string // OPENROUTER_BASE_URL; default "https://openrouter.ai/api/v1"
 }
 
 // LoadFromEnv reads configuration from environment variables and applies defaults.
@@ -45,6 +46,11 @@ func LoadFromEnv() Config {
 		}
 	}
 
+	fallbackExtractModel := os.Getenv("FALLBACK_EXTRACTION_MODEL")
+	if fallbackExtractModel == "" {
+		fallbackExtractModel = "phi3.5"
+	}
+
 	openRouterAPIKey := os.Getenv("OPENROUTER_API_KEY")
 
 	openRouterBaseURL := os.Getenv("OPENROUTER_BASE_URL")
@@ -53,14 +59,15 @@ func LoadFromEnv() Config {
 	}
 
 	return Config{
-		DBPath:             dbPath,
-		OllamaHost:         ollamaHost,
-		EmbeddingModel:     embedModel,
-		EmbeddingDim:       768,
-		ExtractionModel:    extractModel,
-		ExtractionProvider: extractProvider,
-		OpenRouterAPIKey:   openRouterAPIKey,
-		OpenRouterBaseURL:  openRouterBaseURL,
+		DBPath:                  dbPath,
+		OllamaHost:              ollamaHost,
+		EmbeddingModel:          embedModel,
+		EmbeddingDim:            768,
+		ExtractionModel:         extractModel,
+		ExtractionProvider:      extractProvider,
+		FallbackExtractionModel: fallbackExtractModel,
+		OpenRouterAPIKey:        openRouterAPIKey,
+		OpenRouterBaseURL:       openRouterBaseURL,
 	}
 }
 
