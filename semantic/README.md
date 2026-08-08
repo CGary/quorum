@@ -122,6 +122,51 @@ HSME permite ejecutar sus componentes de enriquecimiento y mantenimiento en segu
 
 Los logs de estos procesos se almacenan en el directorio `logs/` (`logs/worker.log` y `logs/ops.log`).
 
+### Servicio systemd de usuario (recomendado)
+
+Alternativa a `just work-bg` para no relanzar el worker tras cada reinicio: systemd lo arranca al iniciar sesión, lo reinicia si crashea y sus logs van a journald.
+
+Archivos (una sola vez):
+
+**`~/.config/hsme/worker.env`** (permisos `600` — la API key nunca se versiona):
+
+```ini
+SQLITE_DB_PATH=/ruta/absoluta/a/semantic/data/engram.db
+EXTRACTION_PROVIDER=openrouter
+OPENROUTER_API_KEY=tu_clave
+```
+
+**`~/.config/systemd/user/hsme-worker.service`**:
+
+```ini
+[Unit]
+Description=HSME background worker (embeddings + graph extraction)
+After=network-online.target
+
+[Service]
+ExecStart=%h/go/bin/hsme-worker
+EnvironmentFile=%h/.config/hsme/worker.env
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+```
+
+Activación y operación diaria:
+
+```bash
+chmod 600 ~/.config/hsme/worker.env
+systemctl --user daemon-reload
+systemctl --user enable --now hsme-worker
+
+just install && systemctl --user restart hsme-worker   # tras recompilar
+systemctl --user stop hsme-worker                      # parar
+journalctl --user -u hsme-worker -f                    # logs (sustituye logs/worker.log)
+```
+
+Notas: `SQLITE_DB_PATH` debe ser **absoluta** (el default `data/engram.db` se resuelve contra el cwd del servicio). `ExecStart` apunta al binario de `just install` (`~/go/bin`), no al `./hsme-worker` local, que queda obsoleto entre builds. Con el servicio activo usa `systemctl --user`, no `just work-bg`/`stop-work`, para no mezclar gestores de proceso. Ollama debe correr como servicio del sistema (`systemctl is-active ollama`) para embeddings y fallback de extracción.
+
 ### Monitoreo y Diagnóstico
 Para supervisar el sistema, se utiliza directamente el **CLI Unificado** (`hsme-cli`), que proporciona las herramientas principales de diagnóstico:
 
