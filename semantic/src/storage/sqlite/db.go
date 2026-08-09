@@ -353,6 +353,18 @@ INSERT OR IGNORE INTO obs_rollup_jobs(job_name, source_scope, last_status) VALUE
     ('minute_to_hour', 'minute_to_hour', 'idle'),
     ('hour_to_day', 'hour_to_day', 'idle'),
     ('retention_cleanup', 'retention_cleanup', 'idle');
+
+-- 18. Quorum delta ID mapping table
+CREATE TABLE IF NOT EXISTS quorumdelta_id_map (
+    project TEXT NOT NULL,
+    quorum_id TEXT NOT NULL,
+    hsme_memory_id INTEGER NOT NULL,
+    imported_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (project, quorum_id),
+    FOREIGN KEY (hsme_memory_id) REFERENCES memories(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_quorumdelta_id_map_hsme_memory_id ON quorumdelta_id_map(hsme_memory_id);
 `
 
 func InitDB(path string) (*sql.DB, error) {
