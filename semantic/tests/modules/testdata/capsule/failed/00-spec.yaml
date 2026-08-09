@@ -1,0 +1,8 @@
+task_id: FAILED-001
+summary: Failed task example summary
+goal: Exercise failure evidence rendering
+invariants:
+  - Must report failures accurately
+acceptance:
+  - id: AC-1
+    statement: Failure handling criterion

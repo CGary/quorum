@@ -1,0 +1,12 @@
+{
+  "task_id": "HSME-001",
+  "overall_result": "pass",
+  "commands": [
+    {
+      "command": "cd semantic && just test",
+      "exit_code": 0,
+      "output": "PASS",
+      "error": ""
+    }
+  ]
+}

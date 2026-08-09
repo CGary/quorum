@@ -1,0 +1,12 @@
+{
+  "task_id": "FAILED-001",
+  "overall_result": "fail",
+  "commands": [
+    {
+      "command": "cd semantic && just test",
+      "exit_code": 1,
+      "output": "FAIL: TestSomething",
+      "error": "exit status 1"
+    }
+  ]
+}

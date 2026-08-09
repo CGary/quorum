@@ -1,0 +1,7 @@
+{
+  "task_id": "HSME-001",
+  "summary": "Review for HSME-001",
+  "verdict": "approve",
+  "notes": ["Clean implementation"],
+  "fix_tasks": []
+}

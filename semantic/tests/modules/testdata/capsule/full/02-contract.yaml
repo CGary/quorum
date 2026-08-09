@@ -1,0 +1,6 @@
+task_id: HSME-001
+summary: Contract for semantic memory foundation
+goal: Bounded changes for HSME-001
+touch:
+  - semantic/src/storage/sqlite/db.go
+  - semantic/src/core/search/search.go

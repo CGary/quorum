@@ -1,0 +1,16 @@
+{
+  "task_id": "FAILED-001",
+  "violations": [
+    "Touched forbidden file semantic/src/bootstrap/wire.go"
+  ],
+  "attempts": [
+    {
+      "phase": "execute",
+      "result": "failed",
+      "timestamp": "2026-08-09T11:00:00Z",
+      "agent": "agy",
+      "model": "google/gemini-3.6-flash-medium",
+      "error": "Forbidden file modification"
+    }
+  ]
+}

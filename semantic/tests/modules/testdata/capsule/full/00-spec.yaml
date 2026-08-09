@@ -1,0 +1,8 @@
+task_id: HSME-001
+summary: Implemented semantic memory foundation
+goal: Provide basic vector search over sqlite memory DB
+invariants:
+  - System operates read-only on quorum DB
+acceptance:
+  - id: AC-1
+    statement: Vector search works

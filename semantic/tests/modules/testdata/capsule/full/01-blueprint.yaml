@@ -1,0 +1,11 @@
+task_id: HSME-001
+summary: Blueprint for semantic memory foundation
+strategy:
+  - step: 1
+    action: Add SQLite storage layer
+    files:
+      - semantic/src/storage/sqlite/db.go
+  - step: 2
+    action: Add search service
+    files:
+      - semantic/src/core/search/search.go

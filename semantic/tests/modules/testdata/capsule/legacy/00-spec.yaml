@@ -1,0 +1,8 @@
+task_id: F-01
+summary: Legacy task F-01 summary
+goal: Legacy task F-01 goal description
+invariants:
+  - Keep legacy compatibility
+acceptance:
+  - id: AC-1
+    statement: Legacy test scenario

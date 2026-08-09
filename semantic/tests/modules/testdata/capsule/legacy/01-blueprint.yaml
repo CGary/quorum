@@ -1,0 +1,7 @@
+task_id: F-01
+summary: Blueprint for legacy F-01
+strategy:
+  - step: 1
+    action: Legacy action step 1
+    files:
+      - internal/legacy/f01.go

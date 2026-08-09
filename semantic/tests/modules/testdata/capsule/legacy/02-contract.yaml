@@ -1,0 +1,5 @@
+task_id: F-01
+summary: Contract for legacy F-01
+goal: Legacy task contract goal
+touch:
+  - internal/legacy/f01.go

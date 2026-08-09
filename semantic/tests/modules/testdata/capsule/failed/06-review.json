@@ -1,0 +1,12 @@
+{
+  "task_id": "FAILED-001",
+  "summary": "Review for FAILED-001",
+  "verdict": "reject",
+  "notes": ["Contract violation detected"],
+  "fix_tasks": [
+    {
+      "slug": "fix-contract-violation",
+      "scope": "Revert unpermitted file changes"
+    }
+  ]
+}
