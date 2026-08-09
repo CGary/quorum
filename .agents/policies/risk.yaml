@@ -28,6 +28,7 @@ low_risk_signals:
 
 # Sensitivity paths — any touch triggers reviewer_required
 sensitive_paths:
+  - "semantic/src/bootstrap/**"
   - "**/auth/**"
   - "**/permissions/**"
   - "**/payment/**"

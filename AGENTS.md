@@ -319,6 +319,10 @@ The centralized SQLite memory is a knowledge library, NOT an activity log (the a
 
 Quorum is user-sovereign, not local-first: local operational data belongs to the user and may be explicitly exported, deleted, reset, or rebuilt by user-approved tooling. External semantic stores (HSME, vector DBs) may integrate with exported/restored data when they remain subordinate to Git, lifecycle artifacts, validation, and curated `q-memory`; they must never become code truth or erase append-only evidence.
 
+### HSME subordination in this repo (ADR 0008)
+
+Any global prompt or client configuration describing HSME as a "primary system" is subordinate to ADR 0008's authority rule inside this repo: **HSME informs; Git, lifecycle artifacts, and curated `q-memory` decide.** Operational rules for every HSME call made from this repo (MCP tools or `hsme-cli`): always pass `project` (HSME does not isolate projects by itself); treat results as advisory suggestions requiring human confirmation before they influence any persisted artifact; apply explicit timeouts and degrade gracefully when HSME/Ollama are unavailable — no Quorum functionality may depend on HSME being up. The `quorum` binary never invokes HSME; only skills and semantic-side processes do.
+
 ## The Constitution (immutable rules)
 
 These are enforced by both the manifesto and the code paths above. Violations are not refactor opportunities — they're bugs.
