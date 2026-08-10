@@ -70,3 +70,69 @@ func TestSuggestProjectIdentityAndRejectsPathKeys(t *testing.T) {
 		t.Fatalf("expected invalid key error for local path field, got %v", err)
 	}
 }
+
+func TestQuorumConfigGitHideFlags(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "quorum_config_githide")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	t.Run("round-trip both flags true", func(t *testing.T) {
+		config := &QuorumConfig{
+			ProjectID:      "rt-project",
+			ProjectName:    "RT Project",
+			GitHideRuntime: true,
+			GitHideAgents:  true,
+		}
+		if err := WriteQuorumConfigTo(config, tempDir); err != nil {
+			t.Fatalf("WriteQuorumConfigTo failed: %v", err)
+		}
+		read, err := ReadQuorumConfigFrom(tempDir)
+		if err != nil {
+			t.Fatalf("ReadQuorumConfigFrom failed: %v", err)
+		}
+		if !read.GitHideRuntime || !read.GitHideAgents {
+			t.Fatalf("expected both flags true, got GitHideRuntime=%v GitHideAgents=%v", read.GitHideRuntime, read.GitHideAgents)
+		}
+	})
+
+	t.Run("defaults to false when absent", func(t *testing.T) {
+		rcPath := filepath.Join(tempDir, ".quorumrc")
+		if err := os.WriteFile(rcPath, []byte(`{"project_id":"absent","project_name":"Absent"}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		read, err := ReadQuorumConfigFrom(tempDir)
+		if err != nil {
+			t.Fatalf("ReadQuorumConfigFrom failed: %v", err)
+		}
+		if read.GitHideRuntime || read.GitHideAgents {
+			t.Fatalf("expected both flags false when absent, got GitHideRuntime=%v GitHideAgents=%v", read.GitHideRuntime, read.GitHideAgents)
+		}
+	})
+
+	t.Run("explicitly false is accepted", func(t *testing.T) {
+		rcPath := filepath.Join(tempDir, ".quorumrc")
+		if err := os.WriteFile(rcPath, []byte(`{"project_id":"explicit","project_name":"Explicit","git_hide_runtime":false,"git_hide_agents":false}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		read, err := ReadQuorumConfigFrom(tempDir)
+		if err != nil {
+			t.Fatalf("ReadQuorumConfigFrom failed: %v", err)
+		}
+		if read.GitHideRuntime || read.GitHideAgents {
+			t.Fatalf("expected both flags false, got GitHideRuntime=%v GitHideAgents=%v", read.GitHideRuntime, read.GitHideAgents)
+		}
+	})
+
+	t.Run("unknown keys still rejected", func(t *testing.T) {
+		rcPath := filepath.Join(tempDir, ".quorumrc")
+		if err := os.WriteFile(rcPath, []byte(`{"project_id":"uk","project_name":"UK","bogus_key":"nope"}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		_, err := ReadQuorumConfigFrom(tempDir)
+		if err == nil || !strings.Contains(err.Error(), "invalid key") {
+			t.Fatalf("expected invalid key error, got %v", err)
+		}
+	})
+}

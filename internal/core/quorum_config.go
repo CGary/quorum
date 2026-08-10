@@ -11,8 +11,10 @@ import (
 )
 
 type QuorumConfig struct {
-	ProjectID   string `json:"project_id"`
-	ProjectName string `json:"project_name"`
+	ProjectID      string `json:"project_id"`
+	ProjectName    string `json:"project_name"`
+	GitHideRuntime bool   `json:"git_hide_runtime,omitempty"`
+	GitHideAgents  bool   `json:"git_hide_agents,omitempty"`
 }
 
 var projectIDRegex = regexp.MustCompile(`^[a-z0-9-]+$`)
@@ -40,8 +42,8 @@ func ReadQuorumConfigFrom(dir string) (*QuorumConfig, error) {
 	}
 
 	for k := range raw {
-		if k != "project_id" && k != "project_name" {
-			return nil, fmt.Errorf("invalid key '%s' in .quorumrc: only project_id and project_name are allowed", k)
+		if k != "project_id" && k != "project_name" && k != "git_hide_runtime" && k != "git_hide_agents" {
+			return nil, fmt.Errorf("invalid key '%s' in .quorumrc: only project_id, project_name, git_hide_runtime and git_hide_agents are allowed", k)
 		}
 	}
 

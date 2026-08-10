@@ -883,7 +883,6 @@ func InitializeProjectWithOptions(opts InitOptions) error {
 		return err
 	}
 
-	gitignorePath := filepath.Join(projectRoot, ".gitignore")
 	ignoreEntries := []string{
 		"\n# Quorum",
 		"worktrees/",
@@ -896,18 +895,43 @@ func InitializeProjectWithOptions(opts InitOptions) error {
 		"!.ai/tasks/failed/.gitkeep",
 		"!.ai/tasks/inbox/.gitkeep",
 	}
-	if _, err := os.Stat(gitignorePath); err == nil {
-		contentBytes, _ := os.ReadFile(gitignorePath)
+
+	if config.GitHideRuntime {
+		excludeDir := filepath.Join(projectRoot, ".git", "info")
+		if err := os.MkdirAll(excludeDir, 0755); err != nil {
+			return err
+		}
+		excludePath := filepath.Join(excludeDir, "exclude")
+		entries := append([]string{}, ignoreEntries...)
+		if config.GitHideAgents {
+			entries = append(entries, ".agents/")
+		}
+		if err := appendGitExcludeEntries(excludePath, entries, ".git/info/exclude"); err != nil {
+			return err
+		}
+	} else {
+		gitignorePath := filepath.Join(projectRoot, ".gitignore")
+		if err := appendGitExcludeEntries(gitignorePath, ignoreEntries, ".gitignore"); err != nil {
+			return err
+		}
+	}
+	fmt.Printf("[+] Quorum initialized successfully.\n")
+	return nil
+}
+
+func appendGitExcludeEntries(path string, entries []string, header string) error {
+	if _, err := os.Stat(path); err == nil {
+		contentBytes, _ := os.ReadFile(path)
 		content := string(contentBytes)
 		var newEntries []string
-		for _, e := range ignoreEntries {
+		for _, e := range entries {
 			if strings.TrimSpace(e) != "" && !strings.Contains(content, strings.TrimSpace(e)) {
 				newEntries = append(newEntries, e)
 			}
 		}
 		if len(newEntries) > 0 {
-			fmt.Printf("[*] Updating .gitignore...\n")
-			f, err := os.OpenFile(gitignorePath, os.O_APPEND|os.O_WRONLY, 0644)
+			fmt.Printf("[*] Updating %s...\n", header)
+			f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0644)
 			if err != nil {
 				return err
 			}
@@ -917,17 +941,16 @@ func InitializeProjectWithOptions(opts InitOptions) error {
 			_ = f.Close()
 		}
 	} else {
-		fmt.Printf("[*] Creating .gitignore...\n")
-		f, err := os.Create(gitignorePath)
+		fmt.Printf("[*] Creating %s...\n", header)
+		f, err := os.Create(path)
 		if err != nil {
 			return err
 		}
-		for _, e := range ignoreEntries {
+		for _, e := range entries {
 			_, _ = f.WriteString(e + "\n")
 		}
 		_ = f.Close()
 	}
-	fmt.Printf("[+] Quorum initialized successfully.\n")
 	return nil
 }
 

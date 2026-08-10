@@ -1213,6 +1213,233 @@ func TestInitializeProjectWithOptionsRequiresIdentityInNonInteractiveMode(t *tes
 	}
 }
 
+func TestInitializeProjectGitHideRuntimeWritesGitInfoExclude(t *testing.T) {
+	root := initGitRepo(t)
+	chdir(t, root)
+	useSchemas(t)
+	t.Setenv("QUORUM_MEMORY_DB", filepath.Join(t.TempDir(), "memory.db"))
+
+	rc := `{"project_id":"test-hide","project_name":"Test Hide","git_hide_runtime":true}`
+	if err := os.WriteFile(filepath.Join(root, ".quorumrc"), []byte(rc), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := InitializeProjectWithOptions(InitOptions{NonInteractive: true}); err != nil {
+		t.Fatalf("InitializeProjectWithOptions failed: %v", err)
+	}
+
+	exclude, err := os.ReadFile(filepath.Join(root, ".git", "info", "exclude"))
+	if err != nil {
+		t.Fatalf("failed to read .git/info/exclude: %v", err)
+	}
+	for _, want := range []string{"# Quorum", "worktrees/", ".ai/tasks/active/*", "!.ai/tasks/inbox/.gitkeep"} {
+		if !strings.Contains(string(exclude), want) {
+			t.Fatalf(".git/info/exclude missing %q: %s", want, exclude)
+		}
+	}
+
+	// .gitignore must not exist or must not contain Quorum entries
+	if _, err := os.Stat(filepath.Join(root, ".gitignore")); err == nil {
+		gb, _ := os.ReadFile(filepath.Join(root, ".gitignore"))
+		if strings.Contains(string(gb), "# Quorum") || strings.Contains(string(gb), "worktrees/") {
+			t.Fatalf(".gitignore should not contain Quorum entries: %s", gb)
+		}
+	}
+}
+
+func TestInitializeProjectGitHideRuntimeAbsentWritesGitignore(t *testing.T) {
+	root := initGitRepo(t)
+	chdir(t, root)
+	useSchemas(t)
+	t.Setenv("QUORUM_MEMORY_DB", filepath.Join(t.TempDir(), "memory.db"))
+
+	rc := `{"project_id":"test-absent","project_name":"Test Absent"}`
+	if err := os.WriteFile(filepath.Join(root, ".quorumrc"), []byte(rc), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := InitializeProjectWithOptions(InitOptions{NonInteractive: true}); err != nil {
+		t.Fatalf("InitializeProjectWithOptions failed: %v", err)
+	}
+
+	gb, err := os.ReadFile(filepath.Join(root, ".gitignore"))
+	if err != nil {
+		t.Fatalf("failed to read .gitignore: %v", err)
+	}
+	for _, want := range []string{"# Quorum", "worktrees/", ".ai/tasks/active/*"} {
+		if !strings.Contains(string(gb), want) {
+			t.Fatalf(".gitignore missing %q: %s", want, gb)
+		}
+	}
+
+	exclude, _ := os.ReadFile(filepath.Join(root, ".git", "info", "exclude"))
+	if strings.Contains(string(exclude), "# Quorum") {
+		t.Fatalf(".git/info/exclude should not contain Quorum entries: %s", exclude)
+	}
+}
+
+func TestInitializeProjectGitHideRuntimeDisabledWritesGitignore(t *testing.T) {
+	root := initGitRepo(t)
+	chdir(t, root)
+	useSchemas(t)
+	t.Setenv("QUORUM_MEMORY_DB", filepath.Join(t.TempDir(), "memory.db"))
+
+	rc := `{"project_id":"test-disabled","project_name":"Test Disabled","git_hide_runtime":false,"git_hide_agents":true}`
+	if err := os.WriteFile(filepath.Join(root, ".quorumrc"), []byte(rc), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := InitializeProjectWithOptions(InitOptions{NonInteractive: true}); err != nil {
+		t.Fatalf("InitializeProjectWithOptions failed: %v", err)
+	}
+
+	gb, _ := os.ReadFile(filepath.Join(root, ".gitignore"))
+	if !strings.Contains(string(gb), "worktrees/") {
+		t.Fatalf(".gitignore missing Quorum entries: %s", gb)
+	}
+	if strings.Contains(string(gb), ".agents/") {
+		t.Fatalf(".gitignore should not contain .agents/ when git_hide_runtime is false: %s", gb)
+	}
+
+	exclude, _ := os.ReadFile(filepath.Join(root, ".git", "info", "exclude"))
+	if strings.Contains(string(exclude), "# Quorum") {
+		t.Fatalf(".git/info/exclude should not contain Quorum entries: %s", exclude)
+	}
+}
+
+func TestInitializeProjectGitHideRuntimeKeepsTrackedFiles(t *testing.T) {
+	root := initGitRepo(t)
+	chdir(t, root)
+	useSchemas(t)
+	t.Setenv("QUORUM_MEMORY_DB", filepath.Join(t.TempDir(), "memory.db"))
+
+	// Pre-create and track a .gitkeep file that quorum init would also create
+	if err := os.MkdirAll(filepath.Join(root, ".ai", "tasks", "active"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	gitkeep := filepath.Join(root, ".ai", "tasks", "active", ".gitkeep")
+	if err := os.WriteFile(gitkeep, []byte(""), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	run(t, root, "git", "add", ".ai/tasks/active/.gitkeep")
+	run(t, root, "git", "commit", "-q", "-m", "add gitkeep")
+
+	beforeTracked := run(t, root, "git", "ls-files")
+
+	rc := `{"project_id":"test-tracked","project_name":"Test Tracked","git_hide_runtime":true}`
+	if err := os.WriteFile(filepath.Join(root, ".quorumrc"), []byte(rc), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := InitializeProjectWithOptions(InitOptions{NonInteractive: true}); err != nil {
+		t.Fatalf("InitializeProjectWithOptions failed: %v", err)
+	}
+
+	afterTracked := run(t, root, "git", "ls-files")
+	if !strings.Contains(afterTracked, ".ai/tasks/active/.gitkeep") {
+		t.Fatalf("tracked file removed from index: %s", afterTracked)
+	}
+	if beforeTracked != afterTracked {
+		t.Fatalf("git index changed:\nbefore: %s\nafter: %s", beforeTracked, afterTracked)
+	}
+}
+
+func TestInitializeProjectGitHideRuntimeIdempotent(t *testing.T) {
+	root := initGitRepo(t)
+	chdir(t, root)
+	useSchemas(t)
+	t.Setenv("QUORUM_MEMORY_DB", filepath.Join(t.TempDir(), "memory.db"))
+
+	rc := `{"project_id":"test-idem","project_name":"Test Idem","git_hide_runtime":true}`
+	if err := os.WriteFile(filepath.Join(root, ".quorumrc"), []byte(rc), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := InitializeProjectWithOptions(InitOptions{NonInteractive: true}); err != nil {
+		t.Fatalf("first init failed: %v", err)
+	}
+
+	excludePath := filepath.Join(root, ".git", "info", "exclude")
+	first, err := os.ReadFile(excludePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := InitializeProjectWithOptions(InitOptions{NonInteractive: true}); err != nil {
+		t.Fatalf("second init failed: %v", err)
+	}
+
+	second, err := os.ReadFile(excludePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(first) != string(second) {
+		t.Fatalf("exclude file changed on re-init:\nfirst: %s\nsecond: %s", first, second)
+	}
+	if c := strings.Count(string(second), "# Quorum"); c != 1 {
+		t.Fatalf("expected exactly 1 Quorum header, got %d", c)
+	}
+}
+
+func TestInitializeProjectGitHideRuntimeCreatesMissingInfoDir(t *testing.T) {
+	root := initGitRepo(t)
+	chdir(t, root)
+	useSchemas(t)
+	t.Setenv("QUORUM_MEMORY_DB", filepath.Join(t.TempDir(), "memory.db"))
+
+	rc := `{"project_id":"test-mkinfodir","project_name":"Test MkInfoDir","git_hide_runtime":true}`
+	if err := os.WriteFile(filepath.Join(root, ".quorumrc"), []byte(rc), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	os.RemoveAll(filepath.Join(root, ".git", "info"))
+
+	if err := InitializeProjectWithOptions(InitOptions{NonInteractive: true}); err != nil {
+		t.Fatalf("InitializeProjectWithOptions failed: %v", err)
+	}
+
+	excludePath := filepath.Join(root, ".git", "info", "exclude")
+	exclude, err := os.ReadFile(excludePath)
+	if err != nil {
+		t.Fatalf("failed to read .git/info/exclude: %v", err)
+	}
+	if !strings.Contains(string(exclude), "# Quorum") {
+		t.Fatalf(".git/info/exclude missing Quorum header: %s", exclude)
+	}
+}
+
+func TestInitializeProjectGitHideAgentsOnlyWithRuntime(t *testing.T) {
+	root := initGitRepo(t)
+	chdir(t, root)
+	useSchemas(t)
+	t.Setenv("QUORUM_MEMORY_DB", filepath.Join(t.TempDir(), "memory.db"))
+
+	rc := `{"project_id":"test-agents","project_name":"Test Agents","git_hide_runtime":true,"git_hide_agents":true}`
+	if err := os.WriteFile(filepath.Join(root, ".quorumrc"), []byte(rc), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := InitializeProjectWithOptions(InitOptions{NonInteractive: true}); err != nil {
+		t.Fatalf("InitializeProjectWithOptions failed: %v", err)
+	}
+
+	exclude, err := os.ReadFile(filepath.Join(root, ".git", "info", "exclude"))
+	if err != nil {
+		t.Fatalf("failed to read .git/info/exclude: %v", err)
+	}
+	if !strings.Contains(string(exclude), "worktrees/") {
+		t.Fatalf(".git/info/exclude missing runtime entries: %s", exclude)
+	}
+	if !strings.Contains(string(exclude), ".agents/") {
+		t.Fatalf(".git/info/exclude missing .agents/ entry: %s", exclude)
+	}
+
+	gb, _ := os.ReadFile(filepath.Join(root, ".gitignore"))
+	if strings.Contains(string(gb), "# Quorum") {
+		t.Fatalf(".gitignore should not contain Quorum entries: %s", gb)
+	}
+}
+
 func TestPromptProjectConfig(t *testing.T) {
 	suggested := &QuorumConfig{ProjectID: "my-project", ProjectName: "My Project"}
 
