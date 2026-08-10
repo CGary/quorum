@@ -3,10 +3,10 @@
   "overall_result": "failed",
   "commands": [
     {
-      "command": "just test",
+      "command": "go test ./...",
       "exit_code": 1,
-      "output": "",
-      "error": "test failure in module"
+      "output": "FAIL: TestSomething",
+      "error": "exit code 1"
     }
   ]
 }

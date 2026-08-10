@@ -42,7 +42,14 @@ func ScanArchivedTasks(tasksRoot string) ([]ScannedTask, []string, error) {
 		}
 
 		for _, entry := range entries {
-			if !entry.IsDir() {
+			isDir := entry.IsDir()
+			if !isDir && (entry.Type()&os.ModeSymlink != 0) {
+				if info, err := os.Stat(filepath.Join(dirPath, entry.Name())); err == nil && info.IsDir() {
+					isDir = true
+				}
+			}
+
+			if !isDir {
 				warnings = append(warnings, fmt.Sprintf("skipping non-directory entry %s in %s", entry.Name(), dirPath))
 				continue
 			}
