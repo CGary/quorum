@@ -101,6 +101,57 @@ When superseding:
 2. In the new memory payload, set `supersedes` to the target's `id`.
 3. The old memory remains in the database; the `supersedes` link preserves the causal trace.
 
+## Pre-Save Duplicate Advisor (HSME)
+
+Before persisting a curated memory entry, this skill runs an **advisory-only** duplicate
+check against HSME, Quorum's subordinate semantic layer (ADR 0008). The advisor **never
+blocks, gates, or writes** to any Quorum artifact — it only suggests candidates and
+requires human approval before the persist step runs.
+
+### Invocation
+
+Shell out to `hsme-cli` with the project-scoped flag, wrapped in an explicit timeout, and
+with `SQLITE_DB_PATH` pointing at HSME's database (typically `data/engram.db` relative to
+the semantic module root, or as configured by the user's HSME environment):
+
+```bash
+SQLITE_DB_PATH="<hsme-db-path>" timeout 20 hsme-cli search-fuzzy "<proposed_title_and_content>" --project quorum --limit 10
+```
+
+If `search-fuzzy` is unavailable (missing binary, missing Ollama, or any runtime error),
+fall back to the keyword search with the same flags:
+
+```bash
+SQLITE_DB_PATH="<hsme-db-path>" timeout 20 hsme-cli search-exact "<proposed_title>" --project quorum --limit 10
+```
+
+The query text is derived from the proposed memory's `title` and `content`. Every result
+carries provenance: the HSME `memory_id` and the memory's title (retrieved from the
+result's highlighted text or a supplementary record lookup).
+
+### Human Decision Point
+
+If candidates are returned, present them (id and title) to the human and ask to choose:
+
+- **save** — proceed to the normal `quorum memory save` persist step.
+- **skip** — do not persist; close the phase.
+- **supersede** — persist the new entry with `supersedes` set to the matching Quorum memory
+  ID (translate the HSME `memory_id` via the importer's mapping table per ADR 0008 §3
+  data frontier).
+
+The human's decision is final; the advisor's suggestions are informational only. Wait for
+the human's explicit choice — do not persist without approval when candidates are shown.
+
+### Graceful Degradation (ADR 0008 + ADR 0013)
+
+If `hsme-cli` is missing, times out (>20s), errors, or returns no results, proceed exactly
+as today — emit a one-line note in Spanish: `[ADVISOR] No disponible — se procede sin revisión semántica.` and continue to the persist step without blocking. An empty or stale capsule corpus (ADR 0013 §4) is a normal outcome, not an error condition.
+
+**ADR 0008 authority rule**: HSME informs; Git, lifecycle artifacts, and curated `q-memory`
+decide. The advisor is never code truth, never a validation gate, never an ingestion path
+into Quorum's curated memory. This skill's `quorum memory save` call remains the only
+ingestion path.
+
 ## Output Location
 
 Persist via:
@@ -118,8 +169,9 @@ Temporary files must be placed under `.tmp/`. Writing durable outputs under `mem
 1. Review the dialogue of the current session.
 2. Propose up to 5 candidates (type + title + 1 line summary) and wait for human confirmation. Emit the waiting indicator `ESPERANDO RESPUESTA DEL USUARIO...`.
 3. Generate IDs.
-4. Persist the confirmed payloads.
-5. Report the returned SQLite IDs.
+4. **Pre-save duplicate advisor** (HSME): run the advisory-only duplicate check (see section above) — query `hsme-cli` with `--project quorum` under a `timeout 20` with `SQLITE_DB_PATH` set; if candidates are returned (id + title), present them to the human and wait for the save/skip/supersede decision before proceeding. If the advisor is unavailable or returns no results, emit a one-line note and proceed to step 5.
+5. Persist the confirmed payloads.
+6. Report the returned SQLite IDs.
 
 Failure handling:
 - If `quorum memory save` fails because `.quorumrc` is missing, report `BLOCKED` with a concise explanation in Spanish and suggest `[ROOT] quorum init`; never execute it from the skill.

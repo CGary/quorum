@@ -34,6 +34,46 @@ cat .ai/tasks/<state>/<TASK_ID>/feedback.json | quorum analyze feedback-partitio
 - If `partitioned["semantic"]` is non-empty, surface the semantic feedback findings verbatim to the human, do NOT auto-apply semantic findings, and do NOT consume `feedback.json`. Stop for a human decision; do not auto-chain another `/q-*` skill.
 - If only mechanical findings exist, apply only formal corrections (typos, missing quotes, malformed field names, broken file references), then run `quorum task feedback-consume <TASK_ID>` once to remove stale feedback. Stop at this skill's normal single-phase boundary; do not auto-chain another `/q-*` skill beyond the explicitly authorized transition for this skill.
 
+### HSME Advisory Read Hook (advisory-only)
+
+Before starting the interview, this skill runs an **advisory-only** read hook against HSME,
+Quorum's subordinate semantic layer (ADR 0008). The hook **never blocks, gates, or alters**
+the interview — it only surfaces potentially relevant past tasks, failures, or capsules as
+advisory context.
+
+**Invocation**: shell out to `hsme-cli` with the project-scoped flag, wrapped in a timeout,
+and with `SQLITE_DB_PATH` pointing at HSME's database (typically `data/engram.db` relative
+to the semantic module root, or as configured by the user's HSME environment):
+
+```bash
+SQLITE_DB_PATH="<hsme-db-path>" timeout 20 hsme-cli search-fuzzy "<interview_topic>" --project quorum --limit 10
+```
+
+If `search-fuzzy` is unavailable, fall back to `hsme-cli search-exact` with the same
+`--project quorum` flag:
+
+```bash
+SQLITE_DB_PATH="<hsme-db-path>" timeout 20 hsme-cli search-exact "<interview_topic>" --project quorum --limit 10
+```
+
+The query text is derived from the user's stated interview topic. Every result carries
+provenance: the HSME `memory_id` and the memory's title.
+
+If results exist, present them to the human as advisory context — for example:
+*"Este tema se asemeja a la tarea fallida FEAT-042 (similaridad semántica). Revisá los
+hallazgos de validación antes de continuar."* Do NOT copy, auto-apply, or alter the
+interview flow based on past findings; the human decides whether the context is relevant.
+
+**Graceful degradation** (ADR 0008 + ADR 0013): if `hsme-cli` is missing, times out
+(>20s), errors, or returns no results, proceed exactly as today — emit a one-line note in
+Spanish: `[ADVISOR] No disponible — se procede sin contexto semántico.` and continue the
+interview without blocking. An empty or stale capsule corpus (ADR 0013 §4) is a normal
+outcome, not an error condition.
+
+**ADR 0008 authority rule**: HSME informs; Git, lifecycle artifacts, and curated `q-memory`
+decide. The read hook never overrides the human's intent or alters `00-spec.yaml`
+generation.
+
 ### Phase 1: Risk Analysis
 Use `.agents/policies/risk.yaml` and `.agents/policies/routing.yaml` to classify risk as `low`, `medium`, or `high`. Do not assign ceremony profiles.
 
