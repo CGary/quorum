@@ -305,7 +305,7 @@ func TestCheckContractPerClass(t *testing.T) {
 		}
 	})
 
-	t.Run("safeGlobMatch depth limitation: leading **/X and bare *_test.go match at depth, trailing dir/** does not", func(t *testing.T) {
+	t.Run("safeGlobMatch recursive ** matches at any depth: leading, bare basename, and trailing dir/**", func(t *testing.T) {
 		perClass := func(glob string, budget int) *ContractLimits {
 			return &ContractLimits{MaxDiffLines: intPtr(600), PerClass: []PerClassLimit{{Glob: glob, MaxDiffLines: budget}}}
 		}
@@ -319,19 +319,31 @@ func TestCheckContractPerClass(t *testing.T) {
 			return false
 		}
 
+		// Leading **/X: matches at any depth (unchanged from before).
 		leading := CheckContract(Contract{Touch: []string{"**"}, Limits: perClass("**/deep_test.go", 5)}, []string{"a/b/c/deep_test.go"}, DiffStat{}, fd...)
 		if !hasPerClass(leading) {
 			t.Fatalf("expected leading **/X glob to match at depth, got %+v", leading.Violations)
 		}
 
+		// Bare *_test.go: matches at depth via filepath.Base fallback (unchanged).
 		bare := CheckContract(Contract{Touch: []string{"**"}, Limits: perClass("*_test.go", 5)}, []string{"a/b/c/deep_test.go"}, DiffStat{}, fd...)
 		if !hasPerClass(bare) {
 			t.Fatalf("expected bare *_test.go glob to match at depth via filepath.Base, got %+v", bare.Violations)
 		}
 
+		// Trailing dir/**: now matches at any depth (was previously a false
+		// negative due to single-segment substitution). 8 lines > budget 1.
 		trailing := CheckContract(Contract{Touch: []string{"**"}, Limits: perClass("a/**", 1)}, []string{"a/b/c/deep_test.go"}, DiffStat{}, fd...)
-		if hasPerClass(trailing) {
-			t.Fatalf("did not expect trailing dir/** to match beyond one directory level, got %+v", trailing.Violations)
+		if !hasPerClass(trailing) {
+			t.Fatalf("expected trailing dir/** to now match at any depth after the fix, got %+v", trailing.Violations)
+		}
+
+		// dir/**: also matches dir itself (doublestar ** matches zero segments).
+		// Convention pinned here: "dir/**" matches "dir" itself.
+		fdDir := []FileDiff{{Path: "a", Insertions: 4, Deletions: 4}}
+		dirItself := CheckContract(Contract{Touch: []string{"**"}, Limits: perClass("a/**", 5)}, []string{"a"}, DiffStat{}, fdDir...)
+		if !hasPerClass(dirItself) {
+			t.Fatalf("expected dir/** to match dir itself (zero-segment ** match), got %+v", dirItself.Violations)
 		}
 	})
 }

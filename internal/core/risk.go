@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+
+	"github.com/bmatcuk/doublestar/v4"
 )
 
 type Blueprint struct {
@@ -123,6 +125,23 @@ func BuildRiskTraceEvents(declaredRisk string, calculated RiskResult) []RiskTrac
 	return events
 }
 
+// safeGlobMatch reports whether path matches the glob pattern.
+//
+// Non-recursive patterns (single *, ?, and exact literals) behave
+// byte-identically to the previous implementation: filepath.Match is tried
+// against filepath.Base(path) first (so a bare pattern like "*_test.go"
+// matches at any depth, e.g. "src/core/foo_test.go"), then against the full
+// path as a fallback.
+//
+// Patterns containing "**" delegate to doublestar.Match, which implements
+// true recursive semantics: "**" matches zero or more path segments.
+// Convention (pinned by tests): "dir/**" matches every path at any depth
+// under dir/ AND dir itself, because doublestar's "**" can match zero
+// segments. Interior "**" (e.g. "**/auth/**", "**/*.schema.*") likewise
+// matches at any nesting depth.
+//
+// doublestar.Match uses POSIX "/" separators regardless of platform; this is
+// acceptable for the core module's CGO_ENABLED=0 pure-Go POSIX target.
 func safeGlobMatch(path string, pattern string) bool {
 	if pattern == "" {
 		return false
@@ -131,40 +150,15 @@ func safeGlobMatch(path string, pattern string) bool {
 	if err == nil && matched {
 		return true
 	}
-	// filepath.Match doesn't support "**" out of the box in the same way as pathlib.PurePath.match in python.
-	// Python's PurePath.match("**/auth/**") matches if ANY part of the path matches "auth".
-	// Let's implement a simplified glob match to match Python's behavior for this specific use case.
-	// A pattern like "**/auth/**" means checking if "auth" is in the path components.
-	
-	if strings.HasPrefix(pattern, "**/") && strings.HasSuffix(pattern, "/**") {
-		target := pattern[3 : len(pattern)-3]
-		parts := strings.Split(path, string(filepath.Separator))
-		for _, p := range parts {
-			if p == target {
-				return true
-			}
-		}
-	}
-	
-	if strings.HasPrefix(pattern, "**/") {
-		target := pattern[3:]
-		parts := strings.Split(path, string(filepath.Separator))
-		for _, p := range parts {
-			matched, _ := filepath.Match(target, p)
-			if matched {
-				return true
-			}
-		}
-	}
-	
+
 	if strings.Contains(pattern, "**") {
-		// Just a fallback since filepath doesn't support ** natively.
-		// For Quorum's risk policy, this is generally sufficient.
-		target := strings.ReplaceAll(pattern, "**", "*")
-		matched, _ = filepath.Match(target, path)
-		return matched
+		matched, err = doublestar.Match(pattern, filepath.Clean(path))
+		if err == nil && matched {
+			return true
+		}
+		return false
 	}
 
-	matched, _ = filepath.Match(pattern, path)
-	return matched
+	matched, err = filepath.Match(pattern, path)
+	return err == nil && matched
 }
