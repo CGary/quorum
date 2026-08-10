@@ -132,11 +132,14 @@ to reconstruct the decision later without re-reading policy state.
 `/q-dispatch` (`.agents/skills/q-dispatch/SKILL.md`) is the single-phase human face that drives
 one implement-phase delegation cycle end to end: it checks preconditions (task in `active/` with a
 worktree, `01-blueprint.yaml` and `02-contract.yaml` present), calls `quorum fleet route`, always
-shows the router's decision (agent, model, level, signals) to the human and waits for explicit
-confirmation before calling `quorum fleet bundle` then `quorum fleet dispatch`, and reports the
-outcome per the ADR 0011 taxonomy (`attempt_done` marks `/q-verify` as `[Obligatorio]`; `reroute`
-re-invokes `quorum fleet route` with the failed candidate added to `exclusions` and shows the next
-candidate for confirmation; `blocked` is a rich Spanish question; `attempt_failed`/`noop` present
+shows the router's decision (agent, model, level, signals) to the human and then — since v2
+(2026-08-09, human decision) — proceeds automatically to `quorum fleet bundle` then
+`quorum fleet dispatch` without waiting for confirmation (sole exception: a codex candidate still
+requires an explicit human "si" — finite credits; an explicit human veto is honored as
+"elegir otro"/"cancelar"), and reports the outcome per the ADR 0011 taxonomy (`attempt_done`
+marks `/q-verify` as `[Obligatorio]`; `reroute` re-invokes `quorum fleet route` with the failed
+candidate added to `exclusions` and auto-dispatches the next candidate after display;
+`blocked` is a rich Spanish question; `attempt_failed`/`noop` present
 evidence and reference `quorum task back` as the human-only rollback path). It never computes or
 decides routing itself, never auto-chains into another `/q-*` skill, and never calls
 `quorum task back`.
@@ -167,14 +170,18 @@ the primary and completed its implement externally. Since 2026-07-31 `agy_edit` 
 reference was dead — no active transport exposed it). Base `agy` keeps its 3.5/3.1 cells for
 one-shot `--print` review/analysis and rollback (3.5 cells migrated from level 0 by FLEET-030).
 Both agy transports run with `timeouts.default_s: 600` (raised from 300 after a real hexcell
-dispatch was killed mid-work at 300s, 2026-07-31). Secondaries:
-`opencode`-backed `nvidia/nemotron-3-ultra-550b-a55b-free` and `poolside/laguna-m.1-free` as $0
-OpenRouter cross-provider cells; on reroute after an `agy_edit` failure, the level-0 enumeration
-yields a cross-provider free cell first (`nemotron`/`laguna` via `opencode`), with `agy`'s
-`openai/gpt-oss-120b` fallback as a later candidate; `aider` stays restricted to mechanical
-single-file changes and sits mid-order (`[agy_edit, agy, opencode, aider, codex, claude]`) in
-`fleet_transport_order`. This cell set is expressed only as policy data (`config.yaml`,
-`routing.yaml`, `agents.yaml`); `core.Route` never hardcodes any of it.
+dispatch was killed mid-work at 300s, 2026-07-31). The $0 OpenRouter cross-provider cells are
+`opencode`-backed `nvidia/nemotron-3-ultra-550b-a55b-free` and `poolside/laguna-s-2.1-free`
+(2026-08-09: `laguna-m.1` was removed from OpenRouter — probes returned "Unexpected server
+error" — and was swapped for `laguna-s-2.1`, the larger of the two live free lagunas, in
+`agents.yaml` and both route slots). Since the 2026-08-09 free-first reordering (human decision),
+these free cells LEAD levels 0 and 1 (level 0: nemotron → laguna → gpt-oss-120b →
+gemini-3.5-flash-low; level 1: laguna → nemotron → gpt-oss-120b → gemini-3.6-flash-low; primary
+and fallback share the OpenRouter rate limit, the cross-provider jump happens at secondary) and
+the Gemini-subscription cells close each chain as backstops; `aider` stays restricted to
+mechanical single-file changes and sits mid-order (`[agy_edit, agy, opencode, aider, codex,
+claude]`) in `fleet_transport_order`. This cell set is expressed only as policy data
+(`config.yaml`, `routing.yaml`, `agents.yaml`); `core.Route` never hardcodes any of it.
 
 #### Agent usage (`quorum fleet run`, mk-cli contract)
 

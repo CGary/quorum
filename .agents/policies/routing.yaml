@@ -26,32 +26,36 @@ rules:
     reviewer_required: true
     max_attempts: 2
 
-  # high-or-L cells -> level 2, gated.
+  # high-or-L cells -> level 2. 2026-08-09 (human decision, v2 auto-dispatch):
+  # human_gate_required flipped to false across the matrix — dispatch decisions
+  # are displayed, not confirmed. The catch-all and type_overrides below keep
+  # their gates as safe defaults for unanticipated values and for
+  # migration/security work.
   - match: {phase: implement, risk: low, band: L}
     executor_level: 2
     reviewer_required: true
     max_attempts: 1
-    human_gate_required: true
+    human_gate_required: false
   - match: {phase: implement, risk: medium, band: L}
     executor_level: 2
     reviewer_required: true
     max_attempts: 1
-    human_gate_required: true
+    human_gate_required: false
   - match: {phase: implement, risk: high, band: S}
     executor_level: 2
     reviewer_required: true
     max_attempts: 1
-    human_gate_required: true
+    human_gate_required: false
   - match: {phase: implement, risk: high, band: M}
     executor_level: 2
     reviewer_required: true
     max_attempts: 1
-    human_gate_required: true
+    human_gate_required: false
   - match: {phase: implement, risk: high, band: L}
     executor_level: 2
     reviewer_required: true
     max_attempts: 1
-    human_gate_required: true
+    human_gate_required: false
 
   # Catch-all safe default (any non-implement phase or unanticipated value).
   - match: {}

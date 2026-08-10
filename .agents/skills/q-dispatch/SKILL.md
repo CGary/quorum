@@ -1,6 +1,6 @@
 ---
 name: q-dispatch
-description: Drive one implement-phase external fleet delegation cycle (quorum fleet route -> human confirmation -> quorum fleet bundle -> quorum fleet dispatch -> ADR 0011 outcome report) for a Quorum task that already has a worktree, 01-blueprint.yaml, and 02-contract.yaml. Use to hand a task's implementation off to an external delegate CLI (agy/opencode/aider) instead of implementing it directly.
+description: Drive one implement-phase external fleet delegation cycle (quorum fleet route -> decision display -> quorum fleet bundle -> quorum fleet dispatch -> ADR 0011 outcome report) for a Quorum task that already has a worktree, 01-blueprint.yaml, and 02-contract.yaml. Use to hand a task's implementation off to an external delegate CLI (agy/opencode/aider) instead of implementing it directly.
 user-invocable: true
 ---
 
@@ -23,7 +23,7 @@ scaffolding, not to `/q-dispatch`.
 
 v1 covers only the **implement** phase for one task. `brief`/`decompose`/`blueprint`/`accept`
 stay orchestrator-run; `verify` has no LLM step; review routing is a router concern, not a
-`/q-dispatch` concern. This is a **single-phase** skill: it runs one route/confirm/dispatch cycle
+`/q-dispatch` concern. This is a **single-phase** skill: it runs one route/dispatch cycle
 (or one bounded reroute loop within that cycle) and stops.
 
 ## Authority
@@ -87,10 +87,11 @@ Pasos siguientes (los despacha el orquestador, NO yo):
   agotadas) o implementar la tarea directamente con /q-implement <TASK_ID>.
 ```
 
-## 4. Decision Display + Mandatory Confirmation
+## 4. Decision Display + Auto-Dispatch
 
-Unconditionally in v1, for every risk level, show the router's decision and wait for explicit
-human confirmation before bundling or dispatching:
+v2 (2026-08-09, human decision): for every risk level, show the router's decision and proceed
+directly to steps 5-7 WITHOUT waiting for confirmation. The display stays mandatory
+(transparency + forensics); the pause does not:
 
 ```text
 === Decisión de ruteo ===
@@ -103,19 +104,28 @@ Diversidad de familia de revisión degradada: <si review_family_degraded, nota b
 Resumen de inputs_snapshot: risk=<risk> band=<complexity_band> phase=implement router_version=<router_version> hashes(config/routing/agents)=<primeros 8 chars de cada hash>
 Por qué: <reasons[] o señales relevantes del RouteResult>
 
-[Obligatorio] ¿Confirmás el dispatch?
+Dispatch: procediendo automáticamente (política v2).
+```
+
+If the human interrupts with a veto at any point, treat "elegir otro" as: append `candidate` to
+`exclusions` and re-run step 3 (the same accumulating-exclusions mechanism as a reroute, driven
+by human choice instead of an infrastructure signal); treat "cancelar" as: end the turn
+informationally with no dispatch.
+
+**Sole exception — codex candidates.** When `candidate.agent == "codex"`, still ask before
+dispatching (finite, non-renewing free-tier credits: codex never spends without an explicit
+human "si"). Replace the last line of the display above with:
+
+```text
+[Obligatorio] ¿Confirmás el dispatch a codex? (créditos finitos)
 Respondé: si / elegir otro / cancelar
 
 ESPERANDO RESPUESTA DEL USUARIO...
 ```
 
-If the human answers "elegir otro", append `candidate` to `exclusions` and re-run step 3 (this is
-the same accumulating-exclusions mechanism as a reroute, driven by human choice instead of an
-infrastructure signal). If "cancelar", end the turn informationally with no dispatch.
-
 ## 5. Aider Mechanical-Single-File Guard
 
-Run this AFTER route and BEFORE confirmation is acted upon, whenever `candidate.agent == "aider"`.
+Run this AFTER route and BEFORE dispatching, whenever `candidate.agent == "aider"`.
 `.agents/fleet/agents.yaml` documents aider's mechanical/single-file restriction only as
 **operational intent, explicitly "NOT enforced by core.Route"**; `config.yaml` only
 de-prioritizes aider in `policies.fleet_transport_order`. Neither enforces the restriction. This
@@ -125,7 +135,7 @@ SKILL.md is therefore the **sole enforcement point**:
 - Judge mechanicalness from `01-blueprint.yaml`/`02-contract.yaml`: a change is mechanical when it
   is a scoped, deterministic edit (formatting, single well-defined function/doc, no novel design
   judgment); anything requiring architectural decisions is not mechanical.
-- If either check fails, do not proceed to confirmation for this candidate. Show a Spanish
+- If either check fails, do not proceed to dispatch for this candidate. Show a Spanish
   warning and re-route with aider appended to `exclusions` (never reset to empty), then go back to
   step 4 with the new candidate:
 
@@ -138,7 +148,7 @@ Re-ruteando con aider excluido...
 
 ## 6. Fleet Bundle
 
-Run `quorum fleet bundle <TASK_ID>` for the confirmed candidate. It writes
+Run `quorum fleet bundle <TASK_ID>` for the routed candidate. It writes
 `dispatch/<dispatch_id>/{prompt.md,manifest.json}` under the task directory, where `dispatch_id`
 is `bundle_hash[:12]`. Capture `bundle_path` (the `prompt.md` path) and `dispatch_id` from stdout.
 
@@ -198,8 +208,8 @@ Pasos siguientes (los despacha el orquestador, NO yo):
 ### reroute
 
 Append the failed candidate to the accumulated `exclusions` (never reset to empty), re-invoke
-`quorum fleet route` (step 3), and show the next candidate for confirmation, bounded by
-`reroute_budget`:
+`quorum fleet route` (step 3), show the next candidate with the step 4 display, and proceed
+automatically (v2 — the codex exception in step 4 still applies), bounded by `reroute_budget`:
 
 ```text
 === Dispatch: reroute ===
@@ -207,10 +217,7 @@ Append the failed candidate to the accumulated `exclusions` (never reset to empt
 Causa: quota_red | timeout | wrapper_broken
 Saltos de reroute restantes: <reroute_budget - saltos ya usados>
 
-[Obligatorio] ¿Confirmás el dispatch al siguiente candidato?
-Respondé: si / elegir otro / cancelar
-
-ESPERANDO RESPUESTA DEL USUARIO...
+Re-ruteando y despachando al siguiente candidato automáticamente (política v2).
 ```
 
 When `reroute_budget` is exhausted and the router returns `blocked: no_viable_candidate`, stop
@@ -253,7 +260,9 @@ is written by the CLIs directly into `07-trace.json`, never by this skill.
   `quorum fleet dispatch` and translate their output.
 - Do not hardcode a model or agent name as a routing decision; every candidate comes from
   `RouteResult`.
-- Do not relax the pre-dispatch confirmation by risk level; v1 requires it for every risk level.
+- v2 (2026-08-09, human decision): no pre-dispatch confirmation at any risk level — display the
+  decision and dispatch. The only confirmation is the codex exception (finite credits); honor
+  any explicit human interruption as "elegir otro"/"cancelar".
 - Do not dispatch to aider when the mechanical/single-file guard fails; re-route instead.
 - Do not reset accumulated `exclusions` to empty on a reroute; only append.
 - Do not introduce a new `events[]` type value or a new lifecycle artifact slot (03/08/09/10).
@@ -262,7 +271,7 @@ is written by the CLIs directly into `07-trace.json`, never by this skill.
 
 ## 🛑 Handoff (single-phase boundary)
 
-This skill executes ONLY one route/confirm/dispatch cycle (with its bounded reroute sub-loop) for
+This skill executes ONLY one route/dispatch cycle (with its bounded reroute sub-loop) for
 the implement phase. `/q-dispatch` is not one of the three constitutionally authorized forward
 auto-transitions (`/q-brief`, `/q-decompose`, `/q-blueprint`); it never runs a state transition.
 
@@ -272,7 +281,7 @@ Do NOT write `04-implementation-log.yaml`, `05-validation.json`, `06-review.json
 events yourself; those are written by the CLIs or by the phases that own them.
 
 Close the final message exactly with one of the outcome blocks above (informational cases omit
-the wait indicator; confirmation/blocked/reroute-confirm cases require it), followed by:
+the wait indicator; blocked and codex-confirmation cases require it), followed by:
 
 ```text
 No hay transición de estado: el worktree y la rama siguen iguales.

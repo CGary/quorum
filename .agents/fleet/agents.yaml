@@ -334,9 +334,12 @@ transports:
         provider: openrouter-cohere
         model_arg: openrouter/cohere/north-mini-code:free
         max_cost_per_call_usd: 0.5
-      poolside/laguna-m.1-free:
+      # 2026-08-09: laguna-m.1 was REMOVED from OpenRouter (replaced by the
+      # 2.1 series); probes returned "Unexpected server error". Swapped for
+      # laguna-s-2.1, the larger of the two live free lagunas.
+      poolside/laguna-s-2.1-free:
         provider: openrouter-poolside
-        model_arg: openrouter/poolside/laguna-m.1:free
+        model_arg: openrouter/poolside/laguna-s-2.1:free
         max_cost_per_call_usd: 0.5
       # Slowest cell (32-154s/call) but measured 9/10 via real dispatch
       # (pass@10 campaign 2026-07-15). aider-only: removed from the opencode
@@ -436,9 +439,11 @@ transports:
       cohere/north-mini-code-free:
         provider: openrouter-cohere
         model_arg: openrouter/cohere/north-mini-code:free
-      poolside/laguna-m.1-free:
+      # 2026-08-09: laguna-m.1 removed from OpenRouter -> laguna-s-2.1 (see
+      # the aider map note above).
+      poolside/laguna-s-2.1-free:
         provider: openrouter-poolside
-        model_arg: openrouter/poolside/laguna-m.1:free
+        model_arg: openrouter/poolside/laguna-s-2.1:free
     contract_test: .agents/fleet/contract_tests/opencode.yaml
     # Agentic tool-use loop editing inside --dir {cwd}.
     mode: agentic

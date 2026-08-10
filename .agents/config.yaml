@@ -16,8 +16,11 @@ levels:
     # primary -> fallback -> secondary in fixed order.
     # 3.5-flash-low is exposed on agy_edit (agentic smoke pass 2026-08-09)
     # and sits LAST as the subscription backstop.
+    # 2026-08-09: laguna-m.1 was removed from OpenRouter (2.1 series replaced
+    # it; probes errored) -> swapped for poolside/laguna-s-2.1-free here and
+    # in level 1.
     primary: nvidia/nemotron-3-ultra-550b-a55b-free
-    fallback: poolside/laguna-m.1-free
+    fallback: poolside/laguna-s-2.1-free
     secondary:
       - openai/gpt-oss-120b
       - google/gemini-3.5-flash-low
@@ -43,7 +46,7 @@ levels:
     # opencode/OpenRouter (shared rate limit); cross-provider jump happens
     # at secondary. The codex cells stay reachable but last: that account
     # is retired (kill-switch 2026-07-27) and its free credits are finite.
-    primary: poolside/laguna-m.1-free
+    primary: poolside/laguna-s-2.1-free
     fallback: nvidia/nemotron-3-ultra-550b-a55b-free
     secondary:
       - openai/gpt-oss-120b
@@ -77,7 +80,11 @@ levels:
       - openai/gpt-5.6-terra-high
       - openai/gpt-5.6-luna-high
     max_cost_per_call_usd: 3.00
-    requires_human_gate: true
+    # 2026-08-09 (human decision, v2 auto-dispatch): flipped to false — the
+    # router's decision is displayed, never confirmed, at every level. Narrow
+    # exceptions live in q-dispatch/q-orchestrate: codex candidates (finite
+    # credits) and migration/security type_overrides in routing.yaml.
+    requires_human_gate: false
 
 policies:
   max_attempts_default: 2
