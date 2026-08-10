@@ -1,0 +1,3 @@
+task_id: HSME-778
+summary: Second task for scan and ingest test.
+goal: Test scanner and importer content-hash uniqueness.

@@ -1,0 +1,12 @@
+{
+  "task_id": "HSME-779",
+  "overall_result": "failed",
+  "commands": [
+    {
+      "command": "just test",
+      "exit_code": 1,
+      "output": "",
+      "error": "test failure in module"
+    }
+  ]
+}
