@@ -19,6 +19,7 @@ Subcommands:
   explore        Trace graph dependencies
   status         Show system health
   admin          Admin operations (backup, restore, retry-failed)
+  import-quorum  Import Quorum curated memory and task capsules
   help           Show this help or help for a specific subcommand
 
 Use "hsme-cli help <subcommand>" for detailed usage.
@@ -112,6 +113,20 @@ Restore the database from a backup.
 Flags:
   --from string           Path to the backup file
   --latest                Use the most recent backup in the backups/ directory
+`)
+	case "import-quorum":
+		fmt.Print(`Usage: hsme-cli import-quorum --project <proj> [--quorum-project <qproj>] [--quorum-db <path>] [--tasks-root <path>] [--source curated|capsules|all]
+
+Import Quorum curated memory and task capsules into HSME.
+
+Flags:
+  --project string        (required) HSME project namespace for both sources
+  --quorum-project string (optional) Filter for Quorum project_id in curated-memory (defaults to --project)
+  --quorum-db string      (optional) Path to Quorum memory.db (defaults to ~/.quorum/memory.db)
+  --tasks-root string     (optional) Path to .ai/tasks root directory (defaults to .ai/tasks)
+  --source string         (optional) Source to import: curated|capsules|all (defaults to all)
+
+Note (ADR 0013 section 4): The capsule corpus is read from gitignored .ai/tasks state and cannot be rebuilt from a clean clone, so a fresh checkout will see zero capsules until archived tasks accumulate again — this is accepted, not a bug.
 `)
 	default:
 		fmt.Fprintf(os.Stderr, "unknown subcommand for help: %s\n\n", subcommand)

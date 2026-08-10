@@ -64,6 +64,8 @@ func main() {
 		runStatus(subArgs, cfg)
 	case "admin":
 		runAdmin(subArgs, cfg)
+	case "import-quorum":
+		runImportQuorum(subArgs, cfg)
 	default:
 		fmt.Fprintf(os.Stderr, "unknown subcommand: %s\n\n", subcommand)
 		printTopLevelHelp()
