@@ -310,11 +310,11 @@ func TestFleetRouteTraceAppend(t *testing.T) {
 }
 
 // TestFleetRouteRealPolicyFilesG1Cell is AC-5: against the REAL repo policy
-// files, phase=implement/risk=low/band=S resolves to agy_edit (the agentic
-// editing variant, FLEET-031) + the level-0 primary
-// declared in config.yaml, and none of the G1 cell-set model-name literals
-// (read from config, never embedded here) appears in any cmd/ or internal/ .go
-// source.
+// files, phase=implement/risk=low/band=S resolves to opencode (the transport
+// carrying the ratified free-first level-0 primary, 2026-08-09 reordering) +
+// the level-0 primary declared in config.yaml, and none of the G1 cell-set
+// model-name literals (read from config, never embedded here) appears in any
+// cmd/ or internal/ .go source.
 func TestFleetRouteRealPolicyFilesG1Cell(t *testing.T) {
 	t.Setenv("QUORUM_FLEET_AGENTS", "")
 	repo := fleetRouteRepoRoot(t)
@@ -331,8 +331,8 @@ func TestFleetRouteRealPolicyFilesG1Cell(t *testing.T) {
 	if res.Candidate == nil {
 		t.Fatalf("want a candidate, got blocked=%q reasons=%v", res.Blocked, res.Reasons)
 	}
-	if res.Candidate.Agent != "agy_edit" {
-		t.Errorf("agent: got %q want agy_edit", res.Candidate.Agent)
+	if res.Candidate.Agent != "opencode" {
+		t.Errorf("agent: got %q want opencode", res.Candidate.Agent)
 	}
 	if res.Candidate.Model != primary {
 		t.Errorf("model: got %q want level-0 primary %q", res.Candidate.Model, primary)
@@ -407,12 +407,14 @@ func fleetRouteAgentsProviderOf(t *testing.T, repo, agent, model string) string 
 }
 
 // TestFleetRouteRerouteAfterPrimaryExcludedIsCrossProvider is the ratified G1
-// decision under test (2026-07-17 adversarial review finding): "reroute always
-// cross-provider free-to-agy" -- after the level-0 agy primary fails, the FIRST
-// reroute candidate must come from a different provider than the excluded
-// primary, never another agy-provided cell. This exercises the REAL on-disk
-// .agents/config.yaml and .agents/fleet/agents.yaml end-to-end (no fixture),
-// so a future data change that regresses the ratified order fails this test.
+// decision under test, as amended by the 2026-08-09 free-first reordering:
+// primary and fallback may share the OpenRouter account, and the enumeration
+// may retry the primary model on another transport first, but the reroute
+// chain MUST reach a cell from a different provider than the excluded primary
+// within the level's reroute budget ("the cross-provider jump happens at
+// secondary"). This exercises the REAL on-disk .agents/config.yaml and
+// .agents/fleet/agents.yaml end-to-end (no fixture), so a future data change
+// that regresses the ratified order fails this test.
 func TestFleetRouteRerouteAfterPrimaryExcludedIsCrossProvider(t *testing.T) {
 	t.Setenv("QUORUM_FLEET_AGENTS", "")
 	repo := fleetRouteRepoRoot(t)
@@ -429,34 +431,42 @@ func TestFleetRouteRerouteAfterPrimaryExcludedIsCrossProvider(t *testing.T) {
 		t.Fatalf("want a primary candidate, got blocked=%q reasons=%v", res1.Blocked, res1.Reasons)
 	}
 	primaryProvider := fleetRouteAgentsProviderOf(t, repo, res1.Candidate.Agent, res1.Candidate.Model)
-
-	exclusions, err := json.Marshal([]core.Candidate{*res1.Candidate})
-	if err != nil {
-		t.Fatal(err)
-	}
-	reqJSON := `{"phase":"implement","risk":"low","complexity_band":"S","exclusions":` + string(exclusions) + `}`
-
-	second, out2, errOut2 := runRoute(t, repo, reqJSON)
-	if second != 0 {
-		t.Fatalf("reroute run exit %d: %s", second, errOut2)
-	}
-	var res2 core.RouteResult
-	if err := json.Unmarshal([]byte(out2), &res2); err != nil {
-		t.Fatalf("unmarshal reroute result: %v", err)
-	}
-	if res2.Candidate == nil {
-		t.Fatalf("want a reroute candidate, got blocked=%q reasons=%v", res2.Blocked, res2.Reasons)
+	budget := res1.RerouteBudget
+	if budget < 1 {
+		t.Fatalf("level must grant at least one reroute hop, got budget %d", budget)
 	}
 
-	if res2.Candidate.Agent == res1.Candidate.Agent && res2.Candidate.Model == res1.Candidate.Model {
-		t.Fatalf("reroute returned the excluded candidate unchanged: %v", res2.Candidate)
+	excluded := []core.Candidate{*res1.Candidate}
+	prev := *res1.Candidate
+	for hop := 1; hop <= budget; hop++ {
+		exclusions, err := json.Marshal(excluded)
+		if err != nil {
+			t.Fatal(err)
+		}
+		reqJSON := `{"phase":"implement","risk":"low","complexity_band":"S","exclusions":` + string(exclusions) + `}`
+
+		code, out, errOut := runRoute(t, repo, reqJSON)
+		if code != 0 {
+			t.Fatalf("reroute hop %d exit %d: %s", hop, code, errOut)
+		}
+		var res core.RouteResult
+		if err := json.Unmarshal([]byte(out), &res); err != nil {
+			t.Fatalf("unmarshal reroute hop %d result: %v", hop, err)
+		}
+		if res.Candidate == nil {
+			t.Fatalf("reroute hop %d: want a candidate, got blocked=%q reasons=%v", hop, res.Blocked, res.Reasons)
+		}
+		if res.Candidate.Agent == prev.Agent && res.Candidate.Model == prev.Model {
+			t.Fatalf("reroute hop %d returned the excluded candidate unchanged: %v", hop, res.Candidate)
+		}
+		if p := fleetRouteAgentsProviderOf(t, repo, res.Candidate.Agent, res.Candidate.Model); p != primaryProvider {
+			return // cross-provider cell reached within budget: ratified guarantee holds
+		}
+		prev = *res.Candidate
+		excluded = append(excluded, *res.Candidate)
 	}
-	rerouteProvider := fleetRouteAgentsProviderOf(t, repo, res2.Candidate.Agent, res2.Candidate.Model)
-	if rerouteProvider == primaryProvider {
-		t.Errorf("G1 ratified reroute order violated: first reroute after excluding primary %s/%s (provider %q) picked %s/%s, same provider %q; want a cross-provider cell",
-			res1.Candidate.Agent, res1.Candidate.Model, primaryProvider,
-			res2.Candidate.Agent, res2.Candidate.Model, rerouteProvider)
-	}
+	t.Errorf("G1 ratified reroute order violated: no cross-provider cell within %d reroute hop(s) after excluding primary %s/%s (provider %q); chain stayed on %q",
+		budget, res1.Candidate.Agent, res1.Candidate.Model, primaryProvider, primaryProvider)
 }
 
 // TestFleetRouteAgentsSchemaValidatesRealFile is AC-6: the real agents.yaml
