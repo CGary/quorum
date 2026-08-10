@@ -243,6 +243,13 @@ transports:
       google/gemini-3.6-flash-high:
         provider: google
         model_arg: Gemini 3.6 Flash (High)
+      # 2026-08-09: 3.5-flash-low exposed here so it can serve as the
+      # level-0 implement primary (human ladder rebalance: 3.5-low ->
+      # 3.6-low -> 3.6-high). Previously 3.5 cells lived only on the
+      # oneshot agy transport, which core.Route excludes from implement.
+      google/gemini-3.5-flash-low:
+        provider: google
+        model_arg: Gemini 3.5 Flash (Low)
       # Non-gemini subscription cells verified agentic under accept-edits (smoke 3/3, 2026-07-31).
       openai/gpt-oss-120b:
         provider: openai

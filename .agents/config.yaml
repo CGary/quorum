@@ -5,20 +5,22 @@ levels:
       - tests
       - docs
       - mechanical_refactor
-    primary: google/gemini-3.6-flash-low
-    # The 3.5 cells stay exposed for fleet run but become unrouted.
-    # G1-ratified: reroute is always cross-provider free-to-agy. core.Route
-    # enumerates primary, then fallback, then secondary[...] in that fixed
-    # order (internal/core/fleet_route.go enumerateCandidates) -- so the
-    # FIRST reroute candidate after primary is excluded MUST be a
-    # cross-provider (opencode-backed, $0 OpenRouter free tier) cell, never
-    # another agy-provided model. fallback therefore holds the cross-provider
-    # secondary; the agy-provided openai/gpt-oss-120b fallback moves into
-    # secondary, reached only after both cross-provider cells are excluded.
-    fallback: nvidia/nemotron-3-ultra-550b-a55b-free
+    # 2026-08-09 (human decision, free-first ordering): the $0 OpenRouter
+    # free cells lead the chain and the Gemini-subscription cells close it,
+    # preserving subscription quota for interactive/orchestration use.
+    # NOTE: this supersedes the earlier G1 note that required the fallback
+    # to be cross-provider from the primary -- primary and fallback are now
+    # BOTH opencode/OpenRouter free cells (shared 20 req/min + daily quota,
+    # a rate-limit hits both together); the cross-provider jump now happens
+    # at secondary (agy_edit, subscription). core.Route still enumerates
+    # primary -> fallback -> secondary in fixed order.
+    # 3.5-flash-low is exposed on agy_edit (agentic smoke pass 2026-08-09)
+    # and sits LAST as the subscription backstop.
+    primary: nvidia/nemotron-3-ultra-550b-a55b-free
+    fallback: poolside/laguna-m.1-free
     secondary:
-      - poolside/laguna-m.1-free
       - openai/gpt-oss-120b
+      - google/gemini-3.5-flash-low
     # max_cost_per_call_usd only binds transports with quota_class: api (ADR-A).
     max_cost_per_call_usd: 0.15
 
@@ -33,18 +35,19 @@ levels:
     # 2026-07-27; the old google/gemini-3.1-pro-low fallback lives only on the
     # oneshot `agy` transport, which core.Route excludes from implement), so
     # every level-1 implement fell back to an internal Claude subagent.
-    primary: google/gemini-3.6-flash-medium
-    # Same G1 invariant as level 0: the FIRST reroute candidate after the
-    # primary is excluded MUST be cross-provider (opencode-backed, $0
-    # OpenRouter free tier), never another agy_edit-provided model.
-    fallback: poolside/laguna-m.1-free
-    # Second cross-provider free cell, then the agy-provided gpt-oss-120b.
-    # The codex cells stay reachable but last: that account is retired
-    # (kill-switch 2026-07-27) and its free credits are finite. gpt-5.6
-    # terra/luna keep the human-given order; no capability ranking asserted.
+    # 2026-08-09 (human decision, free-first ordering): same rationale as
+    # level 0 -- $0 OpenRouter free cells lead, the Gemini-subscription
+    # cell (3.6-flash-low) closes the live chain as the subscription
+    # backstop. 3.6-flash-medium stays in the agy/agy_edit catalogs for
+    # fleet run but is no longer routed. Primary/fallback are both
+    # opencode/OpenRouter (shared rate limit); cross-provider jump happens
+    # at secondary. The codex cells stay reachable but last: that account
+    # is retired (kill-switch 2026-07-27) and its free credits are finite.
+    primary: poolside/laguna-m.1-free
+    fallback: nvidia/nemotron-3-ultra-550b-a55b-free
     secondary:
-      - nvidia/nemotron-3-ultra-550b-a55b-free
       - openai/gpt-oss-120b
+      - google/gemini-3.6-flash-low
       - openai/gpt-5.5-medium
       - openai/gpt-5.6-terra-medium
       - openai/gpt-5.6-luna-medium
@@ -57,11 +60,20 @@ levels:
       - ambiguous_features
       - migrations
       - security
-    primary: anthropic/claude-opus-4-6
-    # Resolves via agy_edit (agentic, subscription) since 2026-07-31.
-    fallback: openai/gpt-5.5-high
+    # 2026-08-09 (human decision): gemini-3.6-flash-high is the level-2
+    # primary, completing the flash trio across the ladder (low->0,
+    # medium->1, high->2); claude-opus-4-6 (also agy_edit, subscription)
+    # is the fallback. Before this change every non-primary cell in this
+    # level was codex-backed and codex has been kill-switched since
+    # 2026-07-27 (quota exhausted, disabled until further notice), so
+    # level 2 had exactly one routable candidate and no reroute path
+    # (same latent bug shape the level-1 rebuild fixed). The codex cells
+    # stay last for if/when that account returns.
+    primary: google/gemini-3.6-flash-high
+    fallback: anthropic/claude-opus-4-6
     # Same ordering rationale as level 1: human-given order, no ranking claim.
     secondary:
+      - openai/gpt-5.5-high
       - openai/gpt-5.6-terra-high
       - openai/gpt-5.6-luna-high
     max_cost_per_call_usd: 3.00
