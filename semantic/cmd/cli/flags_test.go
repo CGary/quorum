@@ -29,7 +29,6 @@ func TestRegisterDBFlags(t *testing.T) {
 		"-db", "custom.db",
 		"-ollama-host", "other:11434",
 		"-embedding-model", "other-model",
-		"-format", "json",
 		"-no-color",
 	})
 	if err != nil {
@@ -45,10 +44,54 @@ func TestRegisterDBFlags(t *testing.T) {
 	if cfg.EmbeddingModel != "other-model" {
 		t.Errorf("got %q, want %q", cfg.EmbeddingModel, "other-model")
 	}
-	if outputFormat != "json" {
-		t.Errorf("got %q, want %q", outputFormat, "json")
-	}
 	if !noColorFlag {
 		t.Errorf("got noColorFlag false, want true")
+	}
+}
+
+func TestRegisterAgentFlags(t *testing.T) {
+	fs := flag.NewFlagSet("agent-test", flag.ContinueOnError)
+	var a AgentFlags
+
+	RegisterAgentFlags(fs, &a)
+
+	// Verify defaults
+	if a.JSON || a.NoInput || a.Quiet || a.Verbose || a.Schema || a.Output != "" || a.Timeout != 0 {
+		t.Errorf("expected zero-value defaults, got %+v", a)
+	}
+
+	err := fs.Parse([]string{
+		"-json",
+		"-no-input",
+		"-quiet",
+		"-verbose",
+		"-output", "out.json",
+		"-timeout", "42",
+		"-schema",
+	})
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+
+	if !a.JSON {
+		t.Errorf("expected JSON true")
+	}
+	if !a.NoInput {
+		t.Errorf("expected NoInput true")
+	}
+	if !a.Quiet {
+		t.Errorf("expected Quiet true")
+	}
+	if !a.Verbose {
+		t.Errorf("expected Verbose true")
+	}
+	if a.Output != "out.json" {
+		t.Errorf("got Output %q, want %q", a.Output, "out.json")
+	}
+	if a.Timeout != 42 {
+		t.Errorf("got Timeout %d, want 42", a.Timeout)
+	}
+	if !a.Schema {
+		t.Errorf("expected Schema true")
 	}
 }

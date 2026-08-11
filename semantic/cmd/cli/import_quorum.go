@@ -29,20 +29,30 @@ func runImportQuorum(args []string, cfg bootstrap.Config) {
 	var quorumDB string
 	var tasksRoot string
 	var source string
+	var dryRun bool
+	var agentFlags AgentFlags
 
 	fs.StringVar(&project, "project", "", "(required) HSME project namespace for both sources")
 	fs.StringVar(&quorumProject, "quorum-project", "", "(optional) Filter for Quorum project_id in curated-memory (defaults to --project)")
 	fs.StringVar(&quorumDB, "quorum-db", "", "(optional) Path to Quorum memory.db (defaults to ~/.quorum/memory.db)")
 	fs.StringVar(&tasksRoot, "tasks-root", ".ai/tasks", "(optional) Path to .ai/tasks root directory")
 	fs.StringVar(&source, "source", "all", "(optional) Source to import: curated|capsules|all")
+	fs.BoolVar(&dryRun, "dry-run", false, "simulate import without writing to database")
 
+	RegisterAgentFlags(fs, &agentFlags)
 	RegisterDBFlags(fs, &cfg)
 	_ = fs.Parse(args)
 	ScanTrailingFlags(fs)
 
+	// 1. --schema check first
+	if agentFlags.Schema {
+		WriteSchemaEnvelope(os.Stdout, importQuorumSchema())
+		os.Exit(0)
+	}
+
+	// 2. Required flag validation
 	if project == "" {
-		WriteError(os.Stderr, fmt.Errorf("missing required flag: --project"), exitUsage, outputFormat)
-		os.Exit(exitUsage)
+		emitErrorAndExit("import-quorum", errMissingRequired, "missing required flag: --project", "project", "", true, "hsme-cli import-quorum --project <proj>", agentFlags.JSON)
 	}
 
 	if quorumProject == "" {
@@ -54,48 +64,97 @@ func runImportQuorum(args []string, cfg bootstrap.Config) {
 	}
 
 	if source != "curated" && source != "capsules" && source != "all" {
-		WriteError(os.Stderr, fmt.Errorf("invalid source %q: must be one of curated|capsules|all", source), exitUsage, outputFormat)
-		os.Exit(exitUsage)
+		emitErrorAndExit("import-quorum", errInvalidEnum, fmt.Sprintf("invalid source %q: must be one of curated|capsules|all", source), "source", source, false, "hsme-cli import-quorum --project "+project+" --source all", agentFlags.JSON)
 	}
 
+	// 3. Open HSME DB
 	hsmeDB, err := bootstrap.OpenDB(cfg)
 	if err != nil {
-		WriteError(os.Stderr, fmt.Errorf("failed to open HSME database: %w", err), exitRuntime, outputFormat)
-		os.Exit(exitRuntime)
+		emitErrorAndExit("import-quorum", errInternal, fmt.Sprintf("failed to open HSME database: %v", err), "", "", false, "", agentFlags.JSON)
 	}
 	defer hsmeDB.Close()
 
+	// 4. --dry-run check
+	if dryRun {
+		data := map[string]any{
+			"dry_run":   true,
+			"source":    source,
+			"quorum_db": quorumDB,
+			"project":   project,
+		}
+		if agentFlags.JSON {
+			WriteSuccessEnvelope(os.Stdout, SuccessEnvelope{
+				OK:          true,
+				Command:     "import-quorum",
+				Summary:     fmt.Sprintf("dry-run: would import %s from %s into project %s", source, quorumDB, project),
+				Data:        data,
+				NextActions: []NextAction{},
+			})
+		} else {
+			fmt.Printf("dry-run: would import %s from %s into project %s\n", source, quorumDB, project)
+		}
+		os.Exit(0)
+	}
+
 	resultMap := make(map[string]interface{})
 
+	// 5. Curated import
 	if source == "curated" || source == "all" {
+		if _, err := os.Stat(quorumDB); err != nil {
+			emitErrorAndExit("import-quorum", errFileNotFound, fmt.Sprintf("quorum database does not exist: %s", quorumDB), "quorum-db", quorumDB, false, "", agentFlags.JSON)
+		}
+
 		qDB, err := quorumdelta.OpenReadOnly(quorumDB)
 		if err != nil {
-			WriteError(os.Stderr, fmt.Errorf("failed to open Quorum database: %w", err), exitRuntime, outputFormat)
-			os.Exit(exitRuntime)
+			emitErrorAndExit("import-quorum", errInternal, fmt.Sprintf("failed to open Quorum database: %v", err), "", "", false, "", agentFlags.JSON)
 		}
 
 		res, err := quorumdelta.Import(qDB, hsmeDB, quorumProject, project)
 		qDB.Close()
 		if err != nil {
-			WriteError(os.Stderr, fmt.Errorf("curated memory import failed: %w", err), exitRuntime, outputFormat)
-			os.Exit(exitRuntime)
+			emitErrorAndExit("import-quorum", errInternal, fmt.Sprintf("curated memory import failed: %v", err), "", "", false, "", agentFlags.JSON)
 		}
 		resultMap["curated"] = res
 	}
 
+	// 6. Capsule import
 	if source == "capsules" || source == "all" {
 		res, err := capsule.Import(hsmeDB, tasksRoot, project)
 		if err != nil {
-			WriteError(os.Stderr, fmt.Errorf("capsule import failed: %w", err), exitRuntime, outputFormat)
-			os.Exit(exitRuntime)
+			emitErrorAndExit("import-quorum", errInternal, fmt.Sprintf("capsule import failed: %v", err), "", "", false, "", agentFlags.JSON)
 		}
 		resultMap["capsules"] = res
 	}
 
-	if outputFormat == "json" {
-		WriteResult(os.Stdout, resultMap, outputFormat)
+	// 7. Output result
+	if agentFlags.Output != "" {
+		if err := writeOutputFile(agentFlags.Output, resultMap); err != nil {
+			emitErrorAndExit("import-quorum", errInternal, fmt.Sprintf("cannot write --output %s: %v", agentFlags.Output, err), "output", agentFlags.Output, false, "", agentFlags.JSON)
+		}
+		if agentFlags.JSON {
+			WriteSuccessEnvelope(os.Stdout, SuccessEnvelope{
+				OK:          true,
+				Command:     "import-quorum",
+				Summary:     "results written to " + agentFlags.Output,
+				Data:        map[string]any{"result_file": agentFlags.Output},
+				NextActions: []NextAction{},
+			})
+		} else {
+			fmt.Printf("results written to %s\n", agentFlags.Output)
+		}
+		return
+	}
+
+	if agentFlags.JSON {
+		WriteSuccessEnvelope(os.Stdout, SuccessEnvelope{
+			OK:          true,
+			Command:     "import-quorum",
+			Summary:     "Quorum import completed",
+			Data:        resultMap,
+			NextActions: []NextAction{},
+		})
 	} else {
-		WriteResult(os.Stdout, FormatImportQuorumResult(resultMap), outputFormat)
+		fmt.Print(FormatImportQuorumResult(resultMap))
 	}
 }
 
@@ -120,4 +179,25 @@ func FormatImportQuorumResult(res map[string]interface{}) string {
 		}
 	}
 	return out
+}
+
+func importQuorumSchema() map[string]any {
+	return map[string]any{
+		"command":     "import-quorum",
+		"description": "Import Quorum curated memory and task capsules into HSME.",
+		"input": map[string]any{
+			"required": []string{"project"},
+			"properties": map[string]any{
+				"project":        map[string]any{"type": "string", "description": "HSME project namespace for both sources"},
+				"quorum-project": map[string]any{"type": "string", "description": "filter for Quorum project_id in curated-memory (defaults to --project)"},
+				"quorum-db":      map[string]any{"type": "string", "description": "path to Quorum memory.db (defaults to ~/.quorum/memory.db)"},
+				"tasks-root":     map[string]any{"type": "string", "default": ".ai/tasks", "description": "path to .ai/tasks root directory"},
+				"source":         map[string]any{"type": "string", "enum": []string{"curated", "capsules", "all"}, "default": "all", "description": "source to import"},
+				"dry-run":        map[string]any{"type": "boolean", "description": "simulate import without writing to database"},
+				"output":         map[string]any{"type": "string", "description": "write result to this file"},
+			},
+		},
+		"output": map[string]any{"type": "object", "required": []string{"ok", "command", "summary", "data"}},
+		"errors": []string{errMissingRequired, errInvalidEnum, errFileNotFound, errInternal},
+	}
 }

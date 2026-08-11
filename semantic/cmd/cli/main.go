@@ -11,6 +11,8 @@ import (
 	"github.com/hsme/core/src/bootstrap"
 )
 
+const cliVersion = "2.0.0"
+
 var (
 	exitUsage   = 1
 	exitRuntime = 2
@@ -21,6 +23,11 @@ func main() {
 	cfg := bootstrap.LoadFromEnv()
 
 	// 2. Register global flags on flag.CommandLine
+	var versionFlag bool
+	flag.CommandLine.BoolVar(&versionFlag, "version", false, "print hsme-cli version and exit")
+
+	var globalAgentFlags AgentFlags
+	RegisterAgentFlags(flag.CommandLine, &globalAgentFlags)
 	RegisterDBFlags(flag.CommandLine, &cfg)
 
 	// 3. Set custom usage
@@ -31,12 +38,28 @@ func main() {
 	// Re-parse trailing global flags
 	ScanTrailingFlags(flag.CommandLine)
 
+	// Check top-level version flag
+	if versionFlag {
+		if globalAgentFlags.JSON {
+			WriteSuccessEnvelope(os.Stdout, SuccessEnvelope{
+				OK:          true,
+				Command:     "version",
+				Summary:     "hsme-cli " + cliVersion,
+				Data:        map[string]any{"version": cliVersion},
+				NextActions: []NextAction{},
+			})
+		} else {
+			fmt.Println("hsme-cli " + cliVersion)
+		}
+		os.Exit(0)
+	}
+
 	// 5. Remaining args are the subcommand and its flags
 	args := flag.Args()
 	if len(args) < 1 {
-		// Check for --help or -h specifically if no subcommand
-		// flag.Parse() handles --help if it sees it, but only if it's the first thing?
-		// Actually flag.Parse() will call flag.Usage() and exit if it sees -h or --help.
+		if globalAgentFlags.JSON {
+			emitErrorAndExit("cli", errMissingRequired, "missing subcommand", "subcommand", "", true, "hsme-cli --help", true)
+		}
 		printTopLevelHelp()
 		os.Exit(exitUsage)
 	}
@@ -67,6 +90,9 @@ func main() {
 	case "import-quorum":
 		runImportQuorum(subArgs, cfg)
 	default:
+		if globalAgentFlags.JSON {
+			emitErrorAndExit("cli", errInvalidArgument, fmt.Sprintf("unknown subcommand: %s", subcommand), "subcommand", subcommand, false, "hsme-cli --help", true)
+		}
 		fmt.Fprintf(os.Stderr, "unknown subcommand: %s\n\n", subcommand)
 		printTopLevelHelp()
 		os.Exit(exitUsage)

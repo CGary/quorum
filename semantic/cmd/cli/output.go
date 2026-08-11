@@ -5,7 +5,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"strings"
 
@@ -148,36 +147,6 @@ func FormatAdminRetryResult(v interface{}) string {
 		return FormatText(v)
 	}
 	return fmt.Sprintf("Retry complete. Retried tasks: %s", Green(fmt.Sprintf("%v", res["retried_tasks"])))
-}
-
-func WriteResult(w io.Writer, v interface{}, format string) error {
-	if format == "json" {
-		s, err := FormatJSON(v)
-		if err != nil {
-			return err
-		}
-		fmt.Fprintln(w, s)
-		return nil
-	}
-	if s, ok := v.(string); ok {
-		fmt.Fprintln(w, s)
-		return nil
-	}
-	fmt.Fprintln(w, FormatText(v))
-	return nil
-}
-
-func WriteError(w io.Writer, err error, code int, format string) {
-	if format == "json" {
-		res := map[string]interface{}{
-			"error": err.Error(),
-			"code":  code,
-		}
-		s, _ := FormatJSON(res)
-		fmt.Fprintln(w, s)
-		return
-	}
-	fmt.Fprintf(w, "error: %v\n", err)
 }
 
 const (

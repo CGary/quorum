@@ -53,27 +53,39 @@ func TestCLI_ImportQuorum(t *testing.T) {
 
 	// (a) --source all end-to-end
 	t.Run("SourceAll_EndToEnd", func(t *testing.T) {
-		stdout, stderr, err := runCLI("--format", "json", "import-quorum", "--project", "testproj", "--quorum-db", quorumDBPath, "--tasks-root", tasksRoot, "--source", "all")
+		stdout, stderr, err := runCLI("import-quorum", "--project", "testproj", "--quorum-db", quorumDBPath, "--tasks-root", tasksRoot, "--source", "all", "--json")
 		if err != nil {
 			t.Fatalf("import-quorum --source all failed: %v\nStderr: %s\nStdout: %s", err, stderr, stdout)
 		}
 
-		var res map[string]map[string]interface{}
+		var res map[string]any
 		if err := json.Unmarshal([]byte(stdout), &res); err != nil {
 			t.Fatalf("failed to parse JSON result: %v\nOutput: %s", err, stdout)
 		}
 
-		curated, ok := res["curated"]
+		if res["ok"] != true {
+			t.Errorf("expected ok: true, got %v", res["ok"])
+		}
+		if res["command"] != "import-quorum" {
+			t.Errorf("expected command 'import-quorum', got %v", res["command"])
+		}
+
+		data, ok := res["data"].(map[string]any)
 		if !ok {
-			t.Fatalf("missing 'curated' key in result: %v", res)
+			t.Fatalf("missing data object in result: %v", res)
+		}
+
+		curated, ok := data["curated"].(map[string]any)
+		if !ok {
+			t.Fatalf("missing 'curated' key in data: %v", data)
 		}
 		if curated["Errored"].(float64) != 0 {
 			t.Errorf("expected 0 errored curated rows, got %v", curated["Errored"])
 		}
 
-		capsules, ok := res["capsules"]
+		capsules, ok := data["capsules"].(map[string]any)
 		if !ok {
-			t.Fatalf("missing 'capsules' key in result: %v", res)
+			t.Fatalf("missing 'capsules' key in data: %v", data)
 		}
 		if capsules["Errored"].(float64) != 0 {
 			t.Errorf("expected 0 errored capsule rows, got %v", capsules["Errored"])
@@ -82,39 +94,44 @@ func TestCLI_ImportQuorum(t *testing.T) {
 
 	// (b) Re-running produces zero new imported rows (dedup)
 	t.Run("DedupOnReRun", func(t *testing.T) {
-		stdout, stderr, err := runCLI("--format", "json", "import-quorum", "--project", "testproj", "--quorum-db", quorumDBPath, "--tasks-root", tasksRoot, "--source", "all")
+		stdout, stderr, err := runCLI("import-quorum", "--project", "testproj", "--quorum-db", quorumDBPath, "--tasks-root", tasksRoot, "--source", "all", "--json")
 		if err != nil {
 			t.Fatalf("re-run import-quorum failed: %v\nStderr: %s", err, stderr)
 		}
 
-		var res map[string]map[string]interface{}
+		var res map[string]any
 		if err := json.Unmarshal([]byte(stdout), &res); err != nil {
 			t.Fatalf("failed to parse JSON result: %v", err)
 		}
 
-		if res["curated"]["Ingested"].(float64) != 0 {
-			t.Errorf("expected 0 new ingested curated rows on re-run, got %v", res["curated"]["Ingested"])
+		data := res["data"].(map[string]any)
+		curated := data["curated"].(map[string]any)
+		capsules := data["capsules"].(map[string]any)
+
+		if curated["Ingested"].(float64) != 0 {
+			t.Errorf("expected 0 new ingested curated rows on re-run, got %v", curated["Ingested"])
 		}
-		if res["capsules"]["Ingested"].(float64) != 0 {
-			t.Errorf("expected 0 new ingested capsule rows on re-run, got %v", res["capsules"]["Ingested"])
+		if capsules["Ingested"].(float64) != 0 {
+			t.Errorf("expected 0 new ingested capsule rows on re-run, got %v", capsules["Ingested"])
 		}
 	})
 
 	// (c) --source curated only
 	t.Run("SourceCuratedOnly", func(t *testing.T) {
 		freshDB := filepath.Join(tmpDir, "hsme_curated_only.db")
-		stdout, err := exec.Command(cliPath, "--db", freshDB, "--format", "json", "import-quorum", "--project", "testproj", "--quorum-db", quorumDBPath, "--source", "curated").CombinedOutput()
+		stdout, err := exec.Command(cliPath, "--db", freshDB, "import-quorum", "--project", "testproj", "--quorum-db", quorumDBPath, "--source", "curated", "--json").CombinedOutput()
 		if err != nil {
 			t.Fatalf("import-quorum --source curated failed: %v\nOutput: %s", err, stdout)
 		}
-		var res map[string]interface{}
+		var res map[string]any
 		if err := json.Unmarshal(stdout, &res); err != nil {
 			t.Fatalf("failed to parse JSON: %v", err)
 		}
-		if _, ok := res["curated"]; !ok {
-			t.Errorf("expected 'curated' key in result")
+		data := res["data"].(map[string]any)
+		if _, ok := data["curated"]; !ok {
+			t.Errorf("expected 'curated' key in data")
 		}
-		if _, ok := res["capsules"]; ok {
+		if _, ok := data["capsules"]; ok {
 			t.Errorf("did not expect 'capsules' key when --source curated")
 		}
 	})
@@ -122,41 +139,58 @@ func TestCLI_ImportQuorum(t *testing.T) {
 	// (d) --source capsules only
 	t.Run("SourceCapsulesOnly", func(t *testing.T) {
 		freshDB := filepath.Join(tmpDir, "hsme_capsules_only.db")
-		stdout, err := exec.Command(cliPath, "--db", freshDB, "--format", "json", "import-quorum", "--project", "testproj", "--tasks-root", tasksRoot, "--source", "capsules").CombinedOutput()
+		stdout, err := exec.Command(cliPath, "--db", freshDB, "import-quorum", "--project", "testproj", "--tasks-root", tasksRoot, "--source", "capsules", "--json").CombinedOutput()
 		if err != nil {
 			t.Fatalf("import-quorum --source capsules failed: %v\nOutput: %s", err, stdout)
 		}
-		var res map[string]interface{}
+		var res map[string]any
 		if err := json.Unmarshal(stdout, &res); err != nil {
 			t.Fatalf("failed to parse JSON: %v", err)
 		}
-		if _, ok := res["capsules"]; !ok {
-			t.Errorf("expected 'capsules' key in result")
+		data := res["data"].(map[string]any)
+		if _, ok := data["capsules"]; !ok {
+			t.Errorf("expected 'capsules' key in data")
 		}
-		if _, ok := res["curated"]; ok {
+		if _, ok := data["curated"]; ok {
 			t.Errorf("did not expect 'curated' key when --source capsules")
 		}
 	})
 
 	// (e) Missing --project fails usage
 	t.Run("MissingProjectError", func(t *testing.T) {
-		_, stderr, err := runCLI("import-quorum")
+		stdout, _, err := runCLI("import-quorum", "--json")
 		if err == nil {
 			t.Errorf("expected non-zero exit when --project is missing")
 		}
-		if !strings.Contains(stderr, "missing required flag: --project") {
-			t.Errorf("expected missing required flag error message, got stderr: %s", stderr)
+		var res map[string]any
+		if err := json.Unmarshal([]byte(stdout), &res); err != nil {
+			t.Fatalf("failed to parse JSON error: %v, stdout: %s", err, stdout)
+		}
+		if res["ok"] != false {
+			t.Errorf("expected ok: false, got %v", res["ok"])
+		}
+		errObj := res["error"].(map[string]any)
+		if errObj["code"] != "MISSING_REQUIRED_FLAG" {
+			t.Errorf("expected code MISSING_REQUIRED_FLAG, got %v", errObj["code"])
 		}
 	})
 
 	// (f) Invalid --source fails usage
 	t.Run("InvalidSourceError", func(t *testing.T) {
-		_, stderr, err := runCLI("import-quorum", "--project", "testproj", "--source", "invalid")
+		stdout, _, err := runCLI("import-quorum", "--project", "testproj", "--source", "invalid", "--json")
 		if err == nil {
 			t.Errorf("expected non-zero exit when --source is invalid")
 		}
-		if !strings.Contains(stderr, "invalid source") {
-			t.Errorf("expected invalid source error message, got stderr: %s", stderr)
+		var res map[string]any
+		if err := json.Unmarshal([]byte(stdout), &res); err != nil {
+			t.Fatalf("failed to parse JSON error: %v, stdout: %s", err, stdout)
+		}
+		if res["ok"] != false {
+			t.Errorf("expected ok: false, got %v", res["ok"])
+		}
+		errObj := res["error"].(map[string]any)
+		if errObj["code"] != "INVALID_ENUM" {
+			t.Errorf("expected code INVALID_ENUM, got %v", errObj["code"])
 		}
 	})
 
@@ -176,17 +210,19 @@ func TestCLI_ImportQuorum(t *testing.T) {
 		}
 		qHomeDB.Close()
 
-		c := exec.Command(cliPath, "--db", filepath.Join(tmpDir, "hsme_home_test.db"), "--format", "json", "import-quorum", "--project", "testproj", "--source", "curated")
+		c := exec.Command(cliPath, "--db", filepath.Join(tmpDir, "hsme_home_test.db"), "import-quorum", "--project", "testproj", "--source", "curated", "--json")
 		c.Env = append(os.Environ(), "HOME="+fakeHome)
 		out, err := c.CombinedOutput()
 		if err != nil {
 			t.Fatalf("import-quorum with default --quorum-db failed: %v\nOutput: %s", err, out)
 		}
-		var res map[string]map[string]interface{}
+		var res map[string]any
 		if err := json.Unmarshal(out, &res); err != nil {
 			t.Fatalf("failed to parse JSON result: %v", err)
 		}
-		if res["curated"]["Ingested"].(float64) == 0 {
+		data := res["data"].(map[string]any)
+		curated := data["curated"].(map[string]any)
+		if curated["Ingested"].(float64) == 0 {
 			t.Errorf("expected ingested rows from default ~/.quorum/memory.db, got 0")
 		}
 	})
@@ -199,6 +235,40 @@ func TestCLI_ImportQuorum(t *testing.T) {
 		}
 		if !strings.Contains(stdout, "ADR 0013 section 4") {
 			t.Errorf("help import-quorum output missing ADR 0013 section 4 note, got: %s", stdout)
+		}
+	})
+
+	// (i) --dry-run
+	t.Run("DryRun", func(t *testing.T) {
+		stdout, stderr, err := runCLI("import-quorum", "--project", "testproj", "--quorum-db", quorumDBPath, "--dry-run", "--json")
+		if err != nil {
+			t.Fatalf("import-quorum --dry-run failed: %v\nStderr: %s\nStdout: %s", err, stderr, stdout)
+		}
+		var res map[string]any
+		if err := json.Unmarshal([]byte(stdout), &res); err != nil {
+			t.Fatalf("failed to parse JSON: %v", err)
+		}
+		if res["ok"] != true {
+			t.Errorf("expected ok: true, got %v", res["ok"])
+		}
+		data := res["data"].(map[string]any)
+		if data["dry_run"] != true {
+			t.Errorf("expected data.dry_run: true, got %v", data["dry_run"])
+		}
+	})
+
+	// (j) --schema
+	t.Run("Schema", func(t *testing.T) {
+		stdout, stderr, err := runCLI("import-quorum", "--schema")
+		if err != nil {
+			t.Fatalf("import-quorum --schema failed: %v\nStderr: %s\nStdout: %s", err, stderr, stdout)
+		}
+		var schema map[string]any
+		if err := json.Unmarshal([]byte(stdout), &schema); err != nil {
+			t.Fatalf("failed to parse schema JSON: %v", err)
+		}
+		if schema["command"] != "import-quorum" {
+			t.Errorf("expected command 'import-quorum', got %v", schema["command"])
 		}
 	})
 }

@@ -20,29 +20,62 @@ func runStatus(args []string, cfg bootstrap.Config) {
 	fs := flag.NewFlagSet("status", flag.ExitOnError)
 	var watch bool
 	var interval time.Duration
+	var agentFlags AgentFlags
+
 	fs.BoolVar(&watch, "watch", false, "Watch status changes in real-time")
 	fs.DurationVar(&interval, "interval", 2*time.Second, "Watch refresh interval")
 
+	RegisterAgentFlags(fs, &agentFlags)
 	RegisterDBFlags(fs, &cfg)
+
 	fs.Parse(args)
 	ScanTrailingFlags(fs)
 
+	// 1. --schema check first
+	if agentFlags.Schema {
+		WriteSchemaEnvelope(os.Stdout, statusSchema())
+		os.Exit(0)
+	}
+
+	// 2. Open DB
 	db, err := bootstrap.OpenDB(cfg)
 	if err != nil {
-		WriteError(os.Stderr, fmt.Errorf("failed to open database: %w", err), exitRuntime, outputFormat)
-		os.Exit(exitRuntime)
+		emitErrorAndExit("status", errInternal, fmt.Sprintf("failed to open database: %v", err), "", "", false, "", agentFlags.JSON)
 	}
 	defer db.Close()
 
 	for {
 		status, err := getStatus(context.Background(), db)
 		if err != nil {
-			WriteError(os.Stderr, err, exitRuntime, outputFormat)
-			os.Exit(exitRuntime)
+			emitErrorAndExit("status", errInternal, err.Error(), "", "", false, "", agentFlags.JSON)
 		}
 
-		if outputFormat == "json" {
-			WriteResult(os.Stdout, status, outputFormat)
+		if agentFlags.Output != "" {
+			if err := writeOutputFile(agentFlags.Output, status); err != nil {
+				emitErrorAndExit("status", errInternal, fmt.Sprintf("cannot write --output %s: %v", agentFlags.Output, err), "output", agentFlags.Output, false, "", agentFlags.JSON)
+			}
+			if agentFlags.JSON {
+				WriteSuccessEnvelope(os.Stdout, SuccessEnvelope{
+					OK:          true,
+					Command:     "status",
+					Summary:     "result written to " + agentFlags.Output,
+					Data:        map[string]any{"result_file": agentFlags.Output},
+					NextActions: []NextAction{},
+				})
+			} else {
+				fmt.Printf("result written to %s\n", agentFlags.Output)
+			}
+			if !watch {
+				break
+			}
+		} else if agentFlags.JSON {
+			WriteSuccessEnvelope(os.Stdout, SuccessEnvelope{
+				OK:          true,
+				Command:     "status",
+				Summary:     fmt.Sprintf("System status: %d memories, %d nodes, %d edges", status.Memories, status.Graph.Nodes, status.Graph.Edges),
+				Data:        status,
+				NextActions: []NextAction{},
+			})
 		} else {
 			printStatusText(status)
 		}
@@ -186,5 +219,21 @@ func printStatusText(s *StatusInfo) {
 		for _, e := range s.LatestErrors {
 			fmt.Printf("  - %s\n", Red(e))
 		}
+	}
+}
+
+func statusSchema() map[string]any {
+	return map[string]any{
+		"command":     "status",
+		"description": "Show system health, worker status, and queue metrics.",
+		"input": map[string]any{
+			"properties": map[string]any{
+				"watch":    map[string]any{"type": "boolean", "description": "update status periodically (requires TTY)"},
+				"interval": map[string]any{"type": "string", "default": "2s", "description": "update interval in watch mode"},
+				"output":   map[string]any{"type": "string", "description": "write result to this file"},
+			},
+		},
+		"output": map[string]any{"type": "object", "required": []string{"ok", "command", "summary", "data"}},
+		"errors": []string{errInternal},
 	}
 }
