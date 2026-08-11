@@ -330,6 +330,24 @@ Quorum is user-sovereign, not local-first: local operational data belongs to the
 
 Any global prompt or client configuration describing HSME as a "primary system" is subordinate to ADR 0008's authority rule inside this repo: **HSME informs; Git, lifecycle artifacts, and curated `q-memory` decide.** Operational rules for every HSME call made from this repo (MCP tools or `hsme-cli`): always pass `project` (HSME does not isolate projects by itself); treat results as advisory suggestions requiring human confirmation before they influence any persisted artifact; apply explicit timeouts and degrade gracefully when HSME/Ollama are unavailable — no Quorum functionality may depend on HSME being up. The `quorum` binary never invokes HSME; only skills and semantic-side processes do.
 
+## hsme-cli for agents
+
+Use `hsme-cli` for HSME memory operations instead of querying its SQLite
+database directly.
+
+Default agent flags:
+- Always pass `--json`.
+- Always pass `--no-input`.
+- Use `--dry-run` before `store`, `admin restore`, `import-quorum`.
+- Prefer `--output <file>` for large `search-fuzzy`/`search-exact`/`explore` results.
+- Do not parse human-text output when `--json` is available.
+
+Common commands:
+- `hsme-cli search-fuzzy "<query>" --project <proj> --limit 10 --json --no-input`
+- `hsme-cli search-exact "<keyword>" --project <proj> --limit 10 --json --no-input`
+- `hsme-cli status --json --no-input`
+- `hsme-cli store --source-type note --project <proj> --json --no-input < notes.md`
+
 ## The Constitution (immutable rules)
 
 These are enforced by both the manifesto and the code paths above. Violations are not refactor opportunities — they're bugs.

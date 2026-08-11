@@ -115,19 +115,19 @@ with `SQLITE_DB_PATH` pointing at HSME's database (typically `data/engram.db` re
 the semantic module root, or as configured by the user's HSME environment):
 
 ```bash
-SQLITE_DB_PATH="<hsme-db-path>" timeout 20 hsme-cli search-fuzzy "<proposed_title_and_content>" --project quorum --limit 10
+SQLITE_DB_PATH="<hsme-db-path>" timeout 20 hsme-cli search-fuzzy "<proposed_title_and_content>" --project quorum --limit 10 --json --no-input
 ```
 
-If `search-fuzzy` is unavailable (missing binary, missing Ollama, or any runtime error),
+If `search-fuzzy --json --no-input` is unavailable (missing binary, missing Ollama, or any runtime error),
 fall back to the keyword search with the same flags:
 
 ```bash
-SQLITE_DB_PATH="<hsme-db-path>" timeout 20 hsme-cli search-exact "<proposed_title>" --project quorum --limit 10
+SQLITE_DB_PATH="<hsme-db-path>" timeout 20 hsme-cli search-exact "<proposed_title>" --project quorum --limit 10 --json --no-input
 ```
 
 The query text is derived from the proposed memory's `title` and `content`. Every result
-carries provenance: the HSME `memory_id` and the memory's title (retrieved from the
-result's highlighted text or a supplementary record lookup).
+carries provenance: the HSME `memory_id` is read from `data.results[].memory_id`, and the
+memory's title from `data.results[].highlights[].text` in the mk-cli JSON envelope.
 
 ### Human Decision Point
 

@@ -45,18 +45,19 @@ and with `SQLITE_DB_PATH` pointing at HSME's database (typically `data/engram.db
 to the semantic module root, or as configured by the user's HSME environment):
 
 ```bash
-SQLITE_DB_PATH="<hsme-db-path>" timeout 20 hsme-cli search-fuzzy "<spec_summary_and_goal>" --project quorum --limit 10
+SQLITE_DB_PATH="<hsme-db-path>" timeout 20 hsme-cli search-fuzzy "<spec_summary_and_goal>" --project quorum --limit 10 --json --no-input
 ```
 
-If `search-fuzzy` is unavailable, fall back to `hsme-cli search-exact` with the same
+If `search-fuzzy --json --no-input` is unavailable, fall back to `hsme-cli search-exact --json --no-input` with the same
 `--project quorum` flag:
 
 ```bash
-SQLITE_DB_PATH="<hsme-db-path>" timeout 20 hsme-cli search-exact "<spec_summary>" --project quorum --limit 10
+SQLITE_DB_PATH="<hsme-db-path>" timeout 20 hsme-cli search-exact "<spec_summary>" --project quorum --limit 10 --json --no-input
 ```
 
 The query text is derived from the `00-spec.yaml` `summary` and `goal`. Every result
-carries provenance: the HSME `memory_id` and the memory's title.
+ carries provenance: the HSME `memory_id` is read from `data.results[].memory_id`, and
+ the memory's title from `data.results[].highlights[].text` in the mk-cli JSON envelope.
 
 If results exist, present them to the human as advisory context — for example:
 *"Este diseño se asemeja a la tarea fallida FEAT-042 (similaridad semántica). Revisá los

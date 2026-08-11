@@ -177,6 +177,8 @@ Para supervisar el sistema, se utiliza directamente el **CLI Unificado** (`hsme-
 ### Comandos de Utilidad
 - `just serve`: Inicia el servidor MCP (comunicación stdio).
 - `just install`: Compila e instala todos los binarios (`hsme`, `hsme-worker`, `hsme-ops`, `hsme-cli`) en `~/go/bin`.
+
+Para uso por agentes, `hsme-cli` expone `--json` (salida estructurada), `--schema` (contrato de entrada/salida de cada subcomando) y `--dry-run` en `store`/`admin restore`/`import-quorum` (simulación sin escritura). Ver `AGENTS.md` y `.agents/skills/hsme-cli-usage/SKILL.md`.
 - `just cli-install`: Instala únicamente el CLI.
 - `just migrate [full|delta]`: Ejecuta la migración desde Engram legado (mode: `full`, `delta`, o `dry-run`).
 - `just backup/restore`: Gestión de snapshots atómicos compatibles con WAL.
