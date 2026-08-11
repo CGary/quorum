@@ -14,6 +14,11 @@ type Tier struct {
 	Name      string
 	Extractor worker.GraphExtractor
 	Timeout   time.Duration
+	// Model is documentation/introspection metadata: the model name the
+	// caller used to construct Extractor for this tier. It is set once at
+	// construction time and never re-derived, so tests can pin it against
+	// the exact wiring site and catch a regression that swaps models.
+	Model string
 }
 
 // ChainExtractor evaluates extraction tiers sequentially until one succeeds.

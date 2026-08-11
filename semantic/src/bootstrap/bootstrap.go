@@ -75,16 +75,19 @@ func OpenWithWorker(cfg Config) (*sql.DB, *ollama.Embedder, worker.GraphExtracto
 				Name:      "openrouter-short",
 				Extractor: orExtractor,
 				Timeout:   shortTimeout,
+				Model:     cfg.ExtractionModel,
 			},
 			openrouter.Tier{
 				Name:      "openrouter-long",
 				Extractor: orExtractor,
 				Timeout:   longTimeout,
+				Model:     cfg.ExtractionModel,
 			},
 			openrouter.Tier{
 				Name:      "ollama-fallback",
 				Extractor: ollamaFallback,
 				Timeout:   0,
+				Model:     cfg.FallbackExtractionModel,
 			},
 		)
 		return db, embedder, chain, nil

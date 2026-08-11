@@ -148,8 +148,98 @@ func TestOpenWithWorkerProviderBranch(t *testing.T) {
 			if tiers[2].Name != "ollama-fallback" || tiers[2].Timeout != 0 {
 				t.Errorf("tier 2 mismatch: %+v", tiers[2])
 			}
+
+			// AC-3 regression guard: pin that tiers 0/1 (openrouter) are
+			// wired with cfg.ExtractionModel and tier 2 (ollama fallback)
+			// is wired with cfg.FallbackExtractionModel, never swapped.
+			if tiers[0].Model != cfg.ExtractionModel {
+				t.Errorf("tier 0 Model = %q, want cfg.ExtractionModel %q", tiers[0].Model, cfg.ExtractionModel)
+			}
+			if tiers[1].Model != cfg.ExtractionModel {
+				t.Errorf("tier 1 Model = %q, want cfg.ExtractionModel %q", tiers[1].Model, cfg.ExtractionModel)
+			}
+			if tiers[2].Model != cfg.FallbackExtractionModel {
+				t.Errorf("tier 2 Model = %q, want cfg.FallbackExtractionModel %q", tiers[2].Model, cfg.FallbackExtractionModel)
+			}
+			if tiers[2].Model == tiers[0].Model {
+				t.Errorf("tier 2 (ollama) Model must not equal tier 0 (openrouter) Model, both are %q", tiers[2].Model)
+			}
 		}
 	}
+}
+
+// TestOpenWithWorkerTierModelWiring pins the AC-3 404-regression guard
+// through the real bootstrap composition: the third (ollama) tier must be
+// wired with cfg.FallbackExtractionModel (default "phi3.5"), never with
+// cfg.ExtractionModel (the OpenRouter model name). A regression that swaps
+// the models at the bootstrap.go construction site must fail this test.
+func TestOpenWithWorkerTierModelWiring(t *testing.T) {
+	t.Run("default config", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		cfg := LoadFromEnv()
+		cfg.ExtractionProvider = "openrouter"
+		if cfg.ExtractionModel == "" {
+			cfg.ExtractionModel = "nvidia/nemotron-nano-9b-v2:free"
+		}
+		cfg.DBPath = filepath.Join(tmpDir, "default.db")
+		cfg.OpenRouterBaseURL = "http://127.0.0.1:0"
+
+		db, _, extractor, err := OpenWithWorker(cfg)
+		if err != nil {
+			t.Fatalf("OpenWithWorker failed: %v", err)
+		}
+		defer db.Close()
+
+		chain, ok := extractor.(*openrouter.ChainExtractor)
+		if !ok {
+			t.Fatalf("expected *openrouter.ChainExtractor, got %T", extractor)
+		}
+		tiers := chain.Tiers()
+		if len(tiers) != 3 {
+			t.Fatalf("expected 3 tiers, got %d", len(tiers))
+		}
+		if cfg.FallbackExtractionModel != "phi3.5" {
+			t.Fatalf("sanity: expected default FallbackExtractionModel phi3.5, got %s", cfg.FallbackExtractionModel)
+		}
+		if tiers[0].Model != cfg.ExtractionModel || tiers[1].Model != cfg.ExtractionModel {
+			t.Errorf("openrouter tiers must use cfg.ExtractionModel %q, got tier0=%q tier1=%q", cfg.ExtractionModel, tiers[0].Model, tiers[1].Model)
+		}
+		if tiers[2].Model != "phi3.5" {
+			t.Errorf("ollama fallback tier Model = %q, want default FallbackExtractionModel \"phi3.5\"", tiers[2].Model)
+		}
+	})
+
+	t.Run("explicit env", func(t *testing.T) {
+		t.Setenv("EXTRACTION_PROVIDER", "openrouter")
+		t.Setenv("EXTRACTION_MODEL", "openrouter/explicit-model")
+		t.Setenv("FALLBACK_EXTRACTION_MODEL", "explicit-ollama-model")
+
+		tmpDir := t.TempDir()
+		cfg := LoadFromEnv()
+		cfg.DBPath = filepath.Join(tmpDir, "explicit.db")
+		cfg.OpenRouterBaseURL = "http://127.0.0.1:0"
+
+		db, _, extractor, err := OpenWithWorker(cfg)
+		if err != nil {
+			t.Fatalf("OpenWithWorker failed: %v", err)
+		}
+		defer db.Close()
+
+		chain, ok := extractor.(*openrouter.ChainExtractor)
+		if !ok {
+			t.Fatalf("expected *openrouter.ChainExtractor, got %T", extractor)
+		}
+		tiers := chain.Tiers()
+		if len(tiers) != 3 {
+			t.Fatalf("expected 3 tiers, got %d", len(tiers))
+		}
+		if tiers[0].Model != "openrouter/explicit-model" || tiers[1].Model != "openrouter/explicit-model" {
+			t.Errorf("openrouter tiers must use explicit EXTRACTION_MODEL, got tier0=%q tier1=%q", tiers[0].Model, tiers[1].Model)
+		}
+		if tiers[2].Model != "explicit-ollama-model" {
+			t.Errorf("ollama fallback tier Model = %q, want explicit FALLBACK_EXTRACTION_MODEL \"explicit-ollama-model\"", tiers[2].Model)
+		}
+	})
 }
 
 func TestLoadFromEnvFallbackExtractionModel(t *testing.T) {
