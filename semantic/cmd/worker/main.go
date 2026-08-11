@@ -10,10 +10,32 @@ import (
 	"syscall"
 	"time"
 
+	"path/filepath"
+
 	"github.com/hsme/core/src/bootstrap"
+	"github.com/hsme/core/src/core/capsule"
+	"github.com/hsme/core/src/core/quorumdelta"
 	"github.com/hsme/core/src/core/worker"
 	"github.com/hsme/core/src/observability"
 )
+
+func defaultQuorumDBPath() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return filepath.Join(".quorum", "memory.db")
+	}
+	return filepath.Join(home, ".quorum", "memory.db")
+}
+
+func defaultProbe(quorumDBPath, tasksRoot string) error {
+	if _, err := os.Stat(quorumDBPath); os.IsNotExist(err) {
+		return fmt.Errorf("quorum DB not found at %s", quorumDBPath)
+	}
+	if _, err := os.Stat(tasksRoot); os.IsNotExist(err) {
+		return fmt.Errorf("tasks root not found at %s", tasksRoot)
+	}
+	return nil
+}
 
 func main() {
 	cfg := bootstrap.LoadFromEnv()
@@ -41,6 +63,39 @@ func main() {
 		cancel()
 		os.Exit(0)
 	}()
+
+	enabled, warning := worker.ShouldRunSweep(cfg.ImportIntervalS, cfg.ImportProject)
+	if warning != "" {
+		log.Printf("[import-sweep] %s", warning)
+	}
+	if enabled {
+		sweeper := &worker.Sweeper{
+			QuorumDBPath: defaultQuorumDBPath(),
+			TasksRoot:    ".ai/tasks",
+			Project:      cfg.ImportProject,
+			Probe:        defaultProbe,
+			CuratedImportFunc: func(dbPath, project string) (worker.SweepCounts, error) {
+				qDB, err := quorumdelta.OpenReadOnly(dbPath)
+				if err != nil {
+					return worker.SweepCounts{}, err
+				}
+				defer qDB.Close()
+				res, err := quorumdelta.Import(qDB, db, project, project)
+				if err != nil {
+					return worker.SweepCounts{}, err
+				}
+				return worker.SweepCounts{Fetched: res.Fetched, Ingested: res.Ingested, Skipped: res.Skipped, Errored: res.Errored}, nil
+			},
+			CapsuleImportFunc: func(tRoot, project string) (worker.SweepCounts, error) {
+				res, err := capsule.Import(db, tRoot, project)
+				if err != nil {
+					return worker.SweepCounts{}, err
+				}
+				return worker.SweepCounts{Fetched: res.Scanned, Ingested: res.Ingested, Skipped: res.Skipped, Errored: res.Errored}, nil
+			},
+		}
+		go sweeper.Start(ctx, time.Duration(cfg.ImportIntervalS)*time.Second)
+	}
 
 	for {
 		leaseStarted := time.Now().UTC()

@@ -269,3 +269,44 @@ func TestOpenDBInvalidPath(t *testing.T) {
 		t.Fatal("expected OpenDB to fail for invalid path")
 	}
 }
+
+func TestLoadFromEnvImportConfig(t *testing.T) {
+	t.Run("defaults", func(t *testing.T) {
+		t.Setenv("IMPORT_INTERVAL_S", "")
+		t.Setenv("IMPORT_PROJECT", "")
+		cfg := LoadFromEnv()
+		if cfg.ImportIntervalS != 0 {
+			t.Errorf("expected default ImportIntervalS 0, got %d", cfg.ImportIntervalS)
+		}
+		if cfg.ImportProject != "" {
+			t.Errorf("expected default ImportProject empty, got %q", cfg.ImportProject)
+		}
+	})
+
+	t.Run("custom values", func(t *testing.T) {
+		t.Setenv("IMPORT_INTERVAL_S", "60")
+		t.Setenv("IMPORT_PROJECT", "quorum")
+		cfg := LoadFromEnv()
+		if cfg.ImportIntervalS != 60 {
+			t.Errorf("expected ImportIntervalS 60, got %d", cfg.ImportIntervalS)
+		}
+		if cfg.ImportProject != "quorum" {
+			t.Errorf("expected ImportProject quorum, got %q", cfg.ImportProject)
+		}
+	})
+
+	t.Run("invalid interval", func(t *testing.T) {
+		t.Setenv("IMPORT_INTERVAL_S", "invalid")
+		cfg := LoadFromEnv()
+		if cfg.ImportIntervalS != 0 {
+			t.Errorf("expected invalid ImportIntervalS to fallback to 0, got %d", cfg.ImportIntervalS)
+		}
+
+		t.Setenv("IMPORT_INTERVAL_S", "-10")
+		cfg = LoadFromEnv()
+		if cfg.ImportIntervalS != 0 {
+			t.Errorf("expected negative ImportIntervalS to fallback to 0, got %d", cfg.ImportIntervalS)
+		}
+	})
+}
+

@@ -19,6 +19,8 @@ type Config struct {
 	ExtractionTimeoutLongS  int    // EXTRACTION_TIMEOUT_LONG_S; default 900
 	OpenRouterAPIKey        string // OPENROUTER_API_KEY
 	OpenRouterBaseURL       string // OPENROUTER_BASE_URL; default "https://openrouter.ai/api/v1"
+	ImportIntervalS         int    // IMPORT_INTERVAL_S; default 0
+	ImportProject           string // IMPORT_PROJECT; default ""
 }
 
 // LoadFromEnv reads configuration from environment variables and applies defaults.
@@ -75,6 +77,15 @@ func LoadFromEnv() Config {
 		openRouterBaseURL = "https://openrouter.ai/api/v1"
 	}
 
+	importIntervalS := 0
+	if v := os.Getenv("IMPORT_INTERVAL_S"); v != "" {
+		if s, err := strconv.Atoi(v); err == nil && s > 0 {
+			importIntervalS = s
+		}
+	}
+
+	importProject := os.Getenv("IMPORT_PROJECT")
+
 	return Config{
 		DBPath:                  dbPath,
 		OllamaHost:              ollamaHost,
@@ -87,6 +98,8 @@ func LoadFromEnv() Config {
 		ExtractionTimeoutLongS:  timeoutLong,
 		OpenRouterAPIKey:        openRouterAPIKey,
 		OpenRouterBaseURL:       openRouterBaseURL,
+		ImportIntervalS:         importIntervalS,
+		ImportProject:           importProject,
 	}
 }
 
