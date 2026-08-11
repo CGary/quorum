@@ -44,10 +44,12 @@ type Sweeper struct {
 	CapsuleImportFunc CapsuleImportFunc
 	Probe             ProbeFunc
 
-	running   int32
-	probeDone bool
-	probeErr  error
-	probeMu   sync.Mutex
+	running          int32
+	probeDone        bool
+	probeErr         error
+	probeMu          sync.Mutex
+	curatedErrLogged bool
+	capsuleErrLogged bool
 }
 
 // ShouldRunSweep evaluates configuration and determines if sweeps should run.
@@ -97,9 +99,16 @@ func (s *Sweeper) RunOnce(ctx context.Context) (SweepResult, error) {
 		cCounts, err := s.CuratedImportFunc(s.QuorumDBPath, s.Project)
 		res.Curated = cCounts
 		if err != nil {
-			log.Printf("[import-sweep] curated import error: %v", err)
+			if !s.curatedErrLogged {
+				log.Printf("[import-sweep] curated import error: %v", err)
+				s.curatedErrLogged = true
+			}
 			res.Error = err
 			return res, err
+		}
+		if s.curatedErrLogged {
+			log.Printf("[import-sweep] curated import recovered")
+			s.curatedErrLogged = false
 		}
 	}
 
@@ -107,9 +116,16 @@ func (s *Sweeper) RunOnce(ctx context.Context) (SweepResult, error) {
 		capCounts, err := s.CapsuleImportFunc(s.TasksRoot, s.Project)
 		res.Capsules = capCounts
 		if err != nil {
-			log.Printf("[import-sweep] capsule import error: %v", err)
+			if !s.capsuleErrLogged {
+				log.Printf("[import-sweep] capsule import error: %v", err)
+				s.capsuleErrLogged = true
+			}
 			res.Error = err
 			return res, err
+		}
+		if s.capsuleErrLogged {
+			log.Printf("[import-sweep] capsule import recovered")
+			s.capsuleErrLogged = false
 		}
 	}
 

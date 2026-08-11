@@ -3,8 +3,23 @@ package bootstrap
 import (
 	"flag"
 	"os"
+	"path/filepath"
 	"strconv"
 )
+
+// DefaultTasksRoot is the default relative path to the Quorum tasks root,
+// matching the CLI's --tasks-root default.
+const DefaultTasksRoot = ".ai/tasks"
+
+// DefaultQuorumDBPath returns the default path to the centralized Quorum
+// memory database (~/.quorum/memory.db), matching the CLI's default.
+func DefaultQuorumDBPath() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return filepath.Join(".quorum", "memory.db")
+	}
+	return filepath.Join(home, ".quorum", "memory.db")
+}
 
 // Config holds the application configuration.
 type Config struct {

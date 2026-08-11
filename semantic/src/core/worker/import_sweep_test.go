@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -259,6 +260,58 @@ func TestSweeper_RunOnce_TransientCuratedError(t *testing.T) {
 	}
 	if res2.Curated.Ingested != 3 {
 		t.Errorf("expected 3 ingested on attempt 2, got %d", res2.Curated.Ingested)
+	}
+}
+
+func TestSweeper_Start_TickerOverlapSkip(t *testing.T) {
+	var calls int32
+	release := make(chan struct{})
+	firstCallStarted := make(chan struct{})
+	var startOnce sync.Once
+
+	blockingCurated := func(dbPath, project string) (SweepCounts, error) {
+		atomic.AddInt32(&calls, 1)
+		startOnce.Do(func() {
+			close(firstCallStarted)
+		})
+		<-release
+		return SweepCounts{Ingested: 1}, nil
+	}
+
+	sweeper := &Sweeper{
+		CuratedImportFunc: blockingCurated,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	done := make(chan struct{})
+	go func() {
+		sweeper.Start(ctx, 5*time.Millisecond)
+		close(done)
+	}()
+
+	// Wait for the first tick to enter the blocking import func.
+	select {
+	case <-firstCallStarted:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("first tick never invoked the import func")
+	}
+
+	// Let several more ticks fire while the first call is still blocked.
+	time.Sleep(50 * time.Millisecond)
+
+	if got := atomic.LoadInt32(&calls); got != 1 {
+		t.Fatalf("expected import func to run exactly once while blocked, got %d calls", got)
+	}
+
+	// Release the blocked call and cancel the context; Start must exit cleanly.
+	close(release)
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("sweeper.Start did not stop promptly on context cancel after release")
 	}
 }
 

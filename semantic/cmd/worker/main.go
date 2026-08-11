@@ -10,22 +10,12 @@ import (
 	"syscall"
 	"time"
 
-	"path/filepath"
-
 	"github.com/hsme/core/src/bootstrap"
 	"github.com/hsme/core/src/core/capsule"
 	"github.com/hsme/core/src/core/quorumdelta"
 	"github.com/hsme/core/src/core/worker"
 	"github.com/hsme/core/src/observability"
 )
-
-func defaultQuorumDBPath() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return filepath.Join(".quorum", "memory.db")
-	}
-	return filepath.Join(home, ".quorum", "memory.db")
-}
 
 func defaultProbe(quorumDBPath, tasksRoot string) error {
 	if _, err := os.Stat(quorumDBPath); os.IsNotExist(err) {
@@ -70,8 +60,8 @@ func main() {
 	}
 	if enabled {
 		sweeper := &worker.Sweeper{
-			QuorumDBPath: defaultQuorumDBPath(),
-			TasksRoot:    ".ai/tasks",
+			QuorumDBPath: bootstrap.DefaultQuorumDBPath(),
+			TasksRoot:    bootstrap.DefaultTasksRoot,
 			Project:      cfg.ImportProject,
 			Probe:        defaultProbe,
 			CuratedImportFunc: func(dbPath, project string) (worker.SweepCounts, error) {
