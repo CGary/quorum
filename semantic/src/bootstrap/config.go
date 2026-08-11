@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"flag"
 	"os"
+	"strconv"
 )
 
 // Config holds the application configuration.
@@ -14,6 +15,8 @@ type Config struct {
 	ExtractionModel         string // EXTRACTION_MODEL or --extraction-model; default "phi3.5" (or "nvidia/nemotron-nano-9b-v2:free" for openrouter)
 	ExtractionProvider      string // EXTRACTION_PROVIDER or --extraction-provider; default "ollama"
 	FallbackExtractionModel string // FALLBACK_EXTRACTION_MODEL; default "phi3.5"
+	ExtractionTimeoutShortS int    // EXTRACTION_TIMEOUT_SHORT_S; default 300
+	ExtractionTimeoutLongS  int    // EXTRACTION_TIMEOUT_LONG_S; default 900
 	OpenRouterAPIKey        string // OPENROUTER_API_KEY
 	OpenRouterBaseURL       string // OPENROUTER_BASE_URL; default "https://openrouter.ai/api/v1"
 }
@@ -51,6 +54,20 @@ func LoadFromEnv() Config {
 		fallbackExtractModel = "phi3.5"
 	}
 
+	timeoutShort := 300
+	if v := os.Getenv("EXTRACTION_TIMEOUT_SHORT_S"); v != "" {
+		if s, err := strconv.Atoi(v); err == nil && s > 0 {
+			timeoutShort = s
+		}
+	}
+
+	timeoutLong := 900
+	if v := os.Getenv("EXTRACTION_TIMEOUT_LONG_S"); v != "" {
+		if s, err := strconv.Atoi(v); err == nil && s > 0 {
+			timeoutLong = s
+		}
+	}
+
 	openRouterAPIKey := os.Getenv("OPENROUTER_API_KEY")
 
 	openRouterBaseURL := os.Getenv("OPENROUTER_BASE_URL")
@@ -66,6 +83,8 @@ func LoadFromEnv() Config {
 		ExtractionModel:         extractModel,
 		ExtractionProvider:      extractProvider,
 		FallbackExtractionModel: fallbackExtractModel,
+		ExtractionTimeoutShortS: timeoutShort,
+		ExtractionTimeoutLongS:  timeoutLong,
 		OpenRouterAPIKey:        openRouterAPIKey,
 		OpenRouterBaseURL:       openRouterBaseURL,
 	}

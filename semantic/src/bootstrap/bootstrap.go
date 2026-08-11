@@ -5,6 +5,7 @@ package bootstrap
 import (
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/hsme/core/src/core/inference/ollama"
 	"github.com/hsme/core/src/core/inference/openrouter"
@@ -67,8 +68,26 @@ func OpenWithWorker(cfg Config) (*sql.DB, *ollama.Embedder, worker.GraphExtracto
 		orClient := openrouter.NewClient(cfg.OpenRouterBaseURL, cfg.OpenRouterAPIKey)
 		orExtractor := openrouter.NewExtractor(orClient, cfg.ExtractionModel)
 		ollamaFallback := ollama.NewExtractor(client, cfg.FallbackExtractionModel)
-		fallbackExtractor := openrouter.NewFallbackExtractor(orExtractor, ollamaFallback)
-		return db, embedder, fallbackExtractor, nil
+		shortTimeout := time.Duration(cfg.ExtractionTimeoutShortS) * time.Second
+		longTimeout := time.Duration(cfg.ExtractionTimeoutLongS) * time.Second
+		chain := openrouter.NewChainExtractor(
+			openrouter.Tier{
+				Name:      "openrouter-short",
+				Extractor: orExtractor,
+				Timeout:   shortTimeout,
+			},
+			openrouter.Tier{
+				Name:      "openrouter-long",
+				Extractor: orExtractor,
+				Timeout:   longTimeout,
+			},
+			openrouter.Tier{
+				Name:      "ollama-fallback",
+				Extractor: ollamaFallback,
+				Timeout:   0,
+			},
+		)
+		return db, embedder, chain, nil
 	}
 
 	return db, embedder, ollamaExtractor, nil

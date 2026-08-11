@@ -4,11 +4,13 @@ package bootstrap
 
 import (
 	"fmt"
-	"github.com/hsme/core/src/core/inference/ollama"
-	"github.com/hsme/core/src/core/inference/openrouter"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
+
+	"github.com/hsme/core/src/core/inference/ollama"
+	"github.com/hsme/core/src/core/inference/openrouter"
 )
 
 func TestLoadFromEnv(t *testing.T) {
@@ -42,6 +44,8 @@ func TestLoadFromEnvDefaults(t *testing.T) {
 	os.Unsetenv("SQLITE_DB_PATH")
 	os.Unsetenv("OLLAMA_HOST")
 	os.Unsetenv("EMBEDDING_MODEL")
+	os.Unsetenv("EXTRACTION_TIMEOUT_SHORT_S")
+	os.Unsetenv("EXTRACTION_TIMEOUT_LONG_S")
 
 	cfg := LoadFromEnv()
 
@@ -53,6 +57,25 @@ func TestLoadFromEnvDefaults(t *testing.T) {
 	}
 	if cfg.EmbeddingModel != "nomic-embed-text" {
 		t.Errorf("expected EmbeddingModel nomic-embed-text, got %s", cfg.EmbeddingModel)
+	}
+	if cfg.ExtractionTimeoutShortS != 300 {
+		t.Errorf("expected default ExtractionTimeoutShortS 300, got %d", cfg.ExtractionTimeoutShortS)
+	}
+	if cfg.ExtractionTimeoutLongS != 900 {
+		t.Errorf("expected default ExtractionTimeoutLongS 900, got %d", cfg.ExtractionTimeoutLongS)
+	}
+}
+
+func TestLoadFromEnvExtractionTimeouts(t *testing.T) {
+	t.Setenv("EXTRACTION_TIMEOUT_SHORT_S", "120")
+	t.Setenv("EXTRACTION_TIMEOUT_LONG_S", "600")
+
+	cfg := LoadFromEnv()
+	if cfg.ExtractionTimeoutShortS != 120 {
+		t.Errorf("expected ExtractionTimeoutShortS 120, got %d", cfg.ExtractionTimeoutShortS)
+	}
+	if cfg.ExtractionTimeoutLongS != 600 {
+		t.Errorf("expected ExtractionTimeoutLongS 600, got %d", cfg.ExtractionTimeoutLongS)
 	}
 }
 
@@ -91,16 +114,40 @@ func TestOpenWithWorkerProviderBranch(t *testing.T) {
 		wantFallback bool
 	}{{"", false}, {"openrouter", true}}
 	for i, tc := range cases {
-		cfg := Config{DBPath: filepath.Join(tmpDir, fmt.Sprintf("test-%d.db", i)), ExtractionProvider: tc.provider, ExtractionModel: "test-model", OpenRouterBaseURL: "http://127.0.0.1:0"}
+		cfg := Config{
+			DBPath:                  filepath.Join(tmpDir, fmt.Sprintf("test-%d.db", i)),
+			ExtractionProvider:      tc.provider,
+			ExtractionModel:         "test-model",
+			FallbackExtractionModel: "phi3.5",
+			ExtractionTimeoutShortS: 300,
+			ExtractionTimeoutLongS:  900,
+			OpenRouterBaseURL:       "http://127.0.0.1:0",
+		}
 		db, _, extractor, err := OpenWithWorker(cfg)
 		if err != nil {
 			t.Fatalf("provider %q: OpenWithWorker failed: %v", tc.provider, err)
 		}
 		db.Close()
-		_, isFallback := extractor.(*openrouter.FallbackExtractor)
+		chain, isFallback := extractor.(*openrouter.ChainExtractor)
 		_, isOllama := extractor.(*ollama.Extractor)
 		if tc.wantFallback != isFallback || tc.wantFallback == isOllama {
 			t.Errorf("provider %q: got %T, wantFallback=%v", tc.provider, extractor, tc.wantFallback)
+		}
+
+		if tc.wantFallback {
+			tiers := chain.Tiers()
+			if len(tiers) != 3 {
+				t.Fatalf("expected 3 tiers in openrouter chain, got %d", len(tiers))
+			}
+			if tiers[0].Name != "openrouter-short" || tiers[0].Timeout != 300*time.Second {
+				t.Errorf("tier 0 mismatch: %+v", tiers[0])
+			}
+			if tiers[1].Name != "openrouter-long" || tiers[1].Timeout != 900*time.Second {
+				t.Errorf("tier 1 mismatch: %+v", tiers[1])
+			}
+			if tiers[2].Name != "ollama-fallback" || tiers[2].Timeout != 0 {
+				t.Errorf("tier 2 mismatch: %+v", tiers[2])
+			}
 		}
 	}
 }
