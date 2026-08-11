@@ -57,8 +57,8 @@ SQLITE_DB_PATH="<hsme-db-path>" timeout 20 hsme-cli search-exact "<interview_top
 ```
 
 The query text is derived from the user's stated interview topic. Every result carries
- provenance: the HSME `memory_id` is read from `data.results[].memory_id`, and the
- memory's title from `data.results[].highlights[].text` in the mk-cli JSON envelope.
+provenance: the HSME `memory_id` is read from `data.results[].memory_id`, and the
+memory's title from `data.results[].highlights[].text` in the mk-cli JSON envelope.
 
 If results exist, present them to the human as advisory context — for example:
 *"Este tema se asemeja a la tarea fallida FEAT-042 (similaridad semántica). Revisá los

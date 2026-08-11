@@ -56,8 +56,8 @@ SQLITE_DB_PATH="<hsme-db-path>" timeout 20 hsme-cli search-exact "<spec_summary>
 ```
 
 The query text is derived from the `00-spec.yaml` `summary` and `goal`. Every result
- carries provenance: the HSME `memory_id` is read from `data.results[].memory_id`, and
- the memory's title from `data.results[].highlights[].text` in the mk-cli JSON envelope.
+carries provenance: the HSME `memory_id` is read from `data.results[].memory_id`, and
+the memory's title from `data.results[].highlights[].text` in the mk-cli JSON envelope.
 
 If results exist, present them to the human as advisory context — for example:
 *"Este diseño se asemeja a la tarea fallida FEAT-042 (similaridad semántica). Revisá los

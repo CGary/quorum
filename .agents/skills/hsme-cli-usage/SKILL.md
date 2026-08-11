@@ -69,7 +69,7 @@ hsme-cli search-fuzzy "<query text>" --project quorum --limit 10 --json --no-inp
 hsme-cli search-exact "<keyword>" --project quorum --limit 10 --json --no-input
 
 # Knowledge-graph traversal
-hsme-cli explore "<entity_name>" --project quorum --direction both --json --no-input
+hsme-cli explore "<entity_name>" --direction both --json --no-input
 
 # System health
 hsme-cli status --json --no-input
@@ -109,7 +109,7 @@ hsme-cli import-quorum --project <proj> --source all --json --no-input
 | `store` | `{"memory_id": <int>, "status": "stored"}` |
 | `search-fuzzy` | `{"results": [{"memory_id": <int>, "score": <float>, "is_superseded": <bool>, "vector_coverage": "<complete\|partial\|none>", "highlights": [{"chunk_id": <int>, "chunk_index": <int>, "text": "<str>"}]}]}` |
 | `search-exact` | `{"results": [{"memory_id": <int>, "chunk_id": <int>, "chunk_index": <int>, "text": "<str>", "score": <float>}]}` |
-| `explore` | `{"nodes": [...], "edges": [...]}` |
+| `explore` | `{"entity": "<str>", "nodes": [...], "edges": [...], "truncated": <bool>}` |
 | `status` | `{"status": {"active": <int>, "superseded": <int>, ...}, "graph_stats": {...}, "worker_running": <bool>}` |
 | `admin.backup` | `{"backup_path": "<str>", "file_count": <int>}` |
 | `admin.restore` | `{"restored_from": "<str>", "memories": <int>}` |
