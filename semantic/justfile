@@ -11,7 +11,11 @@ DB_DIR := PROJECT_ROOT + "/data"
 export SQLITE_DB_PATH := DB_DIR + "/engram.db"
 BACKUP_DIR := "backups"
 
-# Compilar binarios locales
+# Lista todas las recetas disponibles con su descripción (esta es la receta por defecto: `just` a secas)
+default:
+        @just --list
+
+# Compila los 4 binarios en la raíz del módulo: hsme (servidor MCP), hsme-worker (grafos), hsme-ops (observabilidad) y migrate-legacy — requiere CGO + tags sqlite_fts5/sqlite_vec
 build:
         go build -tags "{{GO_TAGS}}" -o hsme ./cmd/hsme
         go build -tags "{{GO_TAGS}}" -o hsme-worker ./cmd/worker
@@ -19,24 +23,24 @@ build:
         go build -tags "{{GO_TAGS}}" -o migrate-legacy ./cmd/migrate-legacy
         @echo "✅ Binarios compilados en la raíz."
 
-# Build hsme-cli binary
+# Compila hsme-cli (herramienta de administración: backup/restore/retry) en bin/, sin instalarlo
 cli-build:
         @mkdir -p bin
         go build -tags "{{GO_TAGS}}" -o bin/hsme-cli ./cmd/cli
 
-# Ejecutar la migración de legado
+# Migra la base de datos del sistema legado a engram.db; acepta modo: just migrate full|<otro>
 migrate mode="full":
         ./migrate-legacy --mode={{mode}}
 
-# Verificación de cutover
+# Verifica que el cutover del sistema legado al nuevo quedó consistente (scripts/verify_cutover.sh)
 verify-cutover:
         @./scripts/verify_cutover.sh
 
-# Ejecutar tests con soporte para FTS5 y Vectores
+# Corre la suite de tests con soporte FTS5 + vectores (mismos tags de build, requiere CGO)
 test:
         go test -v -tags "{{GO_TAGS}}" ./...
 
-# Compilar e instalar binarios de forma global
+# Compila e instala hsme, hsme-worker, hsme-ops y hsme-cli globalmente en ~/go/bin (uso diario)
 install: cli-install
         @mkdir -p {{INSTALL_PATH}}
         go build -tags "{{GO_TAGS}}" -o {{INSTALL_PATH}}/hsme ./cmd/hsme
@@ -44,65 +48,65 @@ install: cli-install
         go build -tags "{{GO_TAGS}}" -o {{INSTALL_PATH}}/hsme-ops ./cmd/ops
         @echo "✅ Binarios instalados en {{INSTALL_PATH}}."
 
-# Install hsme-cli
+# Compila e instala solo hsme-cli en ~/go/bin (lo usan backup/restore/retry-failed)
 cli-install: cli-build
         @mkdir -p {{INSTALL_PATH}}
         @if [ -f bin/hsme-cli ]; then cp bin/hsme-cli {{INSTALL_PATH}}/hsme-cli && echo "✅ hsme-cli instalado en {{INSTALL_PATH}}"; else echo "⚠️ hsme-cli no encontrado (cmd/cli puede no existir aún)"; fi
 
-# Ejecutar el servidor MCP
+# Arranca el servidor MCP en primer plano (el binario local ./hsme; es lo que consumen los clientes MCP)
 serve:
         ./hsme
 
-# Ejecutar el worker de grafos
+# Arranca el worker de extracción de grafos en primer plano (procesa memorias pendientes con Ollama)
 work:
         ./hsme-worker
 
-# Lanzar el worker en segundo plano
+# Arranca el worker de grafos en segundo plano; logs en logs/worker.log
 work-bg:
         @mkdir -p logs
         @nohup ./hsme-worker > logs/worker.log 2>&1 &
         @echo "🚀 Worker lanzado en segundo plano (tail -f logs/worker.log)"
 
-# Detener el worker en segundo plano
+# Detiene el worker de grafos que corre en segundo plano (pkill; avisa si no estaba corriendo)
 stop-work:
         @pkill -f "[h]sme-worker" && echo "🛑 Worker detenido." || echo "⚠️ El worker no estaba corriendo."
 
-# Ejecutar el runner de observabilidad/ops
+# Corre el runner de observabilidad/ops UNA sola vez y termina (chequeos + métricas)
 ops:
         ./hsme-ops once
 
-# Lanzar ops en modo loop
+# Corre el runner de ops en bucle continuo, en primer plano
 ops-loop:
         ./hsme-ops loop
 
-# Lanzar ops en modo loop en segundo plano
+# Corre el runner de ops en bucle continuo, en segundo plano; logs en logs/ops.log
 ops-bg:
         @mkdir -p logs
         @nohup ./hsme-ops loop > logs/ops.log 2>&1 &
         @echo "📊 Ops runner lanzado en segundo plano (tail -f logs/ops.log)"
 
-# Detener el ops runner en segundo plano
+# Detiene el runner de ops que corre en segundo plano (pkill; avisa si no estaba corriendo)
 stop-ops:
         @pkill -f "[h]sme-ops" && echo "🛑 Ops runner detenido." || echo "⚠️ El ops runner no estaba corriendo."
 
-# Detener todos los procesos en segundo plano
+# Detiene TODOS los procesos en segundo plano (worker de grafos + ops runner)
 stop-all: stop-work stop-ops
 
-# Iniciar todos los procesos en segundo plano
+# Arranca TODOS los procesos en segundo plano (worker de grafos + ops runner)
 start-all: work-bg ops-bg
 
-# Reencolar tareas fallidas agotadas para que el worker pueda retomarlas
+# Reencola las tareas de extracción fallidas que agotaron reintentos, para que el worker las retome
 retry-failed:
         @./bin/hsme-cli admin retry-failed
 
-# Realizar un backup ATÓMICO (Compatible con WAL)
+# Backup ATÓMICO de engram.db en backups/ (compatible con WAL: seguro aunque haya procesos escribiendo)
 backup:
         @./bin/hsme-cli admin backup
 
-# Restaurar base de datos
+# Restaura engram.db desde el backup MÁS RECIENTE de backups/ (sobreescribe la DB actual)
 restore:
         @./bin/hsme-cli admin restore --latest
 
-# Limpiar binarios locales
+# Elimina los binarios compilados localmente y los logs de worker/ops (no toca la DB ni los backups)
 clean:
         rm -f hsme hsme-worker hsme-ops hsme-cli logs/worker.log logs/ops.log
