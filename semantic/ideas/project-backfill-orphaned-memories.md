@@ -10,10 +10,10 @@ Esto genera un falso negativo crítico: al llamar `search_fuzzy` con `--project 
 
 ```bash
 # Retorna 0 resultados pese a que el corpus tiene data del proyecto
-hsme-cli search-fuzzy "arquitectura diseño SIAT integración facturación" --project "integration-bo-new"
+hsme-cli search-fuzzy "arquitectura diseño SIAT integración facturación" --project "integration-bo-new" --json --no-input
 
 # Retorna resultados — confirma que la data existe pero sin project asignado
-hsme-cli search-fuzzy "arquitectura diseño SIAT integración facturación"
+hsme-cli search-fuzzy "arquitectura diseño SIAT integración facturación" --json --no-input
 ```
 
 ## Causa raíz

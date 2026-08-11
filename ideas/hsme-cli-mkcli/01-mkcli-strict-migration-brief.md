@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | Date | 2026-08-11 |
-| Status | planned |
+| Status | done — executed 2026-08-11 as `HSME-006`; restructured mid-run from 3 children to 2 (`HSME-006-a` code, `HSME-006-b` docs/callers) after a fleet BLOCKED question (single `package main` cannot be split by file boundaries); merged to main as `96f958e` (CLI migration), `3b2d7ff` + `c7931a6` (caller/doc migration) |
 | Future task id | `HSME-006` |
 | Decision owner | Gary |
 | Decisions summary | STRICT migration of `hsme-cli` to the mk-cli agent-CLI conventions (`/home/gary/Documents/make-clis/mk-cli-EN.md`). Breaking change: the old `--format text\|json` / ad-hoc error surface is REMOVED, not aliased. Every verified caller is updated in the same change. Full scope: all 7 gap areas, all 7 subcommands. Executed through Quorum's SDC lifecycle as task `HSME-006`, decomposed into 3 sequential children (`HSME-006-a/b/c`). |

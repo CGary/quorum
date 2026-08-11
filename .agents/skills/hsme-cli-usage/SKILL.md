@@ -58,6 +58,11 @@ explore, status, admin, and import-quorum.
 
 ## Common commands
 
+The database path defaults to `data/engram.db` **relative to the current working
+directory** — from any cwd other than the semantic module root, set
+`SQLITE_DB_PATH=<path-to-engram.db>` (or pass `--db <path>`) or every command
+except `--schema` fails with `INTERNAL_ERROR: failed to open database`.
+
 ```bash
 # Introspection
 hsme-cli --schema
