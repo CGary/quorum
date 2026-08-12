@@ -32,7 +32,7 @@ func runImportQuorum(args []string, cfg bootstrap.Config) {
 	var dryRun bool
 	var agentFlags AgentFlags
 
-	fs.StringVar(&project, "project", "", "(required) HSME project namespace for both sources")
+	fs.StringVar(&project, "project", "", "(required) HSME project namespace for both sources ('*' imports all Quorum projects, tagging each by source project_id)")
 	fs.StringVar(&quorumProject, "quorum-project", "", "(optional) Filter for Quorum project_id in curated-memory (defaults to --project)")
 	fs.StringVar(&quorumDB, "quorum-db", "", "(optional) Path to Quorum memory.db (defaults to ~/.quorum/memory.db)")
 	fs.StringVar(&tasksRoot, "tasks-root", ".ai/tasks", "(optional) Path to .ai/tasks root directory")
@@ -188,7 +188,7 @@ func importQuorumSchema() map[string]any {
 		"input": map[string]any{
 			"required": []string{"project"},
 			"properties": map[string]any{
-				"project":        map[string]any{"type": "string", "description": "HSME project namespace for both sources"},
+				"project":        map[string]any{"type": "string", "description": "HSME project namespace for both sources ('*' imports all Quorum projects, tagging each by source project_id)"},
 				"quorum-project": map[string]any{"type": "string", "description": "filter for Quorum project_id in curated-memory (defaults to --project)"},
 				"quorum-db":      map[string]any{"type": "string", "description": "path to Quorum memory.db (defaults to ~/.quorum/memory.db)"},
 				"tasks-root":     map[string]any{"type": "string", "default": ".ai/tasks", "description": "path to .ai/tasks root directory"},

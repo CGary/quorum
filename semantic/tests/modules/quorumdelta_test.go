@@ -312,3 +312,119 @@ func TestImportDanglingSupersedes(t *testing.T) {
 		t.Errorf("Expected null superseded_by for dangling target, got %d", supersededBy.Int64)
 	}
 }
+
+func TestAllProjectsImportAndNormalization(t *testing.T) {
+	tempDir := t.TempDir()
+	qPath := filepath.Join(tempDir, "quorum.db")
+	hPath := filepath.Join(tempDir, "hsme.db")
+
+	qDB := setupTestQuorumDB(t, qPath)
+	defer qDB.Close()
+
+	if _, err := qDB.Exec(`INSERT INTO projects (id) VALUES ('otherproj'), ('');`); err != nil {
+		t.Fatalf("failed to seed projects table: %v", err)
+	}
+
+	hDB, err := sqlite.InitDB(hPath)
+	if err != nil {
+		t.Fatalf("failed to init HSME DB: %v", err)
+	}
+	defer hDB.Close()
+
+	_, err = qDB.Exec(`INSERT INTO memory_entries 
+		(project_id, id, type, source_task, title, context, content, created_at, supersedes, content_hash, raw_json)
+		VALUES 
+		('otherproj', 'PAT-2026-01-01-1', 'pattern', 'TASK-1', 'Other Title 1', 'Context 1', 'Content 1 long enough for validation', '2026-01-01T10:00:00Z', NULL, 'hash1', '{}'),
+		('quorum', 'DEC-2026-01-01-2', 'decision', 'TASK-2', 'Quorum Title 2', 'Context 2', 'Content 2 long enough for validation', '2026-01-01T11:00:00Z', 'PAT-2026-01-01-1', 'hash2', '{}'),
+		('', 'DEC-2026-01-01-3', 'decision', 'TASK-3', 'Blank Proj Title', 'Context 3', 'Content 3 long enough for validation', '2026-01-01T12:00:00Z', NULL, 'hash3', '{}')`)
+	if err != nil {
+		t.Fatalf("failed to seed quorum entries: %v", err)
+	}
+
+	entries, err := quorumdelta.FetchEntries(qDB, "*")
+	if err != nil {
+		t.Fatalf("FetchEntries '*' failed: %v", err)
+	}
+	if len(entries) != 3 {
+		t.Fatalf("Expected 3 entries fetched with '*', got %d", len(entries))
+	}
+	if entries[0].ProjectID != "" || entries[1].ProjectID != "otherproj" || entries[2].ProjectID != "quorum" {
+		t.Errorf("Unexpected ordering or project IDs: [%s, %s, %s]", entries[0].ProjectID, entries[1].ProjectID, entries[2].ProjectID)
+	}
+
+	res1, err := quorumdelta.Import(qDB, hDB, "*", "*")
+	if err != nil {
+		t.Fatalf("Import '*' failed: %v", err)
+	}
+	if res1.Fetched != 3 || res1.Ingested != 2 || res1.Errored != 1 {
+		t.Errorf("Expected Fetched=3, Ingested=2, Errored=1; got Fetched=%d, Ingested=%d, Errored=%d", res1.Fetched, res1.Ingested, res1.Errored)
+	}
+
+	rows, err := hDB.Query("SELECT project FROM memories ORDER BY id ASC")
+	if err != nil {
+		t.Fatalf("Failed to query memories: %v", err)
+	}
+	defer rows.Close()
+
+	var projects []string
+	for rows.Next() {
+		var proj string
+		if err := rows.Scan(&proj); err != nil {
+			t.Fatalf("Scan failed: %v", err)
+		}
+		projects = append(projects, proj)
+	}
+	if len(projects) != 2 || projects[0] != "otherproj" || projects[1] != "quorum" {
+		t.Errorf("Expected memories with projects ['otherproj', 'quorum'], got %v", projects)
+	}
+
+	res2, err := quorumdelta.Import(qDB, hDB, "*", "*")
+	if err != nil {
+		t.Fatalf("Second Import '*' failed: %v", err)
+	}
+	if res2.Ingested != 0 || res2.Skipped != 2 {
+		t.Errorf("Expected Ingested=0, Skipped=2 on re-run; got Ingested=%d, Skipped=%d", res2.Ingested, res2.Skipped)
+	}
+}
+
+func TestMixedCaseConcreteImport(t *testing.T) {
+	tempDir := t.TempDir()
+	qPath := filepath.Join(tempDir, "quorum.db")
+	hPath := filepath.Join(tempDir, "hsme.db")
+
+	qDB := setupTestQuorumDB(t, qPath)
+	defer qDB.Close()
+
+	hDB, err := sqlite.InitDB(hPath)
+	if err != nil {
+		t.Fatalf("failed to init HSME DB: %v", err)
+	}
+	defer hDB.Close()
+
+	_, err = qDB.Exec(`INSERT INTO memory_entries 
+		(project_id, id, type, source_task, title, context, content, created_at, content_hash, raw_json)
+		VALUES 
+		('quorum', 'PAT-2026-01-01-1', 'pattern', 'TASK-1', 'Title 1', 'Context 1', 'Content 1 long enough for validation', '2026-01-01T10:00:00Z', 'hash1', '{}')`)
+	if err != nil {
+		t.Fatalf("failed to seed quorum entry: %v", err)
+	}
+
+	res, err := quorumdelta.Import(qDB, hDB, "quorum", "QuOrUm")
+	if err != nil {
+		t.Fatalf("Import failed: %v", err)
+	}
+	if res.Ingested != 1 {
+		t.Fatalf("Expected Ingested=1, got %d", res.Ingested)
+	}
+
+	var proj string
+	err = hDB.QueryRow("SELECT project FROM memories LIMIT 1").Scan(&proj)
+	if err != nil || proj != "quorum" {
+		t.Errorf("Expected stored project 'quorum', got '%s', err=%v", proj, err)
+	}
+
+	mappedID, err := quorumdelta.LookupHSMEID(hDB, "quorum", "PAT-2026-01-01-1")
+	if err != nil || mappedID == nil {
+		t.Errorf("Expected lookup with lowercased project 'quorum' to succeed, got %v, err=%v", mappedID, err)
+	}
+}

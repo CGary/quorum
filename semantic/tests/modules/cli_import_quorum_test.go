@@ -2,6 +2,7 @@ package modules
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -269,6 +270,66 @@ func TestCLI_ImportQuorum(t *testing.T) {
 		}
 		if schema["command"] != "import-quorum" {
 			t.Errorf("expected command 'import-quorum', got %v", schema["command"])
+		}
+	})
+
+	// (k) --project '*' all-projects import
+	t.Run("AllProjectsImport", func(t *testing.T) {
+		multiQDBPath := filepath.Join(tmpDir, "multi_quorum.db")
+		mqDB := setupTestQuorumDB(t, multiQDBPath)
+		if _, err := mqDB.Exec(`INSERT INTO projects (id) VALUES ('proja'), ('projb');`); err != nil {
+			mqDB.Close()
+			t.Fatalf("failed to insert projects: %v", err)
+		}
+		_, err := mqDB.Exec(`INSERT INTO memory_entries (project_id, id, type, source_task, title, context, content, created_at, content_hash, raw_json) VALUES
+			('proja', 'DEC-2026-01-01-001', 'decision', 'HSME-007', 'Title A', 'Context A', 'Content A long enough', '2026-01-01T00:00:00Z', 'hasha', '{}'),
+			('projb', 'PAT-2026-01-01-002', 'pattern', 'HSME-007', 'Title B', 'Context B', 'Content B long enough', '2026-01-01T00:00:00Z', 'hashb', '{}')
+		`)
+		if err != nil {
+			mqDB.Close()
+			t.Fatalf("failed to insert multi-project entries: %v", err)
+		}
+		mqDB.Close()
+
+		allProjHSMEDB := filepath.Join(tmpDir, "hsme_all_proj.db")
+		cmd := exec.Command(cliPath, "--db", allProjHSMEDB, "import-quorum", "--project", "*", "--quorum-db", multiQDBPath, "--source", "curated", "--json")
+		stdout, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("import-quorum --project '*' failed: %v\nOutput: %s", err, stdout)
+		}
+
+		var res map[string]any
+		if err := json.Unmarshal(stdout, &res); err != nil {
+			t.Fatalf("failed to parse JSON result: %v", err)
+		}
+		data := res["data"].(map[string]any)
+		curated := data["curated"].(map[string]any)
+		if curated["Ingested"].(float64) != 2 {
+			t.Errorf("expected 2 ingested curated rows for '*', got %v", curated["Ingested"])
+		}
+
+		hDB, err := sql.Open("sqlite3", allProjHSMEDB)
+		if err != nil {
+			t.Fatalf("failed to open resulting HSME DB: %v", err)
+		}
+		defer hDB.Close()
+
+		rows, err := hDB.Query("SELECT project FROM memories ORDER BY project ASC")
+		if err != nil {
+			t.Fatalf("failed to query memories: %v", err)
+		}
+		defer rows.Close()
+
+		var projs []string
+		for rows.Next() {
+			var p string
+			if err := rows.Scan(&p); err != nil {
+				t.Fatalf("failed to scan memory project: %v", err)
+			}
+			projs = append(projs, p)
+		}
+		if len(projs) != 2 || projs[0] != "proja" || projs[1] != "projb" {
+			t.Errorf("expected projects ['proja', 'projb'], got %v", projs)
 		}
 	})
 }

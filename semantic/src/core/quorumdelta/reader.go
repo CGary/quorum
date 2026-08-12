@@ -37,12 +37,20 @@ func OpenReadOnly(path string) (*sql.DB, error) {
 }
 
 func FetchEntries(db *sql.DB, quorumProjectID string) ([]QuorumMemoryEntry, error) {
-	query := `SELECT project_id, id, type, source_task, title, context, content, created_at, supersedes
+	var rows *sql.Rows
+	var err error
+	if quorumProjectID == AllProjectsSentinel {
+		query := `SELECT project_id, id, type, source_task, title, context, content, created_at, supersedes
+		FROM memory_entries
+		ORDER BY project_id ASC, created_at ASC, id ASC`
+		rows, err = db.Query(query)
+	} else {
+		query := `SELECT project_id, id, type, source_task, title, context, content, created_at, supersedes
 		FROM memory_entries
 		WHERE project_id = ?
 		ORDER BY created_at ASC, id ASC`
-
-	rows, err := db.Query(query, quorumProjectID)
+		rows, err = db.Query(query, quorumProjectID)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to query memory_entries: %w", err)
 	}
