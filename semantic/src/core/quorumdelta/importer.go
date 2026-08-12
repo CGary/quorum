@@ -51,6 +51,18 @@ func Import(quorumDB *sql.DB, hsmeDB *sql.DB, quorumProjectID string, hsmeProjec
 		Fetched: len(entries),
 	}
 
+	// Pre-build entry.ID -> tagProject so supersedes lookups can resolve
+	// against the SUPERSEDED (target) entry's own project, not the current
+	// entry's project, in all-projects mode.
+	entryProject := make(map[string]string, len(entries))
+	for _, entry := range entries {
+		tagProject := strings.ToLower(strings.TrimSpace(hsmeProject))
+		if quorumProjectID == AllProjectsSentinel {
+			tagProject = strings.ToLower(strings.TrimSpace(entry.ProjectID))
+		}
+		entryProject[entry.ID] = tagProject
+	}
+
 	for _, entry := range entries {
 		tagProject := strings.ToLower(strings.TrimSpace(hsmeProject))
 		if quorumProjectID == AllProjectsSentinel {
@@ -72,10 +84,14 @@ func Import(quorumDB *sql.DB, hsmeDB *sql.DB, quorumProjectID string, hsmeProjec
 			continue
 		}
 
-		// Resolve supersedes edge
+		// Resolve supersedes edge against the SUPERSEDED entry's own project.
 		var supersedesHSMEID *int64
 		if entry.Supersedes != nil && *entry.Supersedes != "" {
-			resolvedID, err := LookupHSMEID(hsmeDB, tagProject, *entry.Supersedes)
+			supersedesProject := tagProject
+			if p, ok := entryProject[*entry.Supersedes]; ok && p != "" {
+				supersedesProject = p
+			}
+			resolvedID, err := LookupHSMEID(hsmeDB, supersedesProject, *entry.Supersedes)
 			if err != nil {
 				// Non-fatal per ADR 0013 / spec tolerance: proceed without supersedes edge if lookup error
 				supersedesHSMEID = nil

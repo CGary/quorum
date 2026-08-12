@@ -378,6 +378,39 @@ func TestAllProjectsImportAndNormalization(t *testing.T) {
 		t.Errorf("Expected memories with projects ['otherproj', 'quorum'], got %v", projects)
 	}
 
+	// Cross-project supersedes: DEC-2026-01-01-2 (project 'quorum') supersedes
+	// PAT-2026-01-01-1 (project 'otherproj'). The lookup must resolve against
+	// the SUPERSEDED entry's own project, not the current entry's project.
+	oldIDPtr, err := quorumdelta.LookupHSMEID(hDB, "otherproj", "PAT-2026-01-01-1")
+	if err != nil || oldIDPtr == nil {
+		t.Fatalf("Failed to lookup superseded memory HSME ID: %v", err)
+	}
+
+	newIDPtr, err := quorumdelta.LookupHSMEID(hDB, "quorum", "DEC-2026-01-01-2")
+	if err != nil || newIDPtr == nil {
+		t.Fatalf("Failed to lookup superseding memory HSME ID: %v", err)
+	}
+
+	var oldStatus string
+	var supersededBy sql.NullInt64
+	if err := hDB.QueryRow("SELECT status, superseded_by FROM memories WHERE id = ?", *oldIDPtr).Scan(&oldStatus, &supersededBy); err != nil {
+		t.Fatalf("Failed to query superseded memory status: %v", err)
+	}
+	if oldStatus != "superseded" {
+		t.Errorf("Expected cross-project superseded memory status 'superseded', got '%s'", oldStatus)
+	}
+	if !supersededBy.Valid || supersededBy.Int64 != *newIDPtr {
+		t.Errorf("Expected cross-project superseded_by=%d, got %v", *newIDPtr, supersededBy)
+	}
+
+	var newStatus string
+	if err := hDB.QueryRow("SELECT status FROM memories WHERE id = ?", *newIDPtr).Scan(&newStatus); err != nil {
+		t.Fatalf("Failed to query superseding memory status: %v", err)
+	}
+	if newStatus != "active" {
+		t.Errorf("Expected superseding memory status 'active', got '%s'", newStatus)
+	}
+
 	res2, err := quorumdelta.Import(qDB, hDB, "*", "*")
 	if err != nil {
 		t.Fatalf("Second Import '*' failed: %v", err)
