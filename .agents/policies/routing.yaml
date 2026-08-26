@@ -11,7 +11,13 @@ rules:
   - match: {phase: implement, risk: low, band: S}
     executor_level: 0
     reviewer_required: true
-    max_attempts: 2
+    # 2026-08-26 (human decision): N-1 jumps so the WHOLE level-0 chain is
+    # reachable (5 cells -> 4 jumps). max_attempts is the reroute BUDGET (jumps),
+    # not the attempt count: budget B reaches B+1 cells. Depth is spent here
+    # because level 0 is the only level on an independent quota (OpenRouter
+    # free) and its cells cost nothing but latency (opencode timeout 300s ->
+    # ~25 min worst case before the level blocks).
+    max_attempts: 4
 
   # medium-or-M cells -> level 1.
   - match: {phase: implement, risk: low, band: M}
@@ -35,22 +41,22 @@ rules:
   - match: {phase: implement, risk: low, band: L}
     executor_level: 2
     reviewer_required: true
-    max_attempts: 1
+    max_attempts: 2
     human_gate_required: false
   - match: {phase: implement, risk: medium, band: L}
     executor_level: 2
     reviewer_required: true
-    max_attempts: 1
+    max_attempts: 2
     human_gate_required: false
   - match: {phase: implement, risk: high, band: S}
     executor_level: 2
     reviewer_required: true
-    max_attempts: 1
+    max_attempts: 2
     human_gate_required: false
   - match: {phase: implement, risk: high, band: M}
     executor_level: 2
     reviewer_required: true
-    max_attempts: 1
+    max_attempts: 2
     human_gate_required: false
 # 2026-08-26 (human ladder rebalance): {high, L} promotes to the new level 3
   # (critical tier: 3.7-flash-high -> 3.1-pro), WITH a human gate — critical
@@ -59,7 +65,7 @@ rules:
   - match: {phase: implement, risk: high, band: L}
     executor_level: 3
     reviewer_required: true
-    max_attempts: 1
+    max_attempts: 2
     human_gate_required: true
 
   # Catch-all safe default (any non-implement phase or unanticipated value).
@@ -67,7 +73,7 @@ rules:
   - match: {}
     executor_level: 3
     reviewer_required: true
-    max_attempts: 1
+    max_attempts: 2
     human_gate_required: true
 
 type_overrides:

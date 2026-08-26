@@ -280,6 +280,19 @@ transports:
       google/gemini-3.5-flash-low:
         provider: google
         model_arg: Gemini 3.5 Flash (Low)
+      # 2026-08-26 (human ladder restructure): -medium and -high exposed here
+      # for the same reason -low was on 2026-08-09 -- they lived only on the
+      # oneshot `agy` transport, which core.Route excludes from implement, so
+      # routing them from config.yaml would have created slots the router can
+      # never pick (the exact latent bug that left level 1 unroutable before
+      # the 2026-07-31 rebuild). NEITHER HAS AGENTIC SMOKE EVIDENCE YET; -high
+      # is level 2's primary, so run the 3/3 campaign before trusting it.
+      google/gemini-3.5-flash-medium:
+        provider: google
+        model_arg: Gemini 3.5 Flash (Medium)
+      google/gemini-3.5-flash-high:
+        provider: google
+        model_arg: Gemini 3.5 Flash (High)
       # Non-gemini subscription cells verified agentic under accept-edits (smoke 3/3, 2026-07-31).
       openai/gpt-oss-120b:
         provider: openai
@@ -371,13 +384,11 @@ transports:
         provider: openrouter-poolside
         model_arg: openrouter/poolside/laguna-s-2.1:free
         max_cost_per_call_usd: 0.5
-      # Slowest cell (32-154s/call) but measured 9/10 via real dispatch
-      # (pass@10 campaign 2026-07-15). aider-only: removed from the opencode
-      # transport, where its agentic tool-use scored 3/10.
-      nvidia/nemotron-nano-9b-v2-free:
-        provider: openrouter-nvidia
-        model_arg: openrouter/nvidia/nemotron-nano-9b-v2:free
-        max_cost_per_call_usd: 0.5
+      # 2026-08-26: nvidia/nemotron-nano-9b-v2-free REMOVED -- delisted from
+      # OpenRouter (absent from GET /api/v1/models; a live completions probe
+      # returns 404 "No endpoints found"). Its pass@10 evidence (9/10 under
+      # aider, 3/10 agentic under opencode; docs/fleet-run-for-agents.md
+      # section 7) stays valid history -- the cell is gone, not the finding.
     contract_test: .agents/fleet/contract_tests/aider.yaml
     # Applies edits directly to the files listed in {files}.
     mode: agentic
@@ -460,6 +471,14 @@ transports:
       # "-free" canonical-key transform documented on the ultra entry above;
       # re-validate periodically (docs section 7.7). Ordered by measured
       # agentic speed (11s / 12s / 14s / 19s / 72s).
+      # 2026-08-26: added after an availability campaign (N=8 serial probes
+      # against the completions API) scored it 8/8, tying the ultra and beating
+      # both poolside cells (2/8 and 3/8, all 429 upstream). Availability is
+      # NOT agentic capability -- no smoke evidence yet, and the 2026-07-15
+      # campaign showed a cell can pass 9/10 under aider and 3/10 agentic.
+      nvidia/nemotron-3-super-120b-a12b-free:
+        provider: openrouter-nvidia
+        model_arg: openrouter/nvidia/nemotron-3-super-120b-a12b:free
       nvidia/nemotron-3-nano-omni-30b-a3b-reasoning-free:
         provider: openrouter-nvidia
         model_arg: openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free

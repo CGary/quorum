@@ -25,11 +25,27 @@ levels:
     # surface as blocked -> human, not burn strong quota. laguna-xs added
     # after agentic smoke (2026-08-26 campaign). 3.5-flash-low unrouted
     # (stays in catalogs for fleet run).
+    # 2026-08-26 (availability campaign, human decision): BOTH poolside cells
+    # removed from routing. Measured N=8 serial probes against the OpenRouter
+    # completions API: laguna-s 2/8, laguna-xs 3/8, every failure a 429
+    # "temporarily rate-limited upstream" -- provider-wide congestion, not our
+    # quota (/api/v1/key showed credit remaining and nvidia answered 8/8 in the
+    # same bursts). A cell that serves 1 in 4 first attempts makes the reroute
+    # the normal path instead of the safety net. Catalog entries kept (probe
+    # again before re-promoting). This level is now the ONLY one with an
+    # independent quota class (opencode/OpenRouter api); levels 1-3 all hang
+    # off the single antigravity subscription, so depth is spent HERE: five
+    # cells with max_attempts 4 in routing.yaml = the whole chain is reachable.
     primary: nvidia/nemotron-3-ultra-550b-a55b-free
-    fallback: poolside/laguna-s-2.1-free
+    fallback: nvidia/nemotron-3-super-120b-a12b-free
     secondary:
-      - poolside/laguna-xs-2.1-free
-      - openai/gpt-oss-120b
+      - cohere/north-mini-code-free
+      - nvidia/nemotron-3-nano-omni-30b-a3b-reasoning-free
+    # openrouter/free is deliberately NOT routed: it is an auto-router, not a
+    # model, and it is hardcoded as the aider adapter's availability default
+    # (internal/core/fleet_adapter_aider.go). TestFleetRouteRealPolicyFilesG1Cell
+    # forbids any ROUTED level-0 model name from appearing as a Go literal, so
+    # routing it breaks that invariant. It stays in the catalogs for fleet run.
     # max_cost_per_call_usd only binds transports with quota_class: api (ADR-A).
     max_cost_per_call_usd: 0.15
 
@@ -59,13 +75,38 @@ levels:
     # expected cost is near zero. Codex cells removed from routing
     # (subscription retired, human decision 2026-08-26; catalog entries and
     # kill-switch state untouched).
-    primary: poolside/laguna-s-2.1-free
-    fallback: openai/gpt-oss-120b
+    # 2026-08-26 (family-per-level restructure, human decision): one model
+    # family per level so a failure is diagnosable. Level 1 owns the Anthropic
+    # pair + gpt-oss-120b + 3.5-flash-medium. Poolside removed (see level 0's
+    # availability note). Ordering is the HUMAN's: opus leads.
+    # Recorded objection (mine, overruled by the human): opus is the cell the
+    # human reports as the weakest of the three in practice, and this level
+    # owns {low,M} + {medium,S} + {medium,M} -- three of the nine matrix rules,
+    # where most SDC tasks land. The counter-facts the human supplied and I
+    # verified: agy/agy_edit/codex all carry quota_class: subscription, so
+    # opus, sonnet and gpt-oss-120b share ONE quota pool and there is no
+    # per-token cost difference between them. My earlier "most expensive
+    # first" objection was therefore wrong and is withdrawn.
+    # What that shared pool does NOT fix: all three reachable cells here draw
+    # on the same quota, so an exhausted subscription kills the whole level at
+    # once (same failure shape as poolside at level 0). Level 0 is the only
+    # level with an independent quota class.
+    primary: anthropic/claude-opus-4-6
+    fallback: anthropic/claude-sonnet-4-6
     secondary:
-      - google/gemini-3.6-flash-low
-      - google/gemini-3.6-flash-medium
-      - anthropic/claude-sonnet-4-6
-      - anthropic/claude-opus-4-6
+      - openai/gpt-oss-120b
+      - google/gemini-3.5-flash-medium
+      # Cross-transport tail (human decision 2026-08-26, option A). The four
+      # cells above all live on agy_edit, so a single kill-switch entry for that
+      # transport blocked the whole level -- caught by
+      # TestFleetRouteLevel1DegradesWhenCodexDisabled (AC-4), which has asserted
+      # since 2026-07-31 that disabling level 1's live primary must degrade to a
+      # cross-provider fallback, never block. This cell restores that guarantee.
+      # It is UNREACHABLE in normal operation (max_attempts 2 = 3 cells); it only
+      # surfaces when the cells ahead are disabled or excluded -- which is
+      # exactly the scenario AC-4 protects. Chosen for measured availability:
+      # 8/8 on the 2026-08-26 probe campaign and 1/1 in real dispatch.
+      - nvidia/nemotron-3-ultra-550b-a55b-free
     max_cost_per_call_usd: 0.50
 
   2:
@@ -80,10 +121,20 @@ levels:
     # One model, one home (human rule 2026-08-26): no Claude duplicate here
     # -- an exhausted chain surfaces as blocked -> human. Codex cells removed
     # from routing (subscription retired).
-    primary: google/gemini-3.6-flash-high
-    fallback: google/gemini-3.7-flash-low
+    # 2026-08-26 (family-per-level restructure, human decision): level 2 is the
+    # 3.5-high + 3.6 pair. The chain is NOT monotonic in effort (high -> medium
+    # -> high) and that is deliberate: a fleet chain is a resilience chain, not
+    # an escalation ladder -- each candidate runs only after the previous one
+    # FAILED the same task, so alternating generation breaks the failure
+    # pattern better than repeating the same family at more effort.
+    # RISK ON RECORD: 3.5-flash-high is the primary and has NO agentic smoke
+    # evidence (it is newly exposed on agy_edit by this same change). It is the
+    # first cell of {high,S}, {high,M}, {low,L} and {medium,L}. Run the 3/3
+    # smoke before trusting this level.
+    primary: google/gemini-3.5-flash-high
+    fallback: google/gemini-3.6-flash-medium
     secondary:
-      - google/gemini-3.7-flash-medium
+      - google/gemini-3.6-flash-high
     max_cost_per_call_usd: 3.00
     # 2026-08-09 (human decision, v2 auto-dispatch): flipped to false — the
     # router's decision is displayed, never confirmed, at every level. Narrow
@@ -104,10 +155,18 @@ levels:
     # chain must BLOCK and return to the human, never degrade silently.
     # Routing.yaml puts human_gate_required: true on every cell that maps
     # here.
+    # 2026-08-26 (family-per-level restructure, human decision): 3.7-flash-high
+    # + 3.1-pro-high. 3.7-flash-low/-medium removed (a level that enters at
+    # `high` should not carry lower-effort cells of its own family); 3.1-pro-low
+    # removed for the same reason. Both survivors are reachable now that
+    # routing.yaml raises max_attempts to 2 here.
+    # RISK ON RECORD: gemini-3.1-pro-high is the worst cell in the dispatch
+    # ledger -- 1/4 success (n=4) with one timeout -- and q-orchestrate's
+    # evidence check auto-excludes cells under 50% at n>=4. When that filter
+    # fires, this level has a SINGLE live cell for migrations and security.
+    # Pending human decision: add a third cell (3.7-flash-medium is unrouted).
     primary: google/gemini-3.7-flash-high
-    fallback: google/gemini-3.1-pro-low
-    secondary:
-      - google/gemini-3.1-pro-high
+    fallback: google/gemini-3.1-pro-high
     max_cost_per_call_usd: 3.00
     requires_human_gate: false
 
