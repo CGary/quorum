@@ -183,6 +183,23 @@ mechanical single-file changes and sits mid-order (`[agy_edit, agy, opencode, ai
 claude]`) in `fleet_transport_order`. This cell set is expressed only as policy data
 (`config.yaml`, `routing.yaml`, `agents.yaml`); `core.Route` never hardcodes any of it.
 
+**2026-08-26 ladder rebalance (human decision): the matrix now has FOUR levels.** The
+gemini-3.7-flash trio and the gemini-3.1-pro duo were exposed on `agy_edit` (agentic smoke
+campaign 2026-08-26; the 3.7 trio also on one-shot `agy`), and levels were rebuilt on three
+human rules: (1) free cells do the bulk and the Anthropic pair are RARE RESCUERS at the tail of
+level 1 only — a tail cell runs only after every cheaper cell failed the same task, so its
+expected cost is ~0; (2) one model, one home (no duplicate cells across levels; free cells
+laguna-s/gpt-oss may repeat across 0/1); (3) proven-before-new — 3.6-flash-high leads level 2
+ahead of the unproven 3.7 cells, and 3.1-pro (zero agentic history) is the level-3 fallback,
+never primary. Chains: level 0 = nemotron → laguna-s → laguna-xs → gpt-oss-120b; level 1 =
+laguna-s → gpt-oss-120b → 3.6-flash-low → 3.6-flash-medium → sonnet-4-6 → opus-4-6; level 2
+({high,S/M} and {low/medium,L}) = 3.6-flash-high → 3.7-flash-low → 3.7-flash-medium; level 3
+({high,L}, catch-all, migration/security overrides — all with `human_gate_required: true`) =
+3.7-flash-high → 3.1-pro-low → 3.1-pro-high. Levels 2-3 carry no Claude cell and no free tail:
+an exhausted chain BLOCKS and returns to the human instead of degrading. The codex cells were
+removed from every route slot (subscription retired; catalog entries and the kill-switch state
+remain).
+
 #### Agent usage (`quorum fleet run`, mk-cli contract)
 
 `quorum fleet run` is the agent-friendly, **non-lifecycle** standalone runner. It executes an

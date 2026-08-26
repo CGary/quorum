@@ -163,6 +163,17 @@ transports:
       # gemini-3.6-flash trio: same cells as agy_edit (symmetric catalog, same
       # binary/subscription). On base agy they serve one-shot review/analysis
       # only; mode:oneshot keeps them out of implement-phase routing.
+      # gemini-3.7-flash trio (2026-08-26): live in `agy models`; exposed for
+      # one-shot summarize/analysis (plane B rung 0).
+      google/gemini-3.7-flash-low:
+        provider: google
+        model_arg: Gemini 3.7 Flash (Low)
+      google/gemini-3.7-flash-medium:
+        provider: google
+        model_arg: Gemini 3.7 Flash (Medium)
+      google/gemini-3.7-flash-high:
+        provider: google
+        model_arg: Gemini 3.7 Flash (High)
       google/gemini-3.6-flash-low:
         provider: google
         model_arg: Gemini 3.6 Flash (Low)
@@ -243,6 +254,25 @@ transports:
       google/gemini-3.6-flash-high:
         provider: google
         model_arg: Gemini 3.6 Flash (High)
+      # gemini-3.7-flash trio + gemini-3.1-pro duo (2026-08-26, human ladder
+      # rebalance): exposed agentic for the 4-level matrix (3.7 leads levels
+      # 2-3; 3.1-pro is the level-3 fallback). Routable only after agentic
+      # smoke 3/3 per cell.
+      google/gemini-3.7-flash-low:
+        provider: google
+        model_arg: Gemini 3.7 Flash (Low)
+      google/gemini-3.7-flash-medium:
+        provider: google
+        model_arg: Gemini 3.7 Flash (Medium)
+      google/gemini-3.7-flash-high:
+        provider: google
+        model_arg: Gemini 3.7 Flash (High)
+      google/gemini-3.1-pro-low:
+        provider: google
+        model_arg: Gemini 3.1 Pro (Low)
+      google/gemini-3.1-pro-high:
+        provider: google
+        model_arg: Gemini 3.1 Pro (High)
       # 2026-08-09: 3.5-flash-low exposed here so it can serve as the
       # level-0 implement primary (human ladder rebalance: 3.5-low ->
       # 3.6-low -> 3.6-high). Previously 3.5 cells lived only on the

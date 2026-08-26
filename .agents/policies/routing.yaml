@@ -1,6 +1,7 @@
 # Routing rules for phase=implement, expressed as an explicit {risk x band}
 # matrix (max-severity: level = max(risk_level, band_level); low/S=0,
-# medium/M=1, high/L=2). Every (risk, band) pair matches exactly one cell, so
+# medium/M=1, mixed-high=2, and since 2026-08-26 {high,L} + catch-all +
+# migration/security promote to level 3). Every (risk, band) pair matches exactly one cell, so
 # rule order is irrelevant within the matrix. A trailing catch-all rule (empty
 # match) is the safe default for any non-implement phase or unanticipated value,
 # so core.Route never hits its structural "no matching rule" error.
@@ -51,15 +52,20 @@ rules:
     reviewer_required: true
     max_attempts: 1
     human_gate_required: false
+# 2026-08-26 (human ladder rebalance): {high, L} promotes to the new level 3
+  # (critical tier: 3.7-flash-high -> 3.1-pro), WITH a human gate — critical
+  # dispatches are confirmed, not just displayed (exception to v2
+  # auto-dispatch, human decision 2026-08-26).
   - match: {phase: implement, risk: high, band: L}
-    executor_level: 2
+    executor_level: 3
     reviewer_required: true
     max_attempts: 1
-    human_gate_required: false
+    human_gate_required: true
 
   # Catch-all safe default (any non-implement phase or unanticipated value).
+  # 2026-08-26: promoted to level 3 with the ladder rebalance.
   - match: {}
-    executor_level: 2
+    executor_level: 3
     reviewer_required: true
     max_attempts: 1
     human_gate_required: true
