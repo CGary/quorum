@@ -79,6 +79,9 @@ levels:
     # family per level so a failure is diagnosable. Level 1 owns the Anthropic
     # pair + gpt-oss-120b + 3.5-flash-medium. Poolside removed (see level 0's
     # availability note). Ordering is the HUMAN's: opus leads.
+    # >>> SUPERSEDED 2026-08-27: gpt-oss-120b removed and the Anthropic pair
+    # >>> reordered (sonnet leads). Kept here as the causal trace -- see the
+    # >>> 2026-08-27 note immediately above the primary key for the rationale.
     # Recorded objection (mine, overruled by the human): opus is the cell the
     # human reports as the weakest of the three in practice, and this level
     # owns {low,M} + {medium,S} + {medium,M} -- three of the nine matrix rules,
@@ -91,21 +94,37 @@ levels:
     # on the same quota, so an exhausted subscription kills the whole level at
     # once (same failure shape as poolside at level 0). Level 0 is the only
     # level with an independent quota class.
-    primary: anthropic/claude-opus-4-6
-    fallback: anthropic/claude-sonnet-4-6
+    # 2026-08-27 (human decision): sonnet leads, opus follows, gpt-oss-120b is
+    # REMOVED. Rationale supplied by the human and recorded here: the opus cell
+    # served by agy_edit underperforms in practice, and this level owns the three
+    # matrix rules where most SDC tasks land -- putting the weakest-reported cell
+    # first was the worst possible placement. Since agy_edit is quota_class:
+    # subscription, opus and sonnet draw on the SAME pool, so there is no cost
+    # argument for either order; capability decides, and this reverses the
+    # 2026-08-26 ordering in the direction the human's own field evidence pointed.
+    # gpt-oss-120b dropped as redundancy, not depth: same transport, same quota
+    # pool, comparable capability to the Anthropic pair -- a third draw on an
+    # exhausted subscription is not a fallback.
+    primary: anthropic/claude-sonnet-4-6
+    fallback: anthropic/claude-opus-4-6
     secondary:
-      - openai/gpt-oss-120b
       - google/gemini-3.5-flash-medium
-      # Cross-transport tail (human decision 2026-08-26, option A). The four
-      # cells above all live on agy_edit, so a single kill-switch entry for that
-      # transport blocked the whole level -- caught by
+      # Cross-transport tail (human decision 2026-08-26, option A; RETAINED
+      # through the 2026-08-27 prune). The three cells above all live on
+      # agy_edit, so a single kill-switch entry for that transport would block
+      # the whole level -- caught by
       # TestFleetRouteLevel1DegradesWhenCodexDisabled (AC-4), which has asserted
       # since 2026-07-31 that disabling level 1's live primary must degrade to a
       # cross-provider fallback, never block. This cell restores that guarantee.
-      # It is UNREACHABLE in normal operation (max_attempts 2 = 3 cells); it only
-      # surfaces when the cells ahead are disabled or excluded -- which is
-      # exactly the scenario AC-4 protects. Chosen for measured availability:
-      # 8/8 on the 2026-08-26 probe campaign and 1/1 in real dispatch.
+      # It is UNREACHABLE in normal operation (max_attempts 2 = 3 cells, and the
+      # three above fill them exactly); it only surfaces when the cells ahead are
+      # disabled or excluded -- which is exactly the scenario AC-4 protects.
+      # It is also the level's ONLY escape from the antigravity subscription:
+      # without it, levels 1, 2 and 3 would all hang off one quota class and one
+      # transport, and would block simultaneously when that pool is exhausted --
+      # the same failure shape that removed poolside from level 0.
+      # Chosen for measured availability: 8/8 on the 2026-08-26 probe campaign
+      # and 1/1 in real dispatch.
       - nvidia/nemotron-3-ultra-550b-a55b-free
     max_cost_per_call_usd: 0.50
 
@@ -127,14 +146,32 @@ levels:
     # an escalation ladder -- each candidate runs only after the previous one
     # FAILED the same task, so alternating generation breaks the failure
     # pattern better than repeating the same family at more effort.
+    # >>> SUPERSEDED 2026-08-27: 3.6-flash-medium dropped, so the chain is now
+    # >>> two cells at constant high effort. The "alternating generation" point
+    # >>> survives (3.5 -> 3.6 still crosses generations); what did not survive
+    # >>> is the effort dip and the same-model-twice tail. Causal trace kept.
     # RISK ON RECORD: 3.5-flash-high is the primary and has NO agentic smoke
     # evidence (it is newly exposed on agy_edit by this same change). It is the
     # first cell of {high,S}, {high,M}, {low,L} and {medium,L}. Run the 3/3
     # smoke before trusting this level.
+    # 2026-08-27 (human decision): 3.6-flash-medium REMOVED, 3.6-flash-high
+    # promoted into the fallback slot; the chain is now two cells deep.
+    # Why this is an improvement in shape: the old chain ran high -> medium ->
+    # high (non-monotonic effort) and ended by repeating the SAME model at more
+    # effort, which is the weakest kind of depth -- once 3.6-flash-medium fails a
+    # task, 3.6-flash-high is the same model retried. The new chain crosses
+    # generations at constant (high) effort and repeats no model.
+    # RISK ON RECORD, now without margin: 3.5-flash-high is the primary of FOUR
+    # matrix rules ({high,S}, {high,M}, {low,L}, {medium,L}) and still has NO
+    # agentic smoke evidence -- it was newly exposed on agy_edit on 2026-08-26.
+    # With only two cells here, a bad primary leaves ONE live cell; and once
+    # q-orchestrate's evidence check auto-excludes a cell under 50% at n>=4, the
+    # level blocks. Run the 3/3 smoke on 3.5-flash-high before trusting level 2.
+    # max_attempts stays 2 in routing.yaml (budget 2 = 3 cells) while only two
+    # cells exist: the surplus jump is inert -- the router simply returns
+    # no_viable_candidate after the second -- and leaves room for a third cell.
     primary: google/gemini-3.5-flash-high
-    fallback: google/gemini-3.6-flash-medium
-    secondary:
-      - google/gemini-3.6-flash-high
+    fallback: google/gemini-3.6-flash-high
     max_cost_per_call_usd: 3.00
     # 2026-08-09 (human decision, v2 auto-dispatch): flipped to false — the
     # router's decision is displayed, never confirmed, at every level. Narrow
