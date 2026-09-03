@@ -55,6 +55,11 @@ func TestFleetDispatchOutcomeClassification(t *testing.T) {
 		{"timeout", "reroute", "timeout", false, classifyInput{diffEmpty: true, timedOut: true, outputParseOK: true}},
 		{"wrapper-broken", "reroute", "wrapper_broken", false, classifyInput{diffEmpty: true, outputParseOK: false}},
 		{"failed-attempt", "attempt", "", false, classifyInput{diffEmpty: true, exitCode: 1, outputParseOK: true}},
+		{"wrapper-matched", "reroute", "wrapper_broken", false, classifyInput{diffEmpty: true, exitCode: 1, wrapperMatched: true, outputParseOK: true}},
+		{"wrapper-unset-legacy", "attempt", "", false, classifyInput{diffEmpty: true, exitCode: 1, wrapperMatched: false, outputParseOK: true}},
+		{"wrapper-with-diff", "attempt", "", false, classifyInput{diffEmpty: false, wrapperMatched: true, outputParseOK: true}},
+		{"quota-beats-wrapper", "reroute", "quota", false, classifyInput{diffEmpty: true, exitCode: 1, quotaMatched: true, wrapperMatched: true, outputParseOK: true}},
+		{"timeout-beats-wrapper", "reroute", "timeout", false, classifyInput{diffEmpty: true, timedOut: true, wrapperMatched: true, outputParseOK: true}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

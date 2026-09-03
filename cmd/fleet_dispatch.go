@@ -34,6 +34,7 @@ type fleetTransport struct {
 	InputChannel      string   `yaml:"input_channel"`
 	OutputFormat      string   `yaml:"output_format"`
 	FailureSignatures []string `yaml:"failure_signatures"`
+	WrapperSignatures []string `yaml:"wrapper_signatures"`
 	Timeouts          struct {
 		DefaultS int `yaml:"default_s"`
 	} `yaml:"timeouts"`
@@ -178,7 +179,7 @@ func runFleetDispatch(store core.TaskStore, req fleetDispatchRequest) (string, e
 		TaskID: req.TaskID, TaskDir: taskDir.Path, Agent: req.Agent, Model: req.Model,
 		DispatchID: req.DispatchID, BundleHash: bundleHash, Worktree: worktree, Binary: transport.Binary,
 		Argv: argv, StdinPrompt: stdinPrompt,
-		TimeoutS: timeoutS, FailureSignatures: transport.FailureSignatures, OutputFormat: transport.OutputFormat,
+		TimeoutS: timeoutS, FailureSignatures: transport.FailureSignatures, WrapperSignatures: transport.WrapperSignatures, OutputFormat: transport.OutputFormat,
 		PromptPointerRelPath: promptPointerRelPath,
 	}
 	res, err := core.Dispatch(spec)
