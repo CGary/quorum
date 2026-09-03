@@ -108,23 +108,29 @@ levels:
     primary: anthropic/claude-sonnet-4-6
     fallback: anthropic/claude-opus-4-6
     secondary:
-      - google/gemini-3.5-flash-medium
       # Cross-transport tail (human decision 2026-08-26, option A; RETAINED
-      # through the 2026-08-27 prune). The three cells above all live on
-      # agy_edit, so a single kill-switch entry for that transport would block
-      # the whole level -- caught by
+      # through the 2026-08-27 prune). The two cells above (sonnet-4-6,
+      # opus-4-6) all live on agy_edit, so a single kill-switch entry for that
+      # transport would block the whole level -- caught by
       # TestFleetRouteLevel1DegradesWhenCodexDisabled (AC-4), which has asserted
       # since 2026-07-31 that disabling level 1's live primary must degrade to a
       # cross-provider fallback, never block. This cell restores that guarantee.
       # It is UNREACHABLE in normal operation (max_attempts 2 = 3 cells, and the
-      # three above fill them exactly); it only surfaces when the cells ahead are
-      # disabled or excluded -- which is exactly the scenario AC-4 protects.
-      # It is also the level's ONLY escape from the antigravity subscription:
+      # two above plus this one fill them exactly); it only surfaces when the
+      # cells ahead are disabled or excluded -- which is exactly the scenario
+      # AC-4 protects.
+      # It is the level's ONLY escape from the antigravity subscription:
       # without it, levels 1, 2 and 3 would all hang off one quota class and one
       # transport, and would block simultaneously when that pool is exhausted --
       # the same failure shape that removed poolside from level 0.
       # Chosen for measured availability: 8/8 on the 2026-08-26 probe campaign
       # and 1/1 in real dispatch.
+      # 2026-09-03: google/gemini-3.5-flash-medium REMOVED from this secondary
+      # slot. Provider retired Gemini 3.5 Flash (incident HEX-060; live agy
+      # catalog verified 2026-09-03). The cell was the only non-nemotron entry
+      # in secondary, but nemotron itself (this entry) was always the real
+      # subscription escape -- the prior comment's claim that 3.5-flash-medium
+      # was the "ONLY escape" was incorrect and is corrected here.
       - nvidia/nemotron-3-ultra-550b-a55b-free
     max_cost_per_call_usd: 0.50
 
@@ -170,8 +176,15 @@ levels:
     # max_attempts stays 2 in routing.yaml (budget 2 = 3 cells) while only two
     # cells exist: the surplus jump is inert -- the router simply returns
     # no_viable_candidate after the second -- and leaves room for a third cell.
-    primary: google/gemini-3.5-flash-high
-    fallback: google/gemini-3.6-flash-high
+    # 2026-09-03: google/gemini-3.5-flash-high REMOVED as primary. Provider
+    # retired Gemini 3.5 Flash (incident HEX-060; live agy catalog verified
+    # 2026-09-03). The "RISK ON RECORD" comments above about 3.5-flash-high
+    # having NO agentic smoke evidence are now moot -- the cell is gone.
+    # New chain: 3.6-flash-high (primary, proven agentic) -> 3.7-flash-medium
+    # (fallback, exposed agentic 2026-08-26 campaign). One model, one home
+    # rule preserved; no Claude cell or free tail at this level.
+    primary: google/gemini-3.6-flash-high
+    fallback: google/gemini-3.7-flash-medium
     max_cost_per_call_usd: 3.00
     # 2026-08-09 (human decision, v2 auto-dispatch): flipped to false — the
     # router's decision is displayed, never confirmed, at every level. Narrow

@@ -167,8 +167,10 @@ demoted to the tail of `secondary`. First real exercise: FLEET-032 (`risk=low`, 
 the primary and completed its implement externally. Since 2026-07-31 `agy_edit` also exposes `gpt-oss-120b`, `claude-sonnet-4-6`, and
 `claude-opus-4-6` (verified agentic under accept-edits, smoke 3/3), which makes level 2's
 `primary: anthropic/claude-opus-4-6` resolvable as an agentic cell (the old `claude-opus-4-7`
-reference was dead — no active transport exposed it). Base `agy` keeps its 3.5/3.1 cells for
-one-shot `--print` review/analysis and rollback (3.5 cells migrated from level 0 by FLEET-030).
+reference was dead — no active transport exposed it). Base `agy` keeps its 3.1-pro cells for
+one-shot `--print` review/analysis and rollback (gemini-3.5 cells were retired by the provider
+2026-09-03, incident HEX-060; they were migrated to base `agy` from level 0 by FLEET-030 but
+are no longer available).
 Both agy transports run with `timeouts.default_s: 600` (raised from 300 after a real hexcell
 dispatch was killed mid-work at 300s, 2026-07-31). The $0 OpenRouter cross-provider cells are
 `opencode`-backed `nvidia/nemotron-3-ultra-550b-a55b-free` and `poolside/laguna-s-2.1-free`
@@ -191,14 +193,24 @@ level 1 only — a tail cell runs only after every cheaper cell failed the same 
 expected cost is ~0; (2) one model, one home (no duplicate cells across levels; free cells
 laguna-s/gpt-oss may repeat across 0/1); (3) proven-before-new — 3.6-flash-high leads level 2
 ahead of the unproven 3.7 cells, and 3.1-pro (zero agentic history) is the level-3 fallback,
-never primary. Chains: level 0 = nemotron → laguna-s → laguna-xs → gpt-oss-120b; level 1 =
-laguna-s → gpt-oss-120b → 3.6-flash-low → 3.6-flash-medium → sonnet-4-6 → opus-4-6; level 2
-({high,S/M} and {low/medium,L}) = 3.6-flash-high → 3.7-flash-low → 3.7-flash-medium; level 3
+never primary. Chains: level 0 = nemotron-3-ultra → nemotron-3-super-120b → [cohere/north-mini-code,
+nemotron-3-nano-omni]; level 1 = claude-sonnet-4-6 → claude-opus-4-6 → [nvidia/nemotron-3-ultra]
+(sonnet leads per 2026-08-27 human decision; gpt-oss-120b removed as redundancy); level 2
+({high,S/M} and {low/medium,L}) = 3.6-flash-high → 3.7-flash-medium; level 3
 ({high,L}, catch-all, migration/security overrides — all with `human_gate_required: true`) =
-3.7-flash-high → 3.1-pro-low → 3.1-pro-high. Levels 2-3 carry no Claude cell and no free tail:
+3.7-flash-high → 3.1-pro-high. Levels 2-3 carry no Claude cell and no free tail:
 an exhausted chain BLOCKS and returns to the human instead of degrading. The codex cells were
 removed from every route slot (subscription retired; catalog entries and the kill-switch state
 remain).
+
+**2026-09-03 (provider retirement, incident HEX-060):** Gemini 3.5 Flash was retired by the
+provider. All `google/gemini-3.5-flash-{low,medium,high}` entries have been removed from both
+`agy` and `agy_edit` model catalogs, from `config.yaml` level 1 secondary and level 2 primary.
+Level 2 now enters on `3.6-flash-high` (proven agentic) → `3.7-flash-medium`. The
+kill-switch entries for `agy_edit/google/gemini-3.5-flash-{high,medium}` in
+`.ai/fleet-control.json` are left as-is (interim mitigation state preserved per spec constraint).
+Gemini 3.8 Flash is **not yet** exposed in the catalog, pending a smoke campaign (proven-before-new
+rule applies; no routing change implied).
 
 #### Agent usage (`quorum fleet run`, mk-cli contract)
 
