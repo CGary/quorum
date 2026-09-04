@@ -78,6 +78,12 @@
           "uniqueItems": true,
           "description": "Substrings/patterns identifying quota or auth failures in this transport's output, used to classify a dispatch outcome as reroute-worthy rather than a generic error."
         },
+        "wrapper_signatures": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true,
+          "description": "Substrings/patterns identifying CLI-level model rejection failures in this transport's output, used to classify a dispatch outcome as reroute/wrapper_broken rather than a generic error."
+        },
         "quota_class": {
           "type": "string",
           "enum": ["subscription", "api"],

@@ -41,6 +41,7 @@ type DispatchSpec struct {
 	StdinPrompt       string
 	TimeoutS          int
 	FailureSignatures []string
+	WrapperSignatures []string
 	OutputFormat      string
 	PromptPointerRelPath string
 }
@@ -138,6 +139,7 @@ func Dispatch(spec DispatchSpec) (DispatchResult, error) {
 			diffEmpty: diffStat.Empty, notesEmpty: notesTrim == "", blocked: blockedSig,
 			blockedMalformed: blockedMalformed,
 			quotaMatched:     matchesAnySignature(run.output, spec.FailureSignatures),
+			wrapperMatched:   matchesAnySignature(run.output, spec.WrapperSignatures),
 			outputParseOK:    outputParses(spec.OutputFormat, run.output),
 		})
 	}
@@ -325,6 +327,7 @@ type classifyInput struct {
 	blocked          *BlockedQuestion
 	blockedMalformed bool
 	quotaMatched     bool
+	wrapperMatched   bool
 	outputParseOK    bool
 }
 type classifiedOutcome struct {
@@ -352,6 +355,8 @@ func classifyOutcome(in classifyInput) classifiedOutcome {
 		return cause("quota")
 	case in.timedOut || in.killed:
 		return cause("timeout")
+	case in.wrapperMatched:
+		return cause("wrapper_broken")
 	case !in.outputParseOK:
 		return cause("wrapper_broken")
 	default: // other empty-diff exit: a genuine failed attempt (model incapacity)
