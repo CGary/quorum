@@ -104,6 +104,20 @@ func readSpecTaskID(dir string) (string, bool) {
 	return "", false
 }
 
+// canonicalTaskID reads 00-spec.yaml from dir and returns the validated
+// canonical task_id. It never falls back to the alias on failure (fail closed):
+// a missing or invalid task_id field is an error, not a default.
+func canonicalTaskID(dir, _ string) (string, error) {
+	id, ok := readSpecTaskID(dir)
+	if !ok || id == "" {
+		return "", fmt.Errorf("task_id field is missing or empty in %s/00-spec.yaml", dir)
+	}
+	if err := ValidateTaskID(id); err != nil {
+		return "", fmt.Errorf("task_id field in %s/00-spec.yaml is invalid: %v", dir, err)
+	}
+	return id, nil
+}
+
 func isChildSuffixRest(rest string) bool {
 	return (len(rest) == 1 && rest[0] >= 'a' && rest[0] <= 'z') || (len(rest) >= 2 && rest[0] >= 'a' && rest[0] <= 'z' && rest[1] == '-')
 }
@@ -547,6 +561,12 @@ func backTaskWith(git GitRunner, taskID string, opts ...bool) {
 		fmt.Printf("[!] Task %s not found.\n", taskID)
 		return
 	}
+	canonical, canonErr := canonicalTaskID(taskDir.Path, taskID)
+	if canonErr != nil {
+		fmt.Printf("[!] Cannot resolve canonical task_id for %s: %v\n", taskID, canonErr)
+		return
+	}
+	taskID = canonical
 	root, _ := ProjectRoot()
 	worktreePath := filepath.Join(root, "worktrees", taskID)
 	if _, err := os.Stat(worktreePath); err == nil {

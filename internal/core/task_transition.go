@@ -172,6 +172,12 @@ func startTaskTransition() TaskTransition {
 			}
 			ctx.TaskDir = taskDir
 
+			canonical, canonErr := canonicalTaskID(taskDir.Path, ctx.TaskID)
+			if canonErr != nil {
+				return fmt.Errorf("[!] Cannot resolve canonical task_id: %v", canonErr)
+			}
+			ctx.TaskID = canonical
+
 			contractPath, err := ctx.Store.TaskArtifactPath(taskDir, "02-contract.yaml")
 			if err != nil {
 				return fmt.Errorf("[!] Contract validation failed for %s: %v", ctx.TaskID, err)
@@ -196,6 +202,15 @@ func startTaskTransition() TaskTransition {
 				ctx.TaskDir = moved
 			}
 
+			// Initialize 04/07 BEFORE creating the worktree so that a
+			// worktree-creation failure still leaves both artifacts present.
+			if err := initializeImplementationLog(ctx); err != nil {
+				return err
+			}
+			if err := initializeTrace(ctx); err != nil {
+				return err
+			}
+
 			root, _ := ProjectRoot()
 			worktreePath := filepath.Join(root, "worktrees", ctx.TaskID)
 			branchName := "ai/" + ctx.TaskID
@@ -210,12 +225,6 @@ func startTaskTransition() TaskTransition {
 				}
 			}
 
-			if err := initializeImplementationLog(ctx); err != nil {
-				return err
-			}
-			if err := initializeTrace(ctx); err != nil {
-				return err
-			}
 			ctx.ResultTaskDir = ctx.TaskDir
 			fmt.Printf("[+] Task %s initialized and worktree ready.\n", ctx.TaskID)
 			return nil
@@ -304,6 +313,11 @@ func cleanTaskTransition() TaskTransition {
 				return fmt.Errorf("[!] Task %s not found.", ctx.TaskID)
 			}
 			ctx.TaskDir = taskDir
+			canonical, canonErr := canonicalTaskID(taskDir.Path, ctx.TaskID)
+			if canonErr != nil {
+				return fmt.Errorf("[!] Cannot resolve canonical task_id: %v", canonErr)
+			}
+			ctx.TaskID = canonical
 			return guardCleanParentChildren(ctx)
 		},
 		Effect: func(ctx *TransitionContext) error {
@@ -516,6 +530,11 @@ func guardRetryPrepareTransition(ctx *TransitionContext) error {
 		return fmt.Errorf("[!] Task %s not found in active/ or failed/.", ctx.TaskID)
 	}
 	ctx.TaskDir = taskDir
+	canonical, canonErr := canonicalTaskID(taskDir.Path, ctx.TaskID)
+	if canonErr != nil {
+		return fmt.Errorf("[!] Cannot resolve canonical task_id: %v", canonErr)
+	}
+	ctx.TaskID = canonical
 	if taskDir.Location == "active" {
 		ctx.Noop = true
 		return nil
