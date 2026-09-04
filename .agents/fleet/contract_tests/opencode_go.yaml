@@ -1,0 +1,23 @@
+# Level 1 structural contract test for the opencode_go transport (FLEET-038).
+# Checks are read-only with respect to .agents/fleet/agents.yaml: they mirror
+# the flags already declared there (argv_template) via a single cheap
+# `opencode run --help` probe per check (shared binary with opencode.yaml).
+# No model/LLM invocation happens here; it skips gracefully when opencode is
+# absent from PATH, same auto-discovery contract as opencode.yaml.
+# Level 2 (real dispatch) against opencode_go is deferred to a future
+# smoke-gated commit (00-spec.yaml non-goal), not run by this task.
+transport: opencode_go
+binary: opencode
+checks:
+  - name: model_flag
+    probe_args: ["run", "--help"]
+    expect_substring: "-m, --model"
+  - name: format_flag
+    probe_args: ["run", "--help"]
+    expect_substring: "--format"
+  - name: dir_flag
+    probe_args: ["run", "--help"]
+    expect_substring: "--dir"
+  - name: auto_flag
+    probe_args: ["run", "--help"]
+    expect_substring: "--auto"

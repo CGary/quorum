@@ -238,6 +238,7 @@ policies:
     - agy_edit
     - agy
     - opencode
+    - opencode_go
     - aider
     - codex
     - claude

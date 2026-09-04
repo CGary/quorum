@@ -475,6 +475,51 @@ transports:
     mode: agentic
     active: true
 
+  opencode_go:
+    # Wired transport (FLEET-038). Distinct subscription-quota transport block
+    # sharing the opencode binary, env, argv_template, input_channel, and
+    # output_format with opencode. Never folded into the api-quota opencode block.
+    # Provisional default timeout; opencode_go has no independent measurement yet.
+    binary: opencode
+    env:
+      OPENCODE_DISABLE_AUTOUPDATE: "true"
+    argv_template:
+      - run
+      - -m
+      - "{model_arg}"
+      - --format
+      - json
+      - --dir
+      - "{cwd}"
+      - --auto
+    input_channel: stdin
+    output_format: json
+    timeouts:
+      default_s: 300
+    failure_signatures: []
+    wrapper_signatures:
+      - "Unexpected server error"
+    quota_class: subscription
+    models:
+      opencode-go/deepseek-v4-flash:
+        provider: opencode-go-deepseek
+        model_arg: opencode-go/deepseek-v4-flash
+      opencode-go/deepseek-v4-pro:
+        provider: opencode-go-deepseek
+        model_arg: opencode-go/deepseek-v4-pro
+      opencode-go/qwen3.7-plus:
+        provider: opencode-go-alibaba
+        model_arg: opencode-go/qwen3.7-plus
+      opencode-go/minimax-m3:
+        provider: opencode-go-minimax
+        model_arg: opencode-go/minimax-m3
+      opencode-go/gpt-5.6-luna:
+        provider: opencode-go-openai
+        model_arg: opencode-go/gpt-5.6-luna
+    contract_test: .agents/fleet/contract_tests/opencode_go.yaml
+    mode: agentic
+    active: true
+
   claude:
     # Inactive in v1 (ADR 0010 section 5). No level routes to this transport:
     # the "Claude frontier" referenced by config.yaml.levels[2].primary is the
