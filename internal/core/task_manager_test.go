@@ -1545,6 +1545,7 @@ type fakeGitRunner struct {
 	dirty    map[string][]string
 	patch    string
 	patchErr error
+	addErr   error // when set, WorktreeAdd returns this error
 	calls    []string
 }
 
@@ -1565,7 +1566,7 @@ func (f *fakeGitRunner) BranchExists(b string) bool { return f.branches[b] }
 func (f *fakeGitRunner) RefExists(r string) bool    { return f.refs[r] }
 func (f *fakeGitRunner) WorktreeAdd(path, branch, base string) error {
 	f.record("add " + path + " " + branch + " " + base)
-	return nil
+	return f.addErr
 }
 func (f *fakeGitRunner) WorktreeAttach(path, branch string) error {
 	f.record("attach " + path + " " + branch)
@@ -1844,4 +1845,246 @@ func TestEnsureProjectConfigGuards(t *testing.T) {
 			t.Fatalf("persisted name = %q, want merged value", persisted.ProjectName)
 		}
 	})
+}
+
+// TestStartTaskWithAliasResolvesCanonicalID covers AC-1:
+// startTaskWith on an active directory whose spec has a different canonical
+// task_id (FEAT-071) resolves the worktree/branch/04/07 task_id to the
+// spec's canonical id, not the CLI argument (FEAT-071-new-spec).
+func TestStartTaskWithAliasResolvesCanonicalID(t *testing.T) {
+	useSchemas(t)
+	root := mkFakeRepoRoot(t)
+
+	// Create an active directory named FEAT-071-new-spec whose spec declares FEAT-071.
+	dir := filepath.Join(root, ".ai", "tasks", "active", "FEAT-071-new-spec")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mkFullSpec(t, dir, "FEAT-071")
+	mkContract(t, dir, "FEAT-071")
+
+	fake := newFakeGitRunner()
+	out := captureStdout(t, func() { startTaskWith(fake, "FEAT-071-new-spec") })
+	if !strings.Contains(out, "initialized and worktree ready") {
+		t.Fatalf("output = %q", out)
+	}
+
+	// Worktree and branch must use canonical FEAT-071, not the directory name.
+	wt := filepath.Join(root, "worktrees", "FEAT-071")
+	fake.assertCalled(t, "add "+wt+" ai/FEAT-071 main")
+
+	// 04/07 must be written with the canonical task_id.
+	for _, artifact := range []string{"04-implementation-log.yaml", "07-trace.json"} {
+		payload, err := LoadArtifactPayload(filepath.Join(dir, artifact))
+		if err != nil {
+			t.Fatalf("missing %s: %v", artifact, err)
+		}
+		m, ok := payload.(map[string]any)
+		if !ok {
+			t.Fatalf("%s is not a map", artifact)
+		}
+		if got := m["task_id"]; got != "FEAT-071" {
+			t.Fatalf("%s task_id = %v, want FEAT-071", artifact, got)
+		}
+	}
+}
+
+// TestAliasResolutionForCleanBackRetry covers AC-2:
+// cleanTaskWith, backTaskWith and prepareFailedChildRetryWith invoked with
+// a directory-name alias derive worktrees/<canonical> and ai/<canonical>.
+func TestAliasResolutionForCleanBackRetry(t *testing.T) {
+	useSchemas(t)
+
+	t.Run("clean alias resolves canonical", func(t *testing.T) {
+		root := mkFakeRepoRoot(t)
+
+		// Active task: dir = FEAT-080-slug, spec.task_id = FEAT-080
+		dir := filepath.Join(root, ".ai", "tasks", "active", "FEAT-080-slug")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		mkFullSpec(t, dir, "FEAT-080")
+
+		// Create a worktree directory so the Effect path exercises WorktreeRemove.
+		wt := filepath.Join(root, "worktrees", "FEAT-080")
+		if err := os.MkdirAll(wt, 0o755); err != nil {
+			t.Fatal(err)
+		}
+
+		fake := newFakeGitRunner()
+		captureStdout(t, func() { cleanTaskWith(fake, "FEAT-080-slug", false, false) })
+		fake.assertCalled(t, "remove "+wt+" force=false")
+		fake.assertCalled(t, "delete-merged ai/FEAT-080 main")
+	})
+
+	t.Run("back alias resolves canonical", func(t *testing.T) {
+		root := mkFakeRepoRoot(t)
+
+		dir := filepath.Join(root, ".ai", "tasks", "active", "FEAT-081-slug")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		mkFullSpec(t, dir, "FEAT-081")
+
+		wt := filepath.Join(root, "worktrees", "FEAT-081")
+		if err := os.MkdirAll(wt, 0o755); err != nil {
+			t.Fatal(err)
+		}
+
+		fake := newFakeGitRunner()
+		out := captureStdout(t, func() { backTaskWith(fake, "FEAT-081-slug") })
+		if !strings.Contains(out, "Worktree removed") {
+			t.Fatalf("output = %q", out)
+		}
+		fake.assertCalled(t, "remove "+wt+" force=false")
+		fake.assertCalled(t, "force-delete-empty ai/FEAT-081 main")
+	})
+
+	t.Run("retry-prepare alias resolves canonical", func(t *testing.T) {
+		root := mkFakeRepoRoot(t)
+
+		// Parent task.
+		if err := os.MkdirAll(filepath.Join(root, ".ai", "tasks", "active", "PARENT-010"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+
+		// Failed child: dir = PARENT-010-a-slug, spec.task_id = PARENT-010-a
+		failedDir := filepath.Join(root, ".ai", "tasks", "failed", "PARENT-010-a-slug")
+		if err := os.MkdirAll(failedDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		longText := "this is a very long string that satisfies the minimum length requirement"
+		childSpec := map[string]any{
+			"task_id":     "PARENT-010-a",
+			"parent_task": "PARENT-010",
+			"summary":     longText,
+			"goal":        longText,
+			"invariants":  []any{longText},
+			"acceptance":  []any{longText},
+			"risk":        "low",
+		}
+		childTrace := map[string]any{
+			"task_id":           "PARENT-010-a",
+			"summary":           longText,
+			"started_at":        "2024-01-01T00:00:00Z",
+			"execution_mode":    "patch_only",
+			"total_cost_usd":    0.0,
+			"violations":        []any{},
+			"context_overflows": []any{},
+			"attempts":          []any{},
+		}
+		if _, err := SaveArtifact(filepath.Join(failedDir, "00-spec.yaml"), childSpec); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := SaveArtifact(filepath.Join(failedDir, "07-trace.json"), childTrace); err != nil {
+			t.Fatal(err)
+		}
+
+		fake := newFakeGitRunner()
+		fake.refs["ai/PARENT-010-a"] = true
+		ok := false
+		captureStdout(t, func() { ok = prepareFailedChildRetryWith(fake, "PARENT-010-a-slug") })
+		if !ok {
+			t.Fatalf("retry preparation failed: %#v", fake.calls)
+		}
+		// Worktree and attach must use canonical PARENT-010-a, not the directory name.
+		wt := filepath.Join(root, "worktrees", "PARENT-010-a")
+		fake.assertCalled(t, "attach "+wt+" ai/PARENT-010-a")
+		fake.assertNotCalled(t, "add ")
+	})
+}
+
+// TestStartFailsClosedOnMissingOrInvalidTaskID covers AC-3:
+// start on a spec with a missing or invalid task_id fails in the Guard before
+// WorktreeAdd is called and before the task directory moves out of inbox/.
+func TestStartFailsClosedOnMissingOrInvalidTaskID(t *testing.T) {
+	useSchemas(t)
+
+	t.Run("missing task_id", func(t *testing.T) {
+		root := mkFakeRepoRoot(t)
+
+		dir := filepath.Join(root, ".ai", "tasks", "active", "FEAT-099-no-id")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		// Write a spec with no task_id field.
+		if err := os.WriteFile(filepath.Join(dir, "00-spec.yaml"), []byte("summary: no id here\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		mkContract(t, dir, "FEAT-099")
+
+		fake := newFakeGitRunner()
+		out := captureStdout(t, func() { startTaskWith(fake, "FEAT-099-no-id") })
+		if !strings.Contains(out, "task_id") {
+			t.Fatalf("output %q does not mention task_id", out)
+		}
+		fake.assertNotCalled(t, "add ")
+		// Directory must still exist at its original location.
+		if _, err := os.Stat(dir); err != nil {
+			t.Fatalf("task directory should remain: %v", err)
+		}
+	})
+
+	t.Run("invalid task_id", func(t *testing.T) {
+		root := mkFakeRepoRoot(t)
+
+		dir := filepath.Join(root, ".ai", "tasks", "active", "FEAT-098-bad-id")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		// Write a spec with an invalid task_id.
+		if err := os.WriteFile(filepath.Join(dir, "00-spec.yaml"), []byte("task_id: not-valid!!!\nsummary: bad\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		mkContract(t, dir, "FEAT-098")
+
+		fake := newFakeGitRunner()
+		out := captureStdout(t, func() { startTaskWith(fake, "FEAT-098-bad-id") })
+		if !strings.Contains(out, "task_id") {
+			t.Fatalf("output %q does not mention task_id", out)
+		}
+		fake.assertNotCalled(t, "add ")
+		if _, err := os.Stat(dir); err != nil {
+			t.Fatalf("task directory should remain: %v", err)
+		}
+	})
+}
+
+// TestStartWorktreeFailureLeavesArtifactsPresent covers AC-4:
+// start with WorktreeAdd configured to fail still leaves 04-implementation-log.yaml
+// and 07-trace.json present with the canonical task_id, and reports the error.
+func TestStartWorktreeFailureLeavesArtifactsPresent(t *testing.T) {
+	useSchemas(t)
+	root := mkFakeRepoRoot(t)
+
+	dir := filepath.Join(root, ".ai", "tasks", "active", "FEAT-097-new-spec")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mkFullSpec(t, dir, "FEAT-097")
+	mkContract(t, dir, "FEAT-097")
+
+	fake := newFakeGitRunner()
+	fake.addErr = fmt.Errorf("simulated worktree failure")
+	out := captureStdout(t, func() { startTaskWith(fake, "FEAT-097-new-spec") })
+
+	// The error must be surfaced.
+	if !strings.Contains(out, "Error creating worktree") && !strings.Contains(out, "simulated worktree failure") {
+		t.Fatalf("expected worktree error in output, got %q", out)
+	}
+
+	// Despite the failure, 04 and 07 must exist with the canonical task_id.
+	for _, artifact := range []string{"04-implementation-log.yaml", "07-trace.json"} {
+		payload, err := LoadArtifactPayload(filepath.Join(dir, artifact))
+		if err != nil {
+			t.Fatalf("%s missing after WorktreeAdd failure: %v", artifact, err)
+		}
+		m, ok := payload.(map[string]any)
+		if !ok {
+			t.Fatalf("%s is not a map", artifact)
+		}
+		if got := m["task_id"]; got != "FEAT-097" {
+			t.Fatalf("%s task_id = %v, want FEAT-097", artifact, got)
+		}
+	}
 }
