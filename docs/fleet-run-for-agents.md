@@ -120,7 +120,7 @@ on harness reliability, not real-feature capability (§7.1).
 
 | Model | Trivial pass@10 | M pass@10 | Notes |
 |---|---|---|---|
-| Gemini 3.5 Flash (low / medium / high) | 10/10 each | 10/10 each | |
+| Gemini 3.5 Flash (low / medium / high) | 10/10 each | 10/10 each | retired by the provider 2026-09-03; row kept as historical evidence only |
 | Gemini 3.1 Pro (low / high) | 10/10 each | 10/10 each | |
 | Claude Sonnet 4.6 | 10/10 (14–18s) | 9/10 | M: all failures were "Individual quota reached" errors from Antigravity — availability, not capability; 9/9 when it actually ran (see the quota-bucket finding below) |
 | Claude Opus 4.6 | 10/10 (16–19s) | 8/10 | M: same quota-exhaustion cause as Sonnet; 8/8 when it actually ran |
@@ -160,6 +160,23 @@ variable substitution, so it only ever rejects a genuine unresolved
 `{name}` placeholder in the template; prompt/`--input` content containing
 literal `{`/`}` (Go code, JSON, etc.) passes through untouched. No
 workaround is needed on current builds.
+
+### 4.2 Live catalog check (`quorum fleet catalog`, 2026-09-03)
+
+Model rows in this document decay (§7.7): providers retire models without notice, and a
+dispatch to a retired model fails in seconds with the transport's "invalid model selection"
+message, not a reasoning error. Before trusting any model name from these tables run:
+
+```bash
+quorum fleet catalog agy --json        # or agy_edit / opencode / aider
+```
+
+It probes the transport with a sentinel model, parses the live "available models" list the
+transport prints on rejection, and reports `declared_dead` (in `agents.yaml` but gone) and
+`live_undeclared` (live but not yet in `agents.yaml`; needs a smoke campaign before routing).
+Read-only, manual-only, costs one rejected call. Since FLEET-036 both agy transports also declare
+`wrapper_signatures`, so a retired-model rejection during `quorum fleet dispatch` is classified
+as `reroute`/`wrapper_broken` (ADR 0011) instead of burning a contract attempt.
 
 ## 5. End-to-end example (opencode, dry-run then real)
 
@@ -351,7 +368,8 @@ Two findings the M layer adds on top of the reliability point above:
   single-file edits; use `opencode` or `agy` for anything at M difficulty or
   harder. Across both layers, `agy` Gemini (all five effort tiers measured
   in §4.1) is the only model family that scored 10/10 on **both** — Gemini
-  3.5 Flash (low effort) remains the champion cheap cell.
+  3.5 Flash (low effort) was the champion cheap cell until the provider retired it
+  (2026-09-03); 3.6 Flash (low) is the cheap successor.
 - **Composing a pass@≤1-reroute policy**: from the measured marginals above,
   any cell backed by a single reroute to a 10/10 target (an `agy` Gemini
   tier, or opencode `ultra-550b`/`laguna-m.1`) clears a 70% reliability

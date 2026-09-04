@@ -178,7 +178,7 @@ dispatch was killed mid-work at 300s, 2026-07-31). The $0 OpenRouter cross-provi
 (2026-08-09: `laguna-m.1` was removed from OpenRouter — probes returned "Unexpected server
 error" — and was swapped for `laguna-s-2.1`, the larger of the two live free lagunas, in
 `agents.yaml` and both route slots). Since the 2026-08-09 free-first reordering (human decision),
-these free cells LEAD levels 0 and 1 (level 0: nemotron → laguna → gpt-oss-120b →
+these free cells LED levels 0 and 1 (chains as of 2026-08-09, superseded by the rebalance below; level 0: nemotron → laguna → gpt-oss-120b →
 gemini-3.5-flash-low; level 1: laguna → nemotron → gpt-oss-120b → gemini-3.6-flash-low; primary
 and fallback share the OpenRouter rate limit, the cross-provider jump happens at secondary) and
 the Gemini-subscription cells close each chain as backstops; `aider` stays restricted to
@@ -208,10 +208,33 @@ remain).
 provider. All `google/gemini-3.5-flash-{low,medium,high}` entries have been removed from both
 `agy` and `agy_edit` model catalogs, from `config.yaml` level 1 secondary and level 2 primary.
 Level 2 now enters on `3.6-flash-high` (proven agentic) → `3.7-flash-medium`. The
-kill-switch entries for `agy_edit/google/gemini-3.5-flash-{high,medium}` in
-`.ai/fleet-control.json` are left as-is (interim mitigation state preserved per spec constraint).
-Gemini 3.8 Flash is **not yet** exposed in the catalog, pending a smoke campaign (proven-before-new
-rule applies; no routing change implied).
+interim kill-switch entries for `agy_edit/google/gemini-3.5-flash-{high,medium}` were cleared with
+`quorum fleet enable` after the merge (2026-09-04). Gemini 3.8 Flash is live on the provider
+(`quorum fleet catalog agy` reports the trio as `live_undeclared`) but is **not** in the catalog,
+pending a smoke campaign (proven-before-new rule applies; no routing change implied). The
+hexcell copy of `config.yaml` / `agents.yaml` / `agents.schema.json` is NOT updated by this
+repo's merge — propagate by hand.
+
+**Tooling shipped with the retirement (FLEET-036 / FLEET-037, merged 2026-09-04).**
+(1) `wrapper_signatures` — a per-transport list in `agents.yaml` (validated by
+`agents.schema.json`, sibling of `failure_signatures`) of case-sensitive substrings matched
+against the delegate's output. A hit with an empty diff classifies the dispatch as
+`reroute` / `wrapper_broken` (ADR 0011) instead of `attempt_failed`: a transport rejecting an
+unknown model ("invalid model selection", "is not recognized as a known model" on both agy
+transports) now consumes `reroute_budget`, not the contract's `max_attempts`, and is not counted
+as a model failure in `quorum fleet stats`. Precedence in `classifyOutcome`
+(`internal/core/fleet_dispatch.go`): non-empty diff → attempt; then quota
+(`failure_signatures`) → timeout → wrapper. An absent list is legacy-compatible (never matches).
+(2) `quorum fleet catalog <transport>` (`cmd/fleet_catalog.go`; pure `ParseAvailableModels` /
+`DiffCatalog` in `internal/core/fleet_catalog.go`) probes the transport binary with a sentinel
+model, parses the "available models" list it prints on rejection, and reports `declared_dead`
+(in `agents.yaml`, not live) and `live_undeclared` (live, not in `agents.yaml`). Read-only,
+manual-only, one rejected call of quota. Operational rule: run it before any ladder rebalance,
+and whenever a dispatch fails within seconds with `exit_code` 1 read `notes.txt` before drawing
+any conclusion about the model — a three-second failure is configuration, not reasoning, and
+must never poison the ledger that drives routing. Known gap: `quorum analyze fleet-preflight`
+check 2 still flags every cell exposed on both agy transports as `ambiguous` (idea 14,
+unimplemented); those errors are noise until the check mirrors the router's `oneshot` exclusion.
 
 #### Agent usage (`quorum fleet run`, mk-cli contract)
 
