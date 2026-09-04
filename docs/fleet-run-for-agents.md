@@ -49,6 +49,11 @@ secrets in versioned artifacts). Depending on the transport you pick:
 - **agy** (`quota_class: subscription`, backed by a Gemini subscription, no
   per-call billing): agy manages its own login/session; there is nothing to
   export here.
+- **opencode_go** (`quota_class: subscription`, backed by an OpenCode Go
+  subscription, no per-call billing): reuses the `opencode` binary and
+  invocation shape but requires OpenCode Go's own separate subscription
+  credential (distinct from the `OPENROUTER_API_KEY` used by opencode/aider). It
+  is unrouted — reachable only via explicit `--agent opencode_go`.
 
 ### 1.3 Verify the binary is on PATH
 
@@ -93,6 +98,7 @@ prompt string — write it to a file (or pipe it via `--input -`).
 | `opencode` | 5 pinned OpenRouter free models + `openrouter/free` auto-router fallback (section 7) | $0 (free tier) | implement-only; agentic `--dir`-scoped edits |
 | `aider` | 6 pinned OpenRouter free models — the same 5 as opencode, plus aider-only `nemotron-nano-9b-v2` (section 7) | $0 (free tier) | implement-only; message-file + explicit file list |
 | `agy` | Gemini (your subscription) | included in your subscription, no per-call billing | broader use; higher-effort models available (Gemini 3.5 Flash, Gemini 3.1 Pro, Claude Sonnet/Opus, GPT-OSS 120B — measured pass@10 in §4.1) |
+| `opencode_go` | 5 OpenCode Go subscription models (DeepSeek, Qwen, MiniMax, GPT-5.6) | included in subscription | implement-only; unrouted, reachable via explicit `--agent opencode_go` (§7.8) |
 
 Both `opencode` and `aider` are **implement-only** transports (never used for
 review/diagnostic phases in Quorum's own lifecycle) and cost nothing per call
@@ -530,3 +536,17 @@ https://openrouter.ai/docs/api-reference/limits):
 - **Never retry-loop a 429**: failed/429 requests still count against the
   daily quota, so a retry loop against a saturated model burns the day's
   budget while returning nothing.
+
+### 7.8 OpenCode Go: deferred smoke campaign (FLEET-038, evidence pending)
+
+`opencode_go` (FLEET-038) is declared as policy data only and currently has no empirical smoke evidence. It is unrouted and not referenced by any `routing.yaml` level or `config.yaml.levels` block.
+
+| Model ID | model_arg | pass@10 | Notes |
+|----------|-----------|---------|-------|
+| `opencode-go/deepseek-v4-flash` | `opencode-go/deepseek-v4-flash` | not yet smoked | |
+| `opencode-go/deepseek-v4-pro` | `opencode-go/deepseek-v4-pro` | not yet smoked | |
+| `opencode-go/qwen3.7-plus` | `opencode-go/qwen3.7-plus` | not yet smoked | |
+| `opencode-go/minimax-m3` | `opencode-go/minimax-m3` | not yet smoked | |
+| `opencode-go/gpt-5.6-luna` | `opencode-go/gpt-5.6-luna` | not yet smoked | |
+
+Per the proven-before-new rule (AGENTS.md, 2026-08-26 ladder rebalance), no cell may be routed before this table is filled in with empirical smoke evidence.

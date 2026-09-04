@@ -497,6 +497,8 @@ func TestFleetRouteAgentsSchemaValidatesRealFile(t *testing.T) {
 	validProviders := map[string]bool{
 		"google": true, "openrouter-nvidia": true, "openrouter-poolside": true,
 		"openrouter-cohere": true, "anthropic": true, "openai": true,
+		"opencode-go-deepseek": true, "opencode-go-alibaba": true,
+		"opencode-go-minimax": true, "opencode-go-openai": true,
 	}
 	var parsed struct {
 		Transports map[string]struct {

@@ -284,6 +284,8 @@ req/day on this account (≥ $10 lifetime purchased credits; 50/day otherwise), 
 against the daily quota — space probes, never retry-loop a 429, and avoid concurrent agentic
 runs on free models.
 
+`opencode_go` (FLEET-038) is a second, distinct transport sharing the `opencode` binary, env, argv_template, input_channel, and output_format but with `quota_class: subscription` and its own five vendor-branded models (`opencode-go/deepseek-v4-flash`, `opencode-go/deepseek-v4-pro`, `opencode-go/qwen3.7-plus`, `opencode-go/minimax-m3`, `opencode-go/gpt-5.6-luna`), never folded into the api-quota `opencode` block. It is declared as policy data only and stays unrouted — reachable only via explicit `--agent opencode_go` until a future smoke-gated commit adds real `quorum fleet smoke opencode_go` evidence (`docs/fleet-run-for-agents.md` section 7.8, currently an empty placeholder).
+
 ## High-level architecture
 
 ### Lifecycle artifacts (`00`→`07`)
