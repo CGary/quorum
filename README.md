@@ -69,6 +69,7 @@ Quorum es un framework **AI-first** para ejecutar funcionalidades complejas medi
 - Enrutamiento dinámico en runtime y tuning empírico de umbrales — ver `ideas/9-enrutamiento-runtime-y-tuning.md`.
 - Recuperación automática en runtime tras fallo (auto-retry, re-blueprint automático) — ver `ideas/10-recuperacion-runtime-tras-fallo.md`.
 - Protocolo BLOCKED estructurado con pregunta de contexto rico (schema de pregunta más allá del `missing_file` que ya parsea `ParseBlockedSignal`) — ver `ideas/fleet/12-protocolo-blocked-pregunta-rica.md`.
+- Capacidad declarada por celda para consumidores externos de `quorum fleet run` (`.agents/policies/model-capability.yaml`; `agents.yaml` la prohíbe por ADR 0010) — ver `ideas/fleet/23-capacidad-por-celda-sidecar-para-fleet-run.md`.
 - Renegociación automática de contrato — ver `docs/adr/0002-defer-contract-renegotiation-protocol.md`.
 - Shadow merge / pre-merge gate automático.
 - Auto-rebase.

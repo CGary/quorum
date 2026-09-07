@@ -36,6 +36,7 @@ con `git mv` preservando historia y cada doc lleva un banner de estado). Este í
 | 20 — registro persistente de runs en `fleet run` | ⛔ diferida (rechazada en revisión 2026-07-31; gate: 2–3 semanas de evidencia `tee` desde el invocador) | `ideas/fleet/20-registro-runs-fleet-run.md` |
 | 21 — gemini-3.6-flash en `agy` base (one-shot) | ✅ implementada (2026-07-31, diseño ampliado: catálogo simétrico + campo `mode` por transporte + filtro por capacidad en `core.Route`; smoke one-shot 3/3) | `ideas/fleet/21-gemini-36-en-agy-base.md` |
 | 22 — medición del ahorro (campos de coste en el ledger + agregador) | 🚧 diferida (decisión del usuario 2026-08-02: implementar después con calma; gate: ~10 tareas con `/q-orchestrate` v1.7) | `ideas/fleet/22-medicion-ahorro-ledger.md` |
+| 23 — capacidad declarada por celda para consumidores externos de `fleet run` (`.agents/policies/model-capability.yaml`, no en `agents.yaml`) | 📝 propuesta (2026-09-06, revisada adversarialmente; decisiones abiertas pendientes del humano; requiere adenda de una frase al ADR 0010, no toca `agents.schema.json` ni `core.Route`) | `ideas/fleet/23-capacidad-por-celda-sidecar-para-fleet-run.md` |
 
 ## Decisiones ya tomadas (no re-litigar en los briefs)
 
