@@ -338,18 +338,6 @@ transports:
       # lives on the opencode transport. Note: the six were validated via
       # opencode (agentic) and single-shot codegen; aider-specific pass rates
       # are pending their own validation round.
-      nvidia/nemotron-3-ultra-550b-a55b-free:
-        provider: openrouter-nvidia
-        model_arg: openrouter/nvidia/nemotron-3-ultra-550b-a55b:free
-        max_cost_per_call_usd: 0.5
-      nvidia/nemotron-3-nano-omni-30b-a3b-reasoning-free:
-        provider: openrouter-nvidia
-        model_arg: openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
-        max_cost_per_call_usd: 0.5
-      poolside/laguna-xs-2.1-free:
-        provider: openrouter-poolside
-        model_arg: openrouter/poolside/laguna-xs-2.1:free
-        max_cost_per_call_usd: 0.5
       cohere/north-mini-code-free:
         provider: openrouter-cohere
         model_arg: openrouter/cohere/north-mini-code:free
@@ -439,13 +427,10 @@ transports:
       # map key (same doubled-string precedent as openrouter/free above:
       # model_arg carries the exact, colon-preserving string opencode's -m
       # flag needs; the canonical key only has to be schema-valid).
-      nvidia/nemotron-3-ultra-550b-a55b-free:
-        provider: openrouter-nvidia
-        model_arg: openrouter/nvidia/nemotron-3-ultra-550b-a55b:free
       # The five entries below were validated agentic 2026-07-15 in the same
       # evaluation (hidden 9-case test via opencode tool-use loop, PASS 9/9
       # each; see docs/fleet-run-for-agents.md section 7). Same ":free" ->
-      # "-free" canonical-key transform documented on the ultra entry above;
+      # "-free" canonical-key transform documented in the comment above;
       # re-validate periodically (docs section 7.7). Ordered by measured
       # agentic speed (11s / 12s / 14s / 19s / 72s).
       # 2026-08-26: added after an availability campaign (N=8 serial probes
@@ -456,12 +441,6 @@ transports:
       nvidia/nemotron-3-super-120b-a12b-free:
         provider: openrouter-nvidia
         model_arg: openrouter/nvidia/nemotron-3-super-120b-a12b:free
-      nvidia/nemotron-3-nano-omni-30b-a3b-reasoning-free:
-        provider: openrouter-nvidia
-        model_arg: openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
-      poolside/laguna-xs-2.1-free:
-        provider: openrouter-poolside
-        model_arg: openrouter/poolside/laguna-xs-2.1:free
       cohere/north-mini-code-free:
         provider: openrouter-cohere
         model_arg: openrouter/cohere/north-mini-code:free

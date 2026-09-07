@@ -36,11 +36,15 @@ levels:
     # independent quota class (opencode/OpenRouter api); levels 1-3 all hang
     # off the single antigravity subscription, so depth is spent HERE: five
     # cells with max_attempts 4 in routing.yaml = the whole chain is reachable.
-    primary: nvidia/nemotron-3-ultra-550b-a55b-free
-    fallback: nvidia/nemotron-3-super-120b-a12b-free
-    secondary:
-      - cohere/north-mini-code-free
-      - nvidia/nemotron-3-nano-omni-30b-a3b-reasoning-free
+    # 2026-09-07 (human decision): nvidia/nemotron-3-ultra-550b REMOVED from the
+    # catalog and every route slot for latency -- 74-77s wall time on a trivial
+    # one-word prompt (2 rounds) vs 4-20s for every other free cell. laguna-xs
+    # (16-40s) removed from the catalog too (it was unrouted). Chain shifted up.
+    # 2026-09-07 (human decision): nano-omni removed too -- 119s on the M-task
+    # probe (slowest remaining cell; super-120b 23s, north-mini 55s). Level 0
+    # is now a two-cell chain with no secondary.
+    primary: nvidia/nemotron-3-super-120b-a12b-free
+    fallback: cohere/north-mini-code-free
     # openrouter/free is deliberately NOT routed: it is an auto-router, not a
     # model, and it is hardcoded as the aider adapter's availability default
     # (internal/core/fleet_adapter_aider.go). TestFleetRouteRealPolicyFilesG1Cell
@@ -131,7 +135,10 @@ levels:
       # in secondary, but nemotron itself (this entry) was always the real
       # subscription escape -- the prior comment's claim that 3.5-flash-medium
       # was the "ONLY escape" was incorrect and is corrected here.
-      - nvidia/nemotron-3-ultra-550b-a55b-free
+      # 2026-09-07: ultra-550b removed for latency (see level 0); super-120b
+      # keeps this slot as the level's cross-quota escape (8/8 availability
+      # 2026-08-26; 5-19s on the 2026-09-07 latency probe).
+      - nvidia/nemotron-3-super-120b-a12b-free
     max_cost_per_call_usd: 0.50
 
   2:
