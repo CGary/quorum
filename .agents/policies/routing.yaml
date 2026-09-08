@@ -59,7 +59,7 @@ rules:
     max_attempts: 2
     human_gate_required: false
 # 2026-08-26 (human ladder rebalance): {high, L} promotes to the new level 3
-  # (critical tier: 3.7-flash-high -> 3.1-pro), WITH a human gate — critical
+  # (critical tier: 3.7-flash-high -> opencode-go/deepseek-v4-pro), WITH a human gate — critical
   # dispatches are confirmed, not just displayed (exception to v2
   # auto-dispatch, human decision 2026-08-26).
   - match: {phase: implement, risk: high, band: L}

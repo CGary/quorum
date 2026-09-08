@@ -537,16 +537,20 @@ https://openrouter.ai/docs/api-reference/limits):
   daily quota, so a retry loop against a saturated model burns the day's
   budget while returning nothing.
 
-### 7.8 OpenCode Go: deferred smoke campaign (FLEET-038, evidence pending)
+### 7.8 OpenCode Go: smoke campaign (FLEET-038)
 
-`opencode_go` (FLEET-038) is declared as policy data only and currently has no empirical smoke evidence. It is unrouted and not referenced by any `routing.yaml` level or `config.yaml.levels` block.
+`opencode_go` (FLEET-038) was declared as policy data on 2026-09-04 with no empirical evidence. On 2026-09-07 `opencode-go/deepseek-v4-pro` was smoked with the section 7.1 M-layer methodology (`quorum fleet run --agent opencode_go`, agentic, isolated scratch git repo reset between trials, two-file task `store.go` + `report.go` graded by a hidden 15-subtest Go test the model never saw). Raw envelopes, prompt, hidden test, runner and generated code: `~/.claude/skills/fleet-delegate/raw-runs/2026-09-07-opencode_go-deepseek-v4-pro-smoke/`; ledger lines in `~/.claude/skills/fleet-delegate/ledger.jsonl`.
+
+Routing consequence (2026-09-08, human decision): `deepseek-v4-pro` is the **level-3 fallback** in `config.yaml`, replacing `google/gemini-3.1-pro-high` (1/4 dispatch success), and the four `gemini-3.1-pro-*` catalog entries were retired from both agy transports.
+
+The other four cells were routed the same day **by human decision without smoke evidence** ("option 2"), following the placement ratified on 2026-09-06 during the FLEET-038 plan, and then — a second human decision the same day — **promoted to `primary` of every level**: `deepseek-v4-flash` level 0, `qwen3.7-plus` level 1, `minimax-m3` level 2, `deepseek-v4-pro` level 3 (with `gpt-5.6-luna` as its fallback). The former primary/fallback of each level shifted down one slot (level 0: nemotron-super → north-mini; level 1: sonnet → opus → nemotron-super; level 2: 3.6-flash-high → 3.7-flash-medium; level 3: 3.7-flash-high). Rationale: the Antigravity subscription is exhausted and the OpenCode Go subscription is the live quota, so it takes the first attempt and Antigravity/OpenRouter become the reroute path. Their rows below stay "not yet smoked" until a campaign fills them; treat their first real dispatches as the evidence.
 
 | Model ID | model_arg | pass@10 | Notes |
 |----------|-----------|---------|-------|
-| `opencode-go/deepseek-v4-flash` | `opencode-go/deepseek-v4-flash` | not yet smoked | |
-| `opencode-go/deepseek-v4-pro` | `opencode-go/deepseek-v4-pro` | not yet smoked | |
-| `opencode-go/qwen3.7-plus` | `opencode-go/qwen3.7-plus` | not yet smoked | |
-| `opencode-go/minimax-m3` | `opencode-go/minimax-m3` | not yet smoked | |
-| `opencode-go/gpt-5.6-luna` | `opencode-go/gpt-5.6-luna` | not yet smoked | |
+| `opencode-go/deepseek-v4-flash` | `opencode-go/deepseek-v4-flash` | not yet smoked | PRIMARY of level 0 since 2026-09-08 (human decision, no evidence). |
+| `opencode-go/deepseek-v4-pro` | `opencode-go/deepseek-v4-pro` | **10/10** | 15/15 hidden subtests every trial; 15-27 s/trial; 0 extra files; 0 timeouts. Level-3 PRIMARY since 2026-09-08. |
+| `opencode-go/qwen3.7-plus` | `opencode-go/qwen3.7-plus` | not yet smoked | PRIMARY of level 1 since 2026-09-08 (human decision, no evidence). |
+| `opencode-go/minimax-m3` | `opencode-go/minimax-m3` | not yet smoked | PRIMARY of level 2 since 2026-09-08 (human decision, no evidence). |
+| `opencode-go/gpt-5.6-luna` | `opencode-go/gpt-5.6-luna` | not yet smoked | Fallback of level 3 since 2026-09-08 (human decision, no evidence). |
 
-Per the proven-before-new rule (AGENTS.md, 2026-08-26 ladder rebalance), no cell may be routed before this table is filled in with empirical smoke evidence.
+Per the proven-before-new rule (AGENTS.md, 2026-08-26 ladder rebalance), no cell may be routed before its row is filled in with empirical smoke evidence. Caveat on record: this smoke measures agentic consistency on a synthetic M task, not capability on a real `{high, L}` feature — the same limit as every earlier campaign.

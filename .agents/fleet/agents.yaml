@@ -186,12 +186,6 @@ transports:
       google/gemini-3.6-flash-high:
         provider: google
         model_arg: Gemini 3.6 Flash (High)
-      google/gemini-3.1-pro-low:
-        provider: google
-        model_arg: Gemini 3.1 Pro (Low)
-      google/gemini-3.1-pro-high:
-        provider: google
-        model_arg: Gemini 3.1 Pro (High)
       openai/gpt-oss-120b:
         provider: openai
         model_arg: GPT-OSS 120B (Medium)
@@ -251,10 +245,13 @@ transports:
       google/gemini-3.6-flash-high:
         provider: google
         model_arg: Gemini 3.6 Flash (High)
-      # gemini-3.7-flash trio + gemini-3.1-pro duo (2026-08-26, human ladder
-      # rebalance): exposed agentic for the 4-level matrix (3.7 leads levels
-      # 2-3; 3.1-pro is the level-3 fallback). Routable only after agentic
-      # smoke 3/3 per cell.
+      # gemini-3.7-flash trio (2026-08-26, human ladder rebalance): exposed
+      # agentic for the 4-level matrix (3.7 leads levels 2-3). Routable only
+      # after agentic smoke 3/3 per cell.
+      # 2026-09-08 (human decision): the gemini-3.1-pro duo was RETIRED from
+      # both agy transports -- 1/4 dispatch success with one timeout, and the
+      # level-3 fallback slot moved to opencode-go/deepseek-v4-pro (smoke
+      # 10/10, docs/fleet-run-for-agents.md section 7.8).
       google/gemini-3.7-flash-low:
         provider: google
         model_arg: Gemini 3.7 Flash (Low)
@@ -264,12 +261,6 @@ transports:
       google/gemini-3.7-flash-high:
         provider: google
         model_arg: Gemini 3.7 Flash (High)
-      google/gemini-3.1-pro-low:
-        provider: google
-        model_arg: Gemini 3.1 Pro (Low)
-      google/gemini-3.1-pro-high:
-        provider: google
-        model_arg: Gemini 3.1 Pro (High)
       # Non-gemini subscription cells verified agentic under accept-edits (smoke 3/3, 2026-07-31).
       openai/gpt-oss-120b:
         provider: openai

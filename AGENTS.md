@@ -199,7 +199,7 @@ nemotron-3-nano-omni]; level 1 = claude-sonnet-4-6 → claude-opus-4-6 → [nvid
 (sonnet leads per 2026-08-27 human decision; gpt-oss-120b removed as redundancy); level 2
 ({high,S/M} and {low/medium,L}) = 3.6-flash-high → 3.7-flash-medium; level 3
 ({high,L}, catch-all, migration/security overrides — all with `human_gate_required: true`) =
-3.7-flash-high → 3.1-pro-high. Levels 2-3 carry no Claude cell and no free tail:
+3.7-flash-high → 3.1-pro-high (superseded 2026-09-08, see below). Levels 2-3 carry no Claude cell and no free tail:
 an exhausted chain BLOCKS and returns to the human instead of degrading. The codex cells were
 removed from every route slot (subscription retired; catalog entries and the kill-switch state
 remain).
@@ -214,6 +214,25 @@ interim kill-switch entries for `agy_edit/google/gemini-3.5-flash-{high,medium}`
 pending a smoke campaign (proven-before-new rule applies; no routing change implied). The
 hexcell copy of `config.yaml` / `agents.yaml` / `agents.schema.json` is NOT updated by this
 repo's merge — propagate by hand.
+
+**2026-09-08 (human decision): DeepSeek enters level 3; Gemini 3.1 Pro retired.**
+`opencode-go/deepseek-v4-pro` (transport `opencode_go`, OpenCode Go subscription) passed an
+agentic smoke pass@10 = 10/10 on the M-task hidden test (2026-09-07, 15-27 s/trial;
+`docs/fleet-run-for-agents.md` section 7.8) and REPLACES `google/gemini-3.1-pro-high` as the
+level-3 fallback (chain: 3.7-flash-high → deepseek-v4-pro). The four `gemini-3.1-pro-*` catalog
+entries (1/4 dispatch success, one timeout) were removed from both agy transports. Level 3 is
+now cross-provider by construction: primary on the Antigravity subscription, fallback on the
+OpenCode Go subscription, so an exhausted Antigravity quota no longer leaves it without a
+routable cell. The same day (human decision, "option 2": route by decision, smoke pending) the
+OpenCode Go placement ratified on 2026-09-06 was applied and then PROMOTED TO PRIMARY of every
+level (Antigravity quota exhausted; OpenCode Go is the live subscription). Chains as of
+2026-09-08: level 0 = deepseek-v4-flash → nemotron-3-super-120b → [north-mini-code]; level 1 =
+qwen3.7-plus → claude-sonnet-4-6 → [claude-opus-4-6, nemotron-3-super-120b]; level 2 =
+minimax-m3 → 3.6-flash-high → [3.7-flash-medium]; level 3 = deepseek-v4-pro → gpt-5.6-luna →
+[3.7-flash-high]. Only deepseek-v4-pro has smoke evidence (section 7.8); the other four Go
+cells carry NONE and their first real dispatches are the evidence — watch `quorum fleet stats`. Also on 2026-09-07:
+`nemotron-3-ultra-550b`, `laguna-xs-2.1` and `nemotron-3-nano-omni` were removed from the
+catalog for latency; level 0 is now `super-120b → north-mini-code` with no secondary.
 
 **Tooling shipped with the retirement (FLEET-036 / FLEET-037, merged 2026-09-04).**
 (1) `wrapper_signatures` — a per-transport list in `agents.yaml` (validated by

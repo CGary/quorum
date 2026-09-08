@@ -310,8 +310,9 @@ func TestFleetRouteTraceAppend(t *testing.T) {
 }
 
 // TestFleetRouteRealPolicyFilesG1Cell is AC-5: against the REAL repo policy
-// files, phase=implement/risk=low/band=S resolves to opencode (the transport
-// carrying the ratified free-first level-0 primary, 2026-08-09 reordering) +
+// files, phase=implement/risk=low/band=S resolves to opencode_go (the transport
+// carrying the ratified level-0 primary since the 2026-09-08 OpenCode Go
+// promotion; it was opencode under the 2026-08-09 free-first ordering) +
 // the level-0 primary declared in config.yaml, and none of the G1 cell-set
 // model-name literals (read from config, never embedded here) appears in any
 // cmd/ or internal/ .go source.
@@ -331,8 +332,8 @@ func TestFleetRouteRealPolicyFilesG1Cell(t *testing.T) {
 	if res.Candidate == nil {
 		t.Fatalf("want a candidate, got blocked=%q reasons=%v", res.Blocked, res.Reasons)
 	}
-	if res.Candidate.Agent != "opencode" {
-		t.Errorf("agent: got %q want opencode", res.Candidate.Agent)
+	if res.Candidate.Agent != "opencode_go" {
+		t.Errorf("agent: got %q want opencode_go", res.Candidate.Agent)
 	}
 	if res.Candidate.Model != primary {
 		t.Errorf("model: got %q want level-0 primary %q", res.Candidate.Model, primary)
