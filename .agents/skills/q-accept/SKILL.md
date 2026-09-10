@@ -68,6 +68,25 @@ cat << 'EOF' | quorum analyze contract-check
 EOF
 ```
 
+### Paso opcional: digest externo de artefactos (opencode_go)
+
+Construye `prompt.txt` con los artefactos que este skill ya lee: `00-spec.yaml` +
+`01-blueprint.yaml` + `02-contract.yaml` + `05-validation.json` +
+`06-review.json` + `07-trace.json` (si existe) + `git status`/`git diff
+--stat` del worktree. Ejecuta:
+
+```bash
+quorum fleet run --agent opencode_go --model <celda> --cwd "$(mktemp -d)" \
+  --input prompt.txt --timeout 300 --no-input --json --output out.jsonl
+```
+
+`--cwd` es un directorio VACÍO (solo el bundle, sin acceso al repo). Extrae el
+texto: concatena `part.text` de cada línea de `out.jsonl` con `type ==
+"text"`. Es un digest CANDIDATO, no un gate: Claude sigue chequeando cada ítem
+del Checklist (1-10) por sí mismo antes de reportar `ready`/`not_ready`; nada
+de la compuerta de aceptación se delega. Opcional y advisory; si `quorum
+fleet run --agent opencode_go --dry-run` falla, saltealo.
+
 ## Output
 
 This mini-report is user-visible: emit it in Spanish and do not copy English labels. Use this format:

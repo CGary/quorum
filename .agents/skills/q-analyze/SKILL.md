@@ -114,6 +114,27 @@ Report:
 
 This pass is strictly read-only: do not persist the report, do not edit `decomposition`, do not edit child specs, and do not run `quorum task back`, `blueprint`, `start`, `split`, `clean`, or any other state transition.
 
+### Paso opcional: borrador externo (opencode_go)
+
+Construye `prompt.txt` con los artefactos que este skill ya lee: `00-spec.yaml` +
+`01-blueprint.yaml` + `02-contract.yaml` + los schemas/policies relevantes
+(`.agents/schemas/*.schema.json`, `.agents/policies/*.yaml`). Ejecuta:
+
+```bash
+quorum fleet run --agent opencode_go --model <celda> --cwd "$(mktemp -d)" \
+  --input prompt.txt --timeout 300 --no-input --json --output out.jsonl
+```
+
+`--cwd` es un directorio VACÍO (solo el bundle, sin acceso al repo). Extrae el
+texto: concatena `part.text` de cada línea de `out.jsonl` con `type ==
+"text"`. Trata el resultado como una lista CANDIDATA de posibles findings —
+Claude la verifica ítem por ítem contra los artefactos reales antes de
+aceptar cualquiera; nada de la salida externa se persiste sin esa
+verificación. Los findings que Claude confirma se integran al pipeline
+normal: ejecuta `quorum analyze feedback-partition` sobre ellos para
+mantener el default de categoría `semantic` preservado. Es opcional y
+advisory; si `quorum fleet run --agent opencode_go --dry-run` falla, saltealo.
+
 ## Feedback Artifact
 
 When findings exist, also persist a backward feedback channel for planning skills:

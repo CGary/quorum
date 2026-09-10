@@ -27,19 +27,41 @@ rules:
     # Worst case before the level blocks: 2 real attempts at 600s = ~20 min.
     max_attempts: 4
 
+  # phase: review (2026-09-09) — external pre-read for q-review. Same level as
+  # implement so the reviewer is never weaker; the caller passes
+  # incumbent_family (implementer's family) and exclusions so core.Route
+  # prefers a different family. Advisory only: Claude authors 06-review.json;
+  # verify.commands stay the gate (Rule 4).
+  - match: {phase: review, risk: low, band: S}
+    executor_level: 0
+    reviewer_required: true
+    max_attempts: 1
+
   # medium-or-M cells -> level 1.
   - match: {phase: implement, risk: low, band: M}
     executor_level: 1
     reviewer_required: true
     max_attempts: 2
+  - match: {phase: review, risk: low, band: M}
+    executor_level: 1
+    reviewer_required: true
+    max_attempts: 1
   - match: {phase: implement, risk: medium, band: S}
     executor_level: 1
     reviewer_required: true
     max_attempts: 2
+  - match: {phase: review, risk: medium, band: S}
+    executor_level: 1
+    reviewer_required: true
+    max_attempts: 1
   - match: {phase: implement, risk: medium, band: M}
     executor_level: 1
     reviewer_required: true
     max_attempts: 2
+  - match: {phase: review, risk: medium, band: M}
+    executor_level: 1
+    reviewer_required: true
+    max_attempts: 1
 
   # high-or-L cells -> level 2. 2026-08-09 (human decision, v2 auto-dispatch):
   # human_gate_required flipped to false across the matrix — dispatch decisions
@@ -51,21 +73,37 @@ rules:
     reviewer_required: true
     max_attempts: 2
     human_gate_required: false
+  - match: {phase: review, risk: low, band: L}
+    executor_level: 2
+    reviewer_required: true
+    max_attempts: 1
   - match: {phase: implement, risk: medium, band: L}
     executor_level: 2
     reviewer_required: true
     max_attempts: 2
     human_gate_required: false
+  - match: {phase: review, risk: medium, band: L}
+    executor_level: 2
+    reviewer_required: true
+    max_attempts: 1
   - match: {phase: implement, risk: high, band: S}
     executor_level: 2
     reviewer_required: true
     max_attempts: 2
     human_gate_required: false
+  - match: {phase: review, risk: high, band: S}
+    executor_level: 2
+    reviewer_required: true
+    max_attempts: 1
   - match: {phase: implement, risk: high, band: M}
     executor_level: 2
     reviewer_required: true
     max_attempts: 2
     human_gate_required: false
+  - match: {phase: review, risk: high, band: M}
+    executor_level: 2
+    reviewer_required: true
+    max_attempts: 1
 # {high, L} promotes to level 3 (critical tier).
   # 2026-08-26 put a human gate on every rule that reaches level 3 — critical
   # dispatches confirmed, not just displayed. 2026-09-09 (human decision)
@@ -83,6 +121,10 @@ rules:
     reviewer_required: true
     max_attempts: 2
     human_gate_required: false
+  - match: {phase: review, risk: high, band: L}
+    executor_level: 3
+    reviewer_required: true
+    max_attempts: 1
 
   # Catch-all safe default (any non-implement phase or unanticipated value).
   # 2026-08-26: promoted to level 3 with the ladder rebalance.

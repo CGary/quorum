@@ -86,6 +86,27 @@ Run automated structural and contract analysis before inspecting the diff by han
 > [!IMPORTANT]
 > **ANTI-ANCHORING GUARDRAIL**: The FACTS block contains deterministic evidence, NOT a verdict. The absence of automatic contract violations or acceptance-coverage gaps must NEVER be treated as automatic approval. Automatic checks only evaluate what they were built to measure (touch/forbid globs, line/file limits, AC-id mapping, exit codes), never semantic correctness or software design quality. You MUST still perform the full Inspect Diff step by hand and report any semantic finding or defect that no automatic check covers.
 
+### Paso opcional: pre-lectura externa del diff (opencode_go)
+
+**Cuándo (default ON).** Ejecuta este paso por defecto si `.ai/tasks/active/<TASK>/07-trace.json` muestra que el implement fue un delegado externo (`attempts[].phase == "execute"` con `agent`/`model` presentes) o si el diff supera ~300 líneas. Salteálo si `quorum fleet run --agent opencode_go --dry-run` falla (transporte no disponible).
+
+**Cómo.**
+
+1. `git worktree add --detach <scratchpad>/review-<TASK_ID> ai/<TASK_ID>`
+2. Construye `prompt.txt` en inglés con: un protocolo fijo de revisión (listar hallazgos como `{file, line, severity, claim, evidence}`; refutarse a sí mismo antes de reportar; NUNCA emitir un veredicto) + `00-spec.yaml` + `01-blueprint.yaml` + `02-contract.yaml` + `05-validation.json` + `git diff <BASE_BRANCH>...ai/<TASK_ID>`.
+3. Elige la celda con `quorum fleet route`, stdin:
+   ```bash
+   echo '{"task_id":"<TASK_ID>","phase":"review","risk":"<risk>","complexity_band":"<band>","incumbent_family":"<familia del implementador según 07-trace>"}' | quorum fleet route
+   ```
+   Si no resuelve, cae a `~/.claude/skills/think-cheap/scripts/rung0-cells.py --mode agentic --class standard`.
+4. Ejecuta `quorum fleet run --agent opencode_go --model <celda> --cwd <scratchpad>/review-<TASK_ID> --input prompt.txt --timeout 300 --no-input --json --output out.jsonl`.
+5. Extrae el texto: concatena `part.text` de cada línea del `--output` con `type == "text"`.
+6. `git worktree remove --force <scratchpad>/review-<TASK_ID>`.
+
+**Qué es (ADVISORY, nunca gate).** Claude lee los hallazgos devueltos, verifica cada uno contra el diff con sus propios ojos, y es quien escribe `06-review.json`. La salida externa NUNCA fija `verdict` — eso sigue siendo decisión de Claude en el paso 4. Registra la celda usada en el campo `notes[]` de `06-review.json` (ver `.agents/schemas/review.schema.json`; si ningún campo existente encaja, deja la mención solo en el reporte en español al usuario, no inventes un campo nuevo).
+
+**Reporte al usuario (una línea, en español):** celda usada, segundos que tardó, cantidad de hallazgos devueltos, y que el veredicto final es de Claude.
+
 ### 3. Inspect Diff
 
 Run:
@@ -179,7 +200,7 @@ Pasos siguientes (los despacha el orquestador, NO yo):
   1. [Obligatorio] /q-implement <TASK_ID> — aplicar los fix_tasks listados en 06-review.json.
   2. [Obligatorio después] /q-verify <TASK_ID> y luego /q-review <TASK_ID> de nuevo para cerrar el loop.
 - Si Veredicto == reject:
-  1. [Obligatorio] Escalación humana — la implementación o el contrato tienen defectos fundamentales. Considerá quorum task back <TASK_ID> hasta el punto correcto y rediseñar.
+  1. [Obligatorio] Escalación humana — la implementación o el contrato tienen defectos fundamentales. Considera quorum task back <TASK_ID> hasta el punto correcto y rediseñar.
 
 Si querés volver atrás:
 - [ROOT] quorum task back <TASK_ID> — borra worktree y rama (perdés commits no mergeados).
