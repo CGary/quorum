@@ -686,3 +686,49 @@ func TestFleetRunDryRun(t *testing.T) {
 		t.Fatal("--dry-run must not run a delegate")
 	}
 }
+
+// TestFleetRunRefusesInactiveTransport pins the 2026-09-09 retirement guarantee:
+// a transport marked active:false must be unreachable from `fleet run` too, not
+// only from `fleet dispatch`. Before this, `fleet run` honored neither `active:`
+// nor .ai/fleet-control.json, so a skill with a hardcoded --agent could still
+// exec a provider that had been retired in every policy file. The delegate must
+// not run at all — the marker file proves it.
+func TestFleetRunRefusesInactiveTransport(t *testing.T) {
+	root, marker := setupFleetRunProject(t)
+	agentsPath := filepath.Join(root, ".agents", "fleet", "agents.yaml")
+	raw, err := os.ReadFile(agentsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	retired := strings.Replace(string(raw), "active: true", "active: false", 1)
+	if retired == string(raw) {
+		t.Fatal("fixture no longer declares active: true; this test would be vacuous")
+	}
+	if err := os.WriteFile(agentsPath, []byte(retired), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var out, errBuf bytes.Buffer
+	code := runFleetRun(fleetRunParams{
+		Agent: "fake", Model: "anthropic/claude-sonnet-4-6", Cwd: root,
+		Input: writePromptFile(t, root), NoInput: true, JSON: true, ProjectRoot: root,
+	}, &out, &errBuf)
+
+	if code == 0 {
+		t.Fatalf("want non-zero exit for an inactive transport, got 0: %s", out.String())
+	}
+	var env map[string]any
+	if err := json.Unmarshal(out.Bytes(), &env); err != nil {
+		t.Fatalf("unmarshal error envelope: %v (%s)", err, out.String())
+	}
+	if ok, _ := env["ok"].(bool); ok {
+		t.Error("want ok:false")
+	}
+	e, _ := env["error"].(map[string]any)
+	if msg, _ := e["message"].(string); !strings.Contains(msg, "inactive") {
+		t.Errorf("want the message to name the cause, got %q", msg)
+	}
+	if _, err := os.Stat(filepath.Join(root, marker)); err == nil {
+		t.Error("the delegate binary ran despite the transport being inactive")
+	}
+}

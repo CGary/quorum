@@ -44,6 +44,9 @@ func TestFleetControlRoundTrip(t *testing.T) {
 
 func setupTempAgentsYaml(t *testing.T, root string) {
 	t.Helper()
+	// Isolate from any QUORUM_FLEET_AGENTS exported in the invoking shell:
+	// FleetAgentsPath honors it, and it would shadow this temp catalog.
+	t.Setenv("QUORUM_FLEET_AGENTS", "")
 	content := `
 transports:
   agy:
@@ -132,6 +135,7 @@ func TestFleetControlDisableAndEnable(t *testing.T) {
 
 func TestFleetControlConcurrency(t *testing.T) {
 	root := t.TempDir()
+	t.Setenv("QUORUM_FLEET_AGENTS", "") // see setupTempAgentsYaml
 	// write enough dummy models for 20 goroutines
 	agentsDir := filepath.Join(root, ".agents", "fleet")
 	os.MkdirAll(agentsDir, 0755)
@@ -175,5 +179,36 @@ func TestFleetControlSideEffectIsolation(t *testing.T) {
 	}
 	if string(b) != "{}" {
 		t.Fatalf("file changed!")
+	}
+}
+
+// TestFleetAgentsPathEnvOverride pins that control-state validation resolves
+// agents.yaml the same way dispatch does: QUORUM_FLEET_AGENTS first, project
+// root second. A consumer project sharing Quorum's catalog through the env var
+// has no .agents/fleet/ of its own, and without this the kill-switch CLI failed
+// there while route/dispatch worked.
+func TestFleetAgentsPathEnvOverride(t *testing.T) {
+	root := t.TempDir()
+	setupTempAgentsYaml(t, root)
+
+	if got, want := FleetAgentsPath(root), filepath.Join(root, ".agents", "fleet", "agents.yaml"); got != want {
+		t.Errorf("FleetAgentsPath without env = %q, want %q", got, want)
+	}
+
+	// A project root with no catalog of its own, pointed at the shared one.
+	consumer := t.TempDir()
+	if err := ValidateFleetTarget(consumer, "agy"); err == nil {
+		t.Fatal("want an error validating against a project root with no agents.yaml")
+	}
+
+	t.Setenv("QUORUM_FLEET_AGENTS", filepath.Join(root, ".agents", "fleet", "agents.yaml"))
+	if got, want := FleetAgentsPath(consumer), filepath.Join(root, ".agents", "fleet", "agents.yaml"); got != want {
+		t.Errorf("FleetAgentsPath with env = %q, want %q", got, want)
+	}
+	if err := ValidateFleetTarget(consumer, "agy"); err != nil {
+		t.Errorf("ValidateFleetTarget with QUORUM_FLEET_AGENTS set: %v", err)
+	}
+	if err := ValidateFleetTarget(consumer, "bogus-agent"); err == nil {
+		t.Error("want an unknown transport to still be rejected via the env-resolved catalog")
 	}
 }

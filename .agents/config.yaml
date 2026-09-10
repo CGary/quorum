@@ -1,3 +1,42 @@
+# Executor levels (ADR 0010): the POLICY half of routing. agents.yaml says how
+# to invoke a CLI; this file says which cell each level enters on. Model names
+# join agents.yaml by exact string match and never appear as Go literals.
+#
+# 2026-09-09 (human decision) -- FULL LADDER REBUILD ON OPENCODE GO.
+# What changed and why:
+#   * The Antigravity/Gemini subscription is GONE (same as codex 2026-07-27).
+#     Every google/* cell is unrouted; agy and agy_edit are kill-switched in
+#     .ai/fleet-control.json and active:false in agents.yaml. That also retires
+#     anthropic/claude-{sonnet,opus}-4-6, which existed ONLY on agy_edit.
+#   * The $0 OpenRouter cells (nvidia/*, cohere/*, poolside/*) are unrouted and
+#     their transports (opencode, aider) are active:false -- human decision the
+#     same day, "quitar los modelos free".
+#   * What remains is ONE live transport: opencode_go (OpenCode Go
+#     subscription). The ladder below is the human's own 8-cell ordering.
+#
+# Shape: four levels, exactly two cells each (primary -> fallback), no
+# secondary anywhere. An exhausted chain BLOCKS and returns to the human --
+# there is no free tail and no Claude rescuer left to degrade into.
+#
+# ACCEPTED RISK ON RECORD (human decision): every cell hangs off the SAME
+# subscription. Each level is still cross-FAMILY by construction (deepseek ->
+# alibaba, minimax -> tencent, deepseek -> moonshot, moonshot -> xai), which is
+# what the G1 test asserts, but an exhausted OpenCode Go quota blocks the whole
+# fleet at once. There is no independent quota class anywhere in the ladder.
+#
+# EVIDENCE STATUS (human decision, "rutear las 8 igual, smoke solo
+# informativo"): only opencode-go/deepseek-v4-pro carries agentic smoke
+# evidence (pass@10 = 10/10, 2026-09-07, docs/fleet-run-for-agents.md 7.8).
+# The other seven are routed by decision; the smoke campaign runs alongside and
+# DOCUMENTS rather than gates. This is a deliberate, recorded exception to the
+# proven-before-new rule in CLAUDE.md -- the same exception taken on 2026-09-08.
+#
+# Pre-2026-09-09 per-level causal traces were removed together with the cells
+# they described: every model routed before this date lives on a retired
+# subscription or a deactivated transport, so the notes documented ordering
+# decisions among cells that no longer exist. They remain recoverable in git
+# (commit aab5927 and earlier) and the dated narrative survives in AGENTS.md /
+# CLAUDE.md.
 levels:
   0:
     use_for:
@@ -5,63 +44,12 @@ levels:
       - tests
       - docs
       - mechanical_refactor
-    # 2026-08-09 (human decision, free-first ordering): the $0 OpenRouter
-    # free cells lead the chain and the Gemini-subscription cells close it,
-    # preserving subscription quota for interactive/orchestration use.
-    # NOTE: this supersedes the earlier G1 note that required the fallback
-    # to be cross-provider from the primary -- primary and fallback are now
-    # BOTH opencode/OpenRouter free cells (shared 20 req/min + daily quota,
-    # a rate-limit hits both together); the cross-provider jump now happens
-    # at secondary (agy_edit, subscription). core.Route still enumerates
-    # primary -> fallback -> secondary in fixed order.
-    # 3.5-flash-low is exposed on agy_edit (agentic smoke pass 2026-08-09)
-    # and sits LAST as the subscription backstop.
-    # 2026-08-09: laguna-m.1 was removed from OpenRouter (2.1 series replaced
-    # it; probes errored) -> swapped for poolside/laguna-s-2.1-free here and
-    # in level 1.
-    # 2026-08-26 (human ladder rebalance, 4-level matrix): free cells lead,
-    # gpt-oss-120b (subscription) closes as the only backstop. No Claude
-    # rescuer at this level: exhausting 4 cells on a trivial task should
-    # surface as blocked -> human, not burn strong quota. laguna-xs added
-    # after agentic smoke (2026-08-26 campaign). 3.5-flash-low unrouted
-    # (stays in catalogs for fleet run).
-    # 2026-08-26 (availability campaign, human decision): BOTH poolside cells
-    # removed from routing. Measured N=8 serial probes against the OpenRouter
-    # completions API: laguna-s 2/8, laguna-xs 3/8, every failure a 429
-    # "temporarily rate-limited upstream" -- provider-wide congestion, not our
-    # quota (/api/v1/key showed credit remaining and nvidia answered 8/8 in the
-    # same bursts). A cell that serves 1 in 4 first attempts makes the reroute
-    # the normal path instead of the safety net. Catalog entries kept (probe
-    # again before re-promoting). This level is now the ONLY one with an
-    # independent quota class (opencode/OpenRouter api); levels 1-3 all hang
-    # off the single antigravity subscription, so depth is spent HERE: five
-    # cells with max_attempts 4 in routing.yaml = the whole chain is reachable.
-    # 2026-09-07 (human decision): nvidia/nemotron-3-ultra-550b REMOVED from the
-    # catalog and every route slot for latency -- 74-77s wall time on a trivial
-    # one-word prompt (2 rounds) vs 4-20s for every other free cell. laguna-xs
-    # (16-40s) removed from the catalog too (it was unrouted). Chain shifted up.
-    # 2026-09-07 (human decision): nano-omni removed too -- 119s on the M-task
-    # probe (slowest remaining cell; super-120b 23s, north-mini 55s). Level 0
-    # is now a two-cell chain with no secondary.
-    # 2026-09-08 (human decision, option 2 -- route by decision, smoke pending):
-    # the OpenCode Go placement ratified on 2026-09-06 (FLEET-038 plan) is
-    # applied WITHOUT per-cell smoke evidence, first as a closing secondary and
-    # -- same day, human decision -- PROMOTED TO PRIMARY of every level, with
-    # the former primary/fallback shifted down one slot. The Go cell lives on
-    # the OpenCode Go subscription (transport opencode_go); the rest of the
-    # chain stays on Antigravity / OpenRouter, so every level is cross-
-    # subscription from its first reroute. Evidence status lives in
-    # docs/fleet-run-for-agents.md section 7.8; fill it as dispatches land.
     primary: opencode-go/deepseek-v4-flash
-    fallback: nvidia/nemotron-3-super-120b-a12b-free
-    secondary:
-      - cohere/north-mini-code-free
-    # openrouter/free is deliberately NOT routed: it is an auto-router, not a
-    # model, and it is hardcoded as the aider adapter's availability default
-    # (internal/core/fleet_adapter_aider.go). TestFleetRouteRealPolicyFilesG1Cell
-    # forbids any ROUTED level-0 model name from appearing as a Go literal, so
-    # routing it breaks that invariant. It stays in the catalogs for fleet run.
-    # max_cost_per_call_usd only binds transports with quota_class: api (ADR-A).
+    fallback: opencode-go/qwen3.8-flash
+    # max_cost_per_call_usd only binds transports with quota_class: api
+    # (ADR-A). Every routed cell is now quota_class: subscription, so this
+    # bound is inert -- kept so re-introducing an api transport is a one-line
+    # change, not a schema change.
     max_cost_per_call_usd: 0.15
 
   1:
@@ -69,97 +57,8 @@ levels:
       - review
       - diagnose_verify_failure
       - small_corrections
-    # Rebuilt 2026-07-31 after the hexcell-2 audit: this level owns {low,M},
-    # {medium,S} and {medium,M} -- the band most SDC tasks land in -- yet its
-    # chain resolved to nothing routable (codex disabled by kill-switch since
-    # 2026-07-27; the old google/gemini-3.1-pro-low fallback lives only on the
-    # oneshot `agy` transport, which core.Route excludes from implement), so
-    # every level-1 implement fell back to an internal Claude subagent.
-    # 2026-08-09 (human decision, free-first ordering): same rationale as
-    # level 0 -- $0 OpenRouter free cells lead, the Gemini-subscription
-    # cell (3.6-flash-low) closes the live chain as the subscription
-    # backstop. 3.6-flash-medium stays in the agy/agy_edit catalogs for
-    # fleet run but is no longer routed. Primary/fallback are both
-    # opencode/OpenRouter (shared rate limit); cross-provider jump happens
-    # at secondary. The codex cells stay reachable but last: that account
-    # is retired (kill-switch 2026-07-27) and its free credits are finite.
-    # 2026-08-26 (human ladder rebalance, 4-level matrix): free opens, flash
-    # 3.6 escalates effort, and the Anthropic pair closes as rare rescuers
-    # ("los baratos hacen el grueso, Claude rescata al final") -- a tail cell
-    # only runs after every cheaper cell FAILED the same task, so its
-    # expected cost is near zero. Codex cells removed from routing
-    # (subscription retired, human decision 2026-08-26; catalog entries and
-    # kill-switch state untouched).
-    # 2026-08-26 (family-per-level restructure, human decision): one model
-    # family per level so a failure is diagnosable. Level 1 owns the Anthropic
-    # pair + gpt-oss-120b + 3.5-flash-medium. Poolside removed (see level 0's
-    # availability note). Ordering is the HUMAN's: opus leads.
-    # >>> SUPERSEDED 2026-08-27: gpt-oss-120b removed and the Anthropic pair
-    # >>> reordered (sonnet leads). Kept here as the causal trace -- see the
-    # >>> 2026-08-27 note immediately above the primary key for the rationale.
-    # Recorded objection (mine, overruled by the human): opus is the cell the
-    # human reports as the weakest of the three in practice, and this level
-    # owns {low,M} + {medium,S} + {medium,M} -- three of the nine matrix rules,
-    # where most SDC tasks land. The counter-facts the human supplied and I
-    # verified: agy/agy_edit/codex all carry quota_class: subscription, so
-    # opus, sonnet and gpt-oss-120b share ONE quota pool and there is no
-    # per-token cost difference between them. My earlier "most expensive
-    # first" objection was therefore wrong and is withdrawn.
-    # What that shared pool does NOT fix: all three reachable cells here draw
-    # on the same quota, so an exhausted subscription kills the whole level at
-    # once (same failure shape as poolside at level 0). Level 0 is the only
-    # level with an independent quota class.
-    # 2026-08-27 (human decision): sonnet leads, opus follows, gpt-oss-120b is
-    # REMOVED. Rationale supplied by the human and recorded here: the opus cell
-    # served by agy_edit underperforms in practice, and this level owns the three
-    # matrix rules where most SDC tasks land -- putting the weakest-reported cell
-    # first was the worst possible placement. Since agy_edit is quota_class:
-    # subscription, opus and sonnet draw on the SAME pool, so there is no cost
-    # argument for either order; capability decides, and this reverses the
-    # 2026-08-26 ordering in the direction the human's own field evidence pointed.
-    # gpt-oss-120b dropped as redundancy, not depth: same transport, same quota
-    # pool, comparable capability to the Anthropic pair -- a third draw on an
-    # exhausted subscription is not a fallback.
-    # 2026-09-08 (human decision, option 2 -- route by decision, smoke pending):
-    # the OpenCode Go placement ratified on 2026-09-06 (FLEET-038 plan) is
-    # applied WITHOUT per-cell smoke evidence, first as a closing secondary and
-    # -- same day, human decision -- PROMOTED TO PRIMARY of every level, with
-    # the former primary/fallback shifted down one slot. The Go cell lives on
-    # the OpenCode Go subscription (transport opencode_go); the rest of the
-    # chain stays on Antigravity / OpenRouter, so every level is cross-
-    # subscription from its first reroute. Evidence status lives in
-    # docs/fleet-run-for-agents.md section 7.8; fill it as dispatches land.
-    primary: opencode-go/qwen3.7-plus
-    fallback: anthropic/claude-sonnet-4-6
-    secondary:
-      - anthropic/claude-opus-4-6
-      # Cross-transport tail (human decision 2026-08-26, option A; RETAINED
-      # through the 2026-08-27 prune). The two cells above (sonnet-4-6,
-      # opus-4-6) all live on agy_edit, so a single kill-switch entry for that
-      # transport would block the whole level -- caught by
-      # TestFleetRouteLevel1DegradesWhenCodexDisabled (AC-4), which has asserted
-      # since 2026-07-31 that disabling level 1's live primary must degrade to a
-      # cross-provider fallback, never block. This cell restores that guarantee.
-      # It is UNREACHABLE in normal operation (max_attempts 2 = 3 cells, and the
-      # two above plus this one fill them exactly); it only surfaces when the
-      # cells ahead are disabled or excluded -- which is exactly the scenario
-      # AC-4 protects.
-      # It is the level's ONLY escape from the antigravity subscription:
-      # without it, levels 1, 2 and 3 would all hang off one quota class and one
-      # transport, and would block simultaneously when that pool is exhausted --
-      # the same failure shape that removed poolside from level 0.
-      # Chosen for measured availability: 8/8 on the 2026-08-26 probe campaign
-      # and 1/1 in real dispatch.
-      # 2026-09-03: google/gemini-3.5-flash-medium REMOVED from this secondary
-      # slot. Provider retired Gemini 3.5 Flash (incident HEX-060; live agy
-      # catalog verified 2026-09-03). The cell was the only non-nemotron entry
-      # in secondary, but nemotron itself (this entry) was always the real
-      # subscription escape -- the prior comment's claim that 3.5-flash-medium
-      # was the "ONLY escape" was incorrect and is corrected here.
-      # 2026-09-07: ultra-550b removed for latency (see level 0); super-120b
-      # keeps this slot as the level's cross-quota escape (8/8 availability
-      # 2026-08-26; 5-19s on the 2026-09-07 latency probe).
-      - nvidia/nemotron-3-super-120b-a12b-free
+    primary: opencode-go/minimax-m3
+    fallback: opencode-go/hy3
     max_cost_per_call_usd: 0.50
 
   2:
@@ -167,68 +66,9 @@ levels:
       - surgical_cartography
       - high_risk_arch
       - ambiguous_features
-    # 2026-08-26 (human ladder rebalance, 4-level matrix): dangerous-or-large
-    # work (high+S/M, low/medium+L). Enters on 3.6-flash-high (proven cell)
-    # and escalates into the new 3.7 trio ("mas nuevo != mejor hasta que el
-    # ledger lo diga": 3.7 earns promotion with evidence, like 3.6 did).
-    # One model, one home (human rule 2026-08-26): no Claude duplicate here
-    # -- an exhausted chain surfaces as blocked -> human. Codex cells removed
-    # from routing (subscription retired).
-    # 2026-08-26 (family-per-level restructure, human decision): level 2 is the
-    # 3.5-high + 3.6 pair. The chain is NOT monotonic in effort (high -> medium
-    # -> high) and that is deliberate: a fleet chain is a resilience chain, not
-    # an escalation ladder -- each candidate runs only after the previous one
-    # FAILED the same task, so alternating generation breaks the failure
-    # pattern better than repeating the same family at more effort.
-    # >>> SUPERSEDED 2026-08-27: 3.6-flash-medium dropped, so the chain is now
-    # >>> two cells at constant high effort. The "alternating generation" point
-    # >>> survives (3.5 -> 3.6 still crosses generations); what did not survive
-    # >>> is the effort dip and the same-model-twice tail. Causal trace kept.
-    # RISK ON RECORD: 3.5-flash-high is the primary and has NO agentic smoke
-    # evidence (it is newly exposed on agy_edit by this same change). It is the
-    # first cell of {high,S}, {high,M}, {low,L} and {medium,L}. Run the 3/3
-    # smoke before trusting this level.
-    # 2026-08-27 (human decision): 3.6-flash-medium REMOVED, 3.6-flash-high
-    # promoted into the fallback slot; the chain is now two cells deep.
-    # Why this is an improvement in shape: the old chain ran high -> medium ->
-    # high (non-monotonic effort) and ended by repeating the SAME model at more
-    # effort, which is the weakest kind of depth -- once 3.6-flash-medium fails a
-    # task, 3.6-flash-high is the same model retried. The new chain crosses
-    # generations at constant (high) effort and repeats no model.
-    # RISK ON RECORD, now without margin: 3.5-flash-high is the primary of FOUR
-    # matrix rules ({high,S}, {high,M}, {low,L}, {medium,L}) and still has NO
-    # agentic smoke evidence -- it was newly exposed on agy_edit on 2026-08-26.
-    # With only two cells here, a bad primary leaves ONE live cell; and once
-    # q-orchestrate's evidence check auto-excludes a cell under 50% at n>=4, the
-    # level blocks. Run the 3/3 smoke on 3.5-flash-high before trusting level 2.
-    # max_attempts stays 2 in routing.yaml (budget 2 = 3 cells) while only two
-    # cells exist: the surplus jump is inert -- the router simply returns
-    # no_viable_candidate after the second -- and leaves room for a third cell.
-    # 2026-09-03: google/gemini-3.5-flash-high REMOVED as primary. Provider
-    # retired Gemini 3.5 Flash (incident HEX-060; live agy catalog verified
-    # 2026-09-03). The "RISK ON RECORD" comments above about 3.5-flash-high
-    # having NO agentic smoke evidence are now moot -- the cell is gone.
-    # New chain: 3.6-flash-high (primary, proven agentic) -> 3.7-flash-medium
-    # (fallback, exposed agentic 2026-08-26 campaign). One model, one home
-    # rule preserved; no Claude cell or free tail at this level.
-    # 2026-09-08 (human decision, option 2 -- route by decision, smoke pending):
-    # the OpenCode Go placement ratified on 2026-09-06 (FLEET-038 plan) is
-    # applied WITHOUT per-cell smoke evidence, first as a closing secondary and
-    # -- same day, human decision -- PROMOTED TO PRIMARY of every level, with
-    # the former primary/fallback shifted down one slot. The Go cell lives on
-    # the OpenCode Go subscription (transport opencode_go); the rest of the
-    # chain stays on Antigravity / OpenRouter, so every level is cross-
-    # subscription from its first reroute. Evidence status lives in
-    # docs/fleet-run-for-agents.md section 7.8; fill it as dispatches land.
-    primary: opencode-go/minimax-m3
-    fallback: google/gemini-3.6-flash-high
-    secondary:
-      - google/gemini-3.7-flash-medium
+    primary: opencode-go/deepseek-v4-pro
+    fallback: opencode-go/kimi-k2.7-code
     max_cost_per_call_usd: 3.00
-    # 2026-08-09 (human decision, v2 auto-dispatch): flipped to false — the
-    # router's decision is displayed, never confirmed, at every level. Narrow
-    # exceptions live in q-dispatch/q-orchestrate: codex candidates (finite
-    # credits) and migration/security type_overrides in routing.yaml.
     requires_human_gate: false
 
   3:
@@ -236,45 +76,15 @@ levels:
       - migrations
       - security
       - critical_high_risk_large
-    # 2026-08-26 (human ladder rebalance): new top level for {high, L}, the
-    # catch-all, and migration/security type_overrides. Led by 3.7-flash-high
-    # (flash series has the track record; 3.1-pro is the least-proven cell of
-    # the batch, so it serves as fallback, not primary -- human decision).
-    # No Claude cell and no free tail: for critical work, exhausting the
-    # chain must BLOCK and return to the human, never degrade silently.
-    # Routing.yaml puts human_gate_required: true on every cell that maps
-    # here.
-    # 2026-08-26 (family-per-level restructure, human decision): 3.7-flash-high
-    # + 3.1-pro-high. 3.7-flash-low/-medium removed (a level that enters at
-    # `high` should not carry lower-effort cells of its own family); 3.1-pro-low
-    # removed for the same reason. Both survivors are reachable now that
-    # routing.yaml raises max_attempts to 2 here.
-    # RISK ON RECORD: gemini-3.1-pro-high is the worst cell in the dispatch
-    # ledger -- 1/4 success (n=4) with one timeout -- and q-orchestrate's
-    # evidence check auto-excludes cells under 50% at n>=4. When that filter
-    # fires, this level has a SINGLE live cell for migrations and security.
-    # 2026-09-08 (human decision): 3.1-pro-high REPLACED by
-    # opencode-go/deepseek-v4-pro as the fallback (agentic smoke pass@10 =
-    # 10/10 on the M-task hidden test, 15-27 s/trial, 2026-09-07; section 7.8
-    # of docs/fleet-run-for-agents.md). Cross-provider by construction: the
-    # primary hangs off the Antigravity subscription (agy_edit) and the
-    # fallback off the OpenCode Go subscription (opencode_go), so an exhausted
-    # Antigravity quota no longer leaves this level without a routable cell.
-    # The four gemini-3.1-pro-* catalog entries were retired the same day.
-    # 2026-09-08 (human decision, option 2 -- route by decision, smoke pending):
-    # the OpenCode Go placement ratified on 2026-09-06 (FLEET-038 plan) is
-    # applied WITHOUT per-cell smoke evidence, first as a closing secondary and
-    # -- same day, human decision -- deepseek-v4-pro (smoked 10/10) PROMOTED TO PRIMARY, gpt-5.6-luna to fallback, with
-    # the former primary/fallback shifted down one slot. The Go cell lives on
-    # the OpenCode Go subscription (transport opencode_go); the rest of the
-    # chain stays on Antigravity / OpenRouter, so every level is cross-
-    # subscription from its first reroute. Evidence status lives in
-    # docs/fleet-run-for-agents.md section 7.8; fill it as dispatches land.
-    primary: opencode-go/deepseek-v4-pro
-    fallback: opencode-go/gpt-5.6-luna
-    secondary:
-      - google/gemini-3.7-flash-high
+    primary: opencode-go/kimi-k3
+    fallback: opencode-go/grok-4.6
     max_cost_per_call_usd: 3.00
+    # 2026-09-09 (human decision): level 3 behaves exactly like the others.
+    # The matching human_gate_required flags in routing.yaml were flipped to
+    # false the same day -- they were policy data no code ever read
+    # (cmd/fleet_route.go documents reviewer_required / human_gate_required /
+    # type_overrides / routes as silently ignored), so the gate was a promise
+    # the system did not keep. Removing it makes the data honest.
     requires_human_gate: false
 
 policies:
@@ -283,19 +93,12 @@ policies:
   system_commits: true
   human_merges: true
   # Deterministic transport preference order consumed by `quorum fleet route`
-  # when building the ordered candidate transport slice. Expresses the
-  # cross-provider reroute preference as DATA (not Go): agy_edit first so the
-  # gemini-3.6-flash models it exposes resolve to the agentic-editing variant
-  # (agy stays next and keeps owning every other gemini model for one-shot
-  # review/analysis), opencode before aider (cross-provider before the
-  # mechanical-single-file fallback), then codex (reactivated 2026-07-22 on
-  # finite free-tier credits) and claude (inactive) last.
-  # A transport absent from this list is unreachable via `fleet route`.
+  # when building the ordered candidate transport slice. A transport absent
+  # from this list is unreachable via `fleet route`.
+  # 2026-09-09: reduced to the only live transport plus claude (declared,
+  # active:false, kept for future activation per ADR 0010 section 5). agy,
+  # agy_edit, opencode, aider and codex are retired -- kill-switched and/or
+  # active:false -- and are deliberately NOT listed.
   fleet_transport_order:
-    - agy_edit
-    - agy
-    - opencode
     - opencode_go
-    - aider
-    - codex
     - claude

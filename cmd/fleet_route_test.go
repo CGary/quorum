@@ -156,13 +156,22 @@ func TestFleetRouteControlFileMissingAndMalformed(t *testing.T) {
 	})
 }
 
-// TestFleetRouteLevel1DegradesWhenCodexDisabled is AC-4, rewritten 2026-07-31
-// after the level-1 chain was rebuilt. Level 1 no longer depends on codex at
-// all: its primary is an agentic subscription cell and its fallback is a
-// cross-provider $0 cell, so a disabled codex is simply irrelevant to the
-// route. What AC-4 still asserts is that the kill-switch degrades gracefully
-// -- disabling the live primary target hands the route to the cross-provider
-// fallback (never a block, never an error), and re-enabling restores it.
+// TestFleetRouteLevel1DegradesWhenCodexDisabled is AC-4, rewritten 2026-09-09
+// after the ladder was rebuilt on a single transport. Level 1 has not depended
+// on codex since 2026-07-31, so a disabled codex is irrelevant to the route.
+// What AC-4 asserts now is what the current fleet can actually guarantee:
+// disabling the primary CELL (agent/model) hands the route to the fallback and
+// re-enabling restores it.
+//
+// What it deliberately no longer asserts: that disabling the whole primary
+// TRANSPORT degrades. Since 2026-09-09 every routed cell lives on opencode_go
+// (the OpenCode Go subscription) -- agy/agy_edit are retired with the
+// Antigravity subscription and the $0 OpenRouter transports are deactivated --
+// so a transport-level kill-switch BLOCKS the level by construction. That is
+// the accepted single-subscription risk recorded in .agents/config.yaml, and
+// the final step below pins it as observed behaviour rather than leaving it
+// undetected: if a second live transport is ever reintroduced, that step fails
+// and this test must be restored to its stronger 2026-07-31 form.
 func TestFleetRouteLevel1DegradesWhenCodexDisabled(t *testing.T) {
 	root := setupTempPolicyRoot(t)
 	reqJSON := `{"phase":"implement","risk":"medium","complexity_band":"S"}` // Level 1
@@ -201,15 +210,19 @@ func TestFleetRouteLevel1DegradesWhenCodexDisabled(t *testing.T) {
 		t.Errorf("codex disabled: level got %d want 1", primary.Level)
 	}
 
-	// 2. Disable the live primary agent too: the route must degrade to the
-	// cross-provider fallback, not block.
-	ctrlJSON = `{"disabled":[{"target":"codex","reason":"account retired"},{"target":"` + primary.Agent + `","reason":"simulated outage"}]}`
+	// 2. Disable the live primary CELL: the route must degrade to the level's
+	// fallback, not block.
+	primaryTarget := primary.Agent + "/" + primary.Model
+	ctrlJSON = `{"disabled":[{"target":"codex","reason":"account retired"},{"target":"` + primaryTarget + `","reason":"simulated outage"}]}`
 	if err := os.WriteFile(ctrlPath, []byte(ctrlJSON), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	degraded := routeOK(t, "primary disabled")
-	if degraded.Candidate.Agent == primary.Agent {
-		t.Fatalf("primary disabled: router picked the disabled agent %s/%s", degraded.Candidate.Agent, degraded.Candidate.Model)
+	degraded := routeOK(t, "primary cell disabled")
+	if degraded.Candidate.Model == primary.Model {
+		t.Fatalf("primary cell disabled: router picked the disabled target %s/%s", degraded.Candidate.Agent, degraded.Candidate.Model)
+	}
+	if degraded.Candidate.Level != 1 {
+		t.Errorf("primary cell disabled: level got %d want 1", degraded.Candidate.Level)
 	}
 
 	// 3. Restore: the primary comes back.
@@ -220,6 +233,32 @@ func TestFleetRouteLevel1DegradesWhenCodexDisabled(t *testing.T) {
 	if restored.Candidate.Agent != primary.Agent || restored.Candidate.Model != primary.Model {
 		t.Errorf("restored candidate: got %s/%s want %s/%s",
 			restored.Candidate.Agent, restored.Candidate.Model, primary.Agent, primary.Model)
+	}
+
+	// 4. The accepted single-subscription risk, pinned as observed behaviour:
+	// disabling the whole transport leaves the level with nothing to route to.
+	// This is NOT a guarantee anyone wants -- it is the documented cost of the
+	// 2026-09-09 one-transport ladder. A failure here means a second live
+	// transport exists again and step 2 should be strengthened back to the
+	// transport level.
+	ctrlJSON = `{"disabled":[{"target":"` + primary.Agent + `","reason":"simulated transport outage"}]}`
+	if err := os.WriteFile(ctrlPath, []byte(ctrlJSON), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code, out, errOut := runRoute(t, root, reqJSON)
+	if code != 0 {
+		t.Fatalf("transport disabled: exit %d: %s", code, errOut)
+	}
+	var blocked core.RouteResult
+	if err := json.Unmarshal([]byte(out), &blocked); err != nil {
+		t.Fatalf("transport disabled: unmarshal result: %v", err)
+	}
+	if blocked.Candidate != nil {
+		t.Fatalf("transport disabled: got candidate %s/%s -- a second live transport is routable again, so this test must be restored to its stronger transport-level form (see the doc comment)",
+			blocked.Candidate.Agent, blocked.Candidate.Model)
+	}
+	if blocked.Blocked == "" {
+		t.Error("transport disabled: want a blocked reason recorded")
 	}
 }
 
@@ -495,12 +534,12 @@ func TestFleetRouteAgentsSchemaValidatesRealFile(t *testing.T) {
 		}
 	}
 
-	validProviders := map[string]bool{
-		"google": true, "openrouter-nvidia": true, "openrouter-poolside": true,
-		"openrouter-cohere": true, "anthropic": true, "openai": true,
-		"opencode-go-deepseek": true, "opencode-go-alibaba": true,
-		"opencode-go-minimax": true, "opencode-go-openai": true,
-	}
+	// The closed provider enum is READ from the schema, never duplicated here:
+	// this test previously carried its own copy and broke on 2026-09-09 when
+	// three OpenCode Go families were added, reporting a schema violation that
+	// did not exist. The assertion that matters is agents.yaml vs the schema,
+	// so the schema is the single source of the list.
+	validProviders := schemaProviderEnum(t, schemaRaw)
 	var parsed struct {
 		Transports map[string]struct {
 			Models map[string]map[string]any `yaml:"models"`
@@ -525,4 +564,35 @@ func TestFleetRouteAgentsSchemaValidatesRealFile(t *testing.T) {
 	if seen == 0 {
 		t.Fatal("expected at least one model entry to spot-check")
 	}
+}
+
+// schemaProviderEnum extracts the closed `provider` enum from
+// agents.schema.json so tests assert against the schema instead of a copy of
+// it. Both model branches (modelSubscription / modelApi) declare the same
+// enum; the union is returned and a mismatch between them is a schema bug this
+// helper surfaces as an over-permissive set, not a silent divergence.
+func schemaProviderEnum(t *testing.T, schemaRaw []byte) map[string]bool {
+	t.Helper()
+	var schema struct {
+		Defs map[string]struct {
+			Properties struct {
+				Provider struct {
+					Enum []string `json:"enum"`
+				} `json:"provider"`
+			} `json:"properties"`
+		} `json:"$defs"`
+	}
+	if err := json.Unmarshal(schemaRaw, &schema); err != nil {
+		t.Fatalf("parse agents.schema.json: %v", err)
+	}
+	out := map[string]bool{}
+	for _, def := range schema.Defs {
+		for _, p := range def.Properties.Provider.Enum {
+			out[p] = true
+		}
+	}
+	if len(out) == 0 {
+		t.Fatal("agents.schema.json declares no provider enum; the closed-enum guard would be vacuous")
+	}
+	return out
 }

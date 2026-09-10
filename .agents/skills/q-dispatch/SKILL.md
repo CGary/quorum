@@ -1,6 +1,6 @@
 ---
 name: q-dispatch
-description: Drive one implement-phase external fleet delegation cycle (quorum fleet route -> decision display -> quorum fleet bundle -> quorum fleet dispatch -> ADR 0011 outcome report) for a Quorum task that already has a worktree, 01-blueprint.yaml, and 02-contract.yaml. Use to hand a task's implementation off to an external delegate CLI (agy/opencode/aider) instead of implementing it directly.
+description: Drive one implement-phase external fleet delegation cycle (quorum fleet route -> decision display -> quorum fleet bundle -> quorum fleet dispatch -> ADR 0011 outcome report) for a Quorum task that already has a worktree, 01-blueprint.yaml, and 02-contract.yaml. Use to hand a task's implementation off to an external delegate CLI (opencode_go) instead of implementing it directly.
 user-invocable: true
 ---
 

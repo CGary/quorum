@@ -20,6 +20,10 @@ import (
 // so core.ValidateFleetTarget (invoked inside core.DisableFleetTarget)
 // accepts it.
 func writeFleetAgentsFixture(t *testing.T, root string) {
+	// core.FleetAgentsPath honors QUORUM_FLEET_AGENTS (2026-09-09), so an
+	// export in the invoking shell would shadow this fixture with the real
+	// repo catalog and the fixture's synthetic target would look unknown.
+	t.Setenv("QUORUM_FLEET_AGENTS", "")
 	t.Helper()
 	if err := os.MkdirAll(filepath.Join(root, ".agents", "fleet"), 0755); err != nil {
 		t.Fatalf("mkdir agents/fleet: %v", err)
@@ -370,6 +374,7 @@ func TestFleetStatusHandler_DisabledEntry(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(root, ".agents", "fleet"), 0755); err != nil {
 		t.Fatalf("mkdir agents/fleet: %v", err)
 	}
+	t.Setenv("QUORUM_FLEET_AGENTS", "") // see writeFleetAgentsFixture
 	agentsYAML := "transports:\n  agy:\n    models:\n      testvendor/test-model-x:\n        provider: google\n"
 	if err := os.WriteFile(filepath.Join(root, ".agents", "fleet", "agents.yaml"), []byte(agentsYAML), 0644); err != nil {
 		t.Fatalf("write agents.yaml: %v", err)

@@ -2,7 +2,20 @@
 
 This document is for an AI agent that wants to invoke `quorum fleet run` from
 **another project** (not the Quorum repo itself) to run a delegate LLM CLI
-(opencode, aider, agy, ...) against arbitrary local files.
+against arbitrary local files.
+
+> **2026-09-09 — read this before anything below.** The fleet was reduced to a
+> SINGLE live transport: `opencode_go` (OpenCode Go subscription). `agy` and
+> `agy_edit` were retired with the Antigravity/Gemini subscription, and the $0
+> OpenRouter transports (`opencode`, `aider`) plus `codex` were deactivated by
+> human decision. All of them are `active: false` in `agents.yaml` and
+> `quorum fleet run` now REFUSES an inactive transport with `INVALID_ARGUMENT`.
+> Sections 1-7.2 below still describe the multi-transport world and are kept for
+> their measured evidence and for the day a transport comes back; every
+> *instruction* in them is superseded by this banner. The current state is
+> section 7.8. Practical rule: `--agent opencode_go`, and read `--model` from
+> `quorum fleet run --agent opencode_go --schema`, never from a name written
+> in this file.
 
 `quorum fleet run` is **NON-LIFECYCLE**: it creates no task, no worktree, runs
 no git command, and writes no `07-trace.json`/`result.json`. It just execs a
@@ -46,20 +59,20 @@ secrets in versioned artifacts). Depending on the transport you pick:
   path works — `quorum fleet run` does not perform its own preflight check
   for this, so a missing credential fails loudly at the opencode/aider CLI
   layer itself, not silently.
-- **agy** (`quota_class: subscription`, backed by a Gemini subscription, no
-  per-call billing): agy manages its own login/session; there is nothing to
-  export here.
+- **agy** (RETIRED 2026-09-09 — subscription gone, `active: false`): agy
+  managed its own login/session. Kept here as a record of the contract.
 - **opencode_go** (`quota_class: subscription`, backed by an OpenCode Go
   subscription, no per-call billing): reuses the `opencode` binary and
   invocation shape but requires OpenCode Go's own separate subscription
   credential (distinct from the `OPENROUTER_API_KEY` used by opencode/aider). It
-  is unrouted — reachable only via explicit `--agent opencode_go`.
+  is the ONLY active transport since 2026-09-09 and backs all four routing
+  levels; it is also the default for `--agent`.
 
 ### 1.3 Verify the binary is on PATH
 
 `quorum fleet run` execs the transport's `binary` directly (never through a
-shell), so it must be resolvable via your process `PATH` (`opencode`,
-`aider`, or `agy`).
+shell), so it must be resolvable via your process `PATH`. For the only live
+transport, `opencode_go`, that binary is `opencode`.
 
 ## 2. Discover the contract
 
@@ -67,7 +80,7 @@ Every transport declares a closed `--model` enum. Discover it, and the full
 input/output shape, with `--schema` (no process is started):
 
 ```bash
-quorum fleet run --agent opencode --schema
+quorum fleet run --agent opencode_go --schema
 ```
 
 This prints `{command, description, input:{required, properties}, output,
@@ -78,7 +91,7 @@ names valid for `--model` with that `--agent`.
 
 | Flag | Required | Meaning |
 |------|----------|---------|
-| `--agent` | no (default `agy`) | transport name from `agents.yaml` (`opencode`, `aider`, `agy`) |
+| `--agent` | no (default `opencode_go`) | transport name from `agents.yaml`. Since 2026-09-09 `opencode_go` is the only `active: true` one; any other value is refused with `INVALID_ARGUMENT`. |
 | `--model` | yes | canonical model name; closed enum, see `--schema` |
 | `--cwd` | yes | existing directory the delegate runs in (its working directory / agentic scope) |
 | `--input` | yes | prompt source: a file path, or `-` for stdin (there is no inline prompt flag) |
@@ -95,24 +108,24 @@ prompt string — write it to a file (or pipe it via `--input -`).
 
 | Agent | Backend | Cost | Use for |
 |-------|---------|------|---------|
-| `opencode` | 5 pinned OpenRouter free models + `openrouter/free` auto-router fallback (section 7) | $0 (free tier) | implement-only; agentic `--dir`-scoped edits |
-| `aider` | 6 pinned OpenRouter free models — the same 5 as opencode, plus aider-only `nemotron-nano-9b-v2` (section 7) | $0 (free tier) | implement-only; message-file + explicit file list |
-| `agy` | Gemini (your subscription) | included in your subscription, no per-call billing | broader use; higher-effort models available (Gemini 3.5 Flash, Gemini 3.1 Pro, Claude Sonnet/Opus, GPT-OSS 120B — measured pass@10 in §4.1) |
-| `opencode_go` | 5 OpenCode Go subscription models (DeepSeek, Qwen, MiniMax, GPT-5.6) | included in subscription | implement-only; unrouted, reachable via explicit `--agent opencode_go` (§7.8) |
+| `opencode_go` | 10 OpenCode Go subscription models (DeepSeek, Qwen, MiniMax, Hunyuan, Moonshot, xAI, GPT-5.6) | included in subscription | **the only live transport**; agentic `--dir`-scoped edits; backs all four routing levels (§7.8) |
+| `opencode` | 5 pinned OpenRouter free models + `openrouter/free` auto-router fallback (section 7) | — | RETIRED 2026-09-09 (`active: false`) |
+| `aider` | 6 pinned OpenRouter free models (section 7) | — | RETIRED 2026-09-09 (`active: false`) |
+| `agy` / `agy_edit` | Gemini (Antigravity subscription) | — | RETIRED 2026-09-09, subscription gone (`active: false`) |
+| `codex` | ChatGPT free-tier credits | — | RETIRED 2026-07-27 (kill-switch) + `active: false` 2026-09-09 |
 
-Both `opencode` and `aider` are **implement-only** transports (never used for
-review/diagnostic phases in Quorum's own lifecycle) and cost nothing per call
-on the OpenRouter free tier — prefer them for routine edits. Use `agy` when
-you need a specific higher-capability model and already have quota on your
-Gemini subscription.
+There is no transport choice to make any more: `opencode_go` or nothing. The
+choice that remains is which CELL — pick it by capability class and measured
+evidence from `~/.claude/skills/think-cheap/scripts/rung0-cells.py`, and
+validate the name against `--agent opencode_go --schema`.
 
-**Transport choice by task difficulty (measured, §7.2):** reserve `aider`
-for trivial, mechanical, single-file edits — the 2026-07-16 M-difficulty
-layer measured two aider cells at **0/10** on a two-file task (§7.2), because
-its single-shot whole-file edit format has no compiler feedback loop inside
-Quorum. Prefer `opencode` or `agy` for anything at M difficulty or harder;
-both retained an agentic/interactive edge that showed up clearly once the
-task stopped being trivial.
+**Task-difficulty evidence, retained (§7.2):** the 2026-07-16 M-difficulty
+layer measured two `aider` cells at **0/10** on a two-file task, because its
+single-shot whole-file edit format has no compiler feedback loop inside Quorum.
+That is why aider was never trusted beyond trivial single-file edits — a
+conclusion worth keeping if a `-free` tier is ever reintroduced. The 2026-09-09
+campaign re-ran the same two-file task against all eight live `opencode_go`
+cells: **39/40** (§7.8).
 
 ### 4.1 Measured agy reliability (pass@10, 2026-07-15/16 campaign)
 
@@ -192,15 +205,17 @@ export QUORUM_FLEET_AGENTS=/path/to/quorum/.agents/fleet/agents.yaml
 echo "Add a doc comment to the exported Foo function in bar.go" > /tmp/prompt.txt
 
 # 1. Sanity-check the resolved argv without spending quota:
+# --model is a closed enum; NEVER copy a model name from this doc, read it from
+# `quorum fleet run --agent opencode_go --schema`.
 quorum fleet run \
-  --agent opencode --model openrouter/free \
+  --agent opencode_go --model <key from --schema> \
   --cwd /path/to/my-project \
   --input /tmp/prompt.txt \
   --dry-run --no-input --json
 
 # 2. Real run:
 quorum fleet run \
-  --agent opencode --model openrouter/free \
+  --agent opencode_go --model <key from --schema> \
   --cwd /path/to/my-project \
   --input /tmp/prompt.txt \
   --no-input --json
@@ -246,7 +261,7 @@ stderr):
     "received": "gpt-4"
   },
   "retryable": false,
-  "suggested_fix": "quorum fleet run --agent opencode --model openrouter/free --cwd <dir> --input <file> --json"
+  "suggested_fix": "quorum fleet run --agent opencode_go --model <key from --schema> --cwd <dir> --input <file> --json"
 }
 ```
 
@@ -370,12 +385,14 @@ Two findings the M layer adds on top of the reliability point above:
   auto-lint/auto-test loop for forensic purity (`q-verify` is the only
   validation truth in the SDC lifecycle), which also trades away aider's
   built-in self-correction.
-- **Practical guidance**: use `aider` only for trivial, mechanical,
-  single-file edits; use `opencode` or `agy` for anything at M difficulty or
-  harder. Across both layers, `agy` Gemini (all five effort tiers measured
-  in §4.1) is the only model family that scored 10/10 on **both** — Gemini
-  3.5 Flash (low effort) was the champion cheap cell until the provider retired it
-  (2026-09-03); 3.6 Flash (low) is the cheap successor.
+- **Practical guidance (HISTORICAL — every transport named here is retired,
+  see the 2026-09-09 banner at the top)**: aider was trusted only for trivial,
+  mechanical, single-file edits; `opencode` or `agy` for M difficulty or harder.
+  Across both layers `agy` Gemini was the only family that scored 10/10 on
+  both. The lasting lesson is about EDIT HARNESS, not vendor: a single-shot
+  whole-file format without a feedback loop collapses at M difficulty, while an
+  agentic tool-loop does not. `opencode_go` is agentic and scored 39/40 on the
+  same M task (§7.8).
 - **Composing a pass@≤1-reroute policy**: from the measured marginals above,
   any cell backed by a single reroute to a 10/10 target (an `agy` Gemini
   tier, or opencode `ultra-550b`/`laguna-m.1`) clears a 70% reliability
@@ -444,6 +461,9 @@ checked-in key substitutes `-free` for `:free`; `model_arg` carries the
 exact, colon-preserving string opencode's `-m` flag actually needs:
 
 ```bash
+# HISTORICAL example — `opencode` is active:false since 2026-09-09 and this call
+# now returns INVALID_ARGUMENT. Shown for the KEY TRANSFORM, which still applies
+# to any future `-free` cell.
 quorum fleet run \
   --agent opencode --model "nvidia/nemotron-3-ultra-550b-a55b-free" \
   --cwd . --input - --no-input --json
@@ -452,8 +472,9 @@ quorum fleet run \
 This resolves internally to opencode arg
 `-m openrouter/nvidia/nemotron-3-ultra-550b-a55b:free`. The other four keys
 follow the same transform (e.g. `poolside/laguna-xs-2.1-free`,
-`cohere/north-mini-code-free`); run
-`quorum fleet run --agent opencode --schema` for the authoritative enum.
+`cohere/north-mini-code-free`). The authoritative enum for any transport is
+`quorum fleet run --agent <transport> --schema`; the only one that answers with
+live cells today is `opencode_go`.
 `openrouter/free` (the auto-router) remains available as the
 availability-resilience fallback when a pinned model is saturated or its
 `expiration_date` changes (section 7.7) — it is opencode-only, not wired to
@@ -543,14 +564,67 @@ https://openrouter.ai/docs/api-reference/limits):
 
 Routing consequence (2026-09-08, human decision): `deepseek-v4-pro` is the **level-3 fallback** in `config.yaml`, replacing `google/gemini-3.1-pro-high` (1/4 dispatch success), and the four `gemini-3.1-pro-*` catalog entries were retired from both agy transports.
 
-The other four cells were routed the same day **by human decision without smoke evidence** ("option 2"), following the placement ratified on 2026-09-06 during the FLEET-038 plan, and then — a second human decision the same day — **promoted to `primary` of every level**: `deepseek-v4-flash` level 0, `qwen3.7-plus` level 1, `minimax-m3` level 2, `deepseek-v4-pro` level 3 (with `gpt-5.6-luna` as its fallback). The former primary/fallback of each level shifted down one slot (level 0: nemotron-super → north-mini; level 1: sonnet → opus → nemotron-super; level 2: 3.6-flash-high → 3.7-flash-medium; level 3: 3.7-flash-high). Rationale: the Antigravity subscription is exhausted and the OpenCode Go subscription is the live quota, so it takes the first attempt and Antigravity/OpenRouter become the reroute path. Their rows below stay "not yet smoked" until a campaign fills them; treat their first real dispatches as the evidence.
+The other four cells were routed the same day **by human decision without smoke evidence** ("option 2"), following the placement ratified on 2026-09-06 during the FLEET-038 plan, and then — a second human decision the same day — **promoted to `primary` of every level**. That ladder was superseded 24 hours later; see below.
+
+#### 2026-09-09 — full ladder rebuild, and a two-stage smoke
+
+Human decision: the Antigravity/Gemini subscription is retired (like codex on 2026-07-27) and the $0 OpenRouter cells are dropped, leaving `opencode_go` as the only active transport. The ladder was rebuilt on eight OpenCode Go cells named by the human, two per level:
+
+| Level | Primary | Fallback |
+|-------|---------|----------|
+| 0 | `opencode-go/deepseek-v4-flash` | `opencode-go/qwen3.8-flash` |
+| 1 | `opencode-go/minimax-m3` | `opencode-go/hy3` |
+| 2 | `opencode-go/deepseek-v4-pro` | `opencode-go/kimi-k2.7-code` |
+| 3 | `opencode-go/kimi-k3` | `opencode-go/grok-4.6` |
+
+Five of those cells (`qwen3.8-flash`, `hy3`, `kimi-k2.7-code`, `kimi-k3`, `grok-4.6`) were new to `agents.yaml` and needed three new `provider` values in the closed enum: `opencode-go-tencent`, `opencode-go-moonshot`, `opencode-go-xai`.
+
+The smoke was run in **two stages**, because they answer different questions and fail at different costs:
+
+**Stage 1 — is the model NAME right?** `quorum fleet catalog opencode_go` cannot answer this: it returns `status: "unknown"` because opencode prints no parseable "Available models:" block on rejection. So each cell got one trivial probe (`Reply with exactly the word OK`, `--timeout 120`, scratch repo, prompt forbidding writes) and was checked for `ok:true`, `exit_code 0`, no rejection signature, and a clean `git status`. A wrong vendor-side `model_arg` fails here in seconds without polluting the capability ledger.
+
+Result 2026-09-09: **8/8**. Every cell answered exactly `OK` in 4-7 s with no rejection signature and wrote nothing. All eight `model_arg` values are confirmed against the live provider.
+
+| Cell | Stage 1 | Latency |
+|------|---------|---------|
+| `deepseek-v4-flash` | OK | 4 s |
+| `qwen3.8-flash` | OK | 7 s |
+| `minimax-m3` | OK | 4 s |
+| `hy3` | OK | 6 s |
+| `deepseek-v4-pro` | OK | 5 s |
+| `kimi-k2.7-code` | OK | 7 s |
+| `kimi-k3` | OK | 5 s |
+| `grok-4.6` | OK | 5 s |
+
+**Stage 2 — does it actually DO the work?** The section 7.1 M-layer methodology at pass@5 per cell (same two-file task, same hidden 15-subtest grader, git reset between trials). Runner: `$SCRATCH/smoke/stage2.sh`, a parameterised copy of the 2026-09-07 `run.sh`.
+
+Result 2026-09-09: **39/40 trials**. Every passing trial scored 15/15 hidden subtests and wrote exactly the two requested files — no partial credit anywhere, no extra files, no cell that "almost" worked.
+
+| Cell | Level / slot | pass@5 | Latency min / median / max | Notes |
+|------|--------------|--------|----------------------------|-------|
+| `opencode-go/deepseek-v4-flash` | L0 primary | **4/5** | 15 / 18 / 300 s | The one failure in the whole campaign: trial 1 returned `TIMEOUT` at exactly 300 s having written **zero bytes**. Trials 2-5 solved the task in 15-25 s. A transient provider hang, not a capability limit — but it is the level-0 primary, so watch `quorum fleet stats`. |
+| `opencode-go/qwen3.8-flash` | L0 fallback | **5/5** | 34 / 39 / 76 s | Reliable but the slowest "flash" cell — ~2x deepseek-v4-flash on the same task. |
+| `opencode-go/minimax-m3` | L1 primary | **5/5** | 8 / 12 / 17 s | Fastest cell measured, on any campaign. |
+| `opencode-go/hy3` | L1 fallback | **5/5** | 17 / 20 / 21 s | Tightest variance of the eight. |
+| `opencode-go/deepseek-v4-pro` | L2 primary | **5/5** | 21 / 23 / 28 s | Consistent with its 2026-09-07 pass@10 = 10/10 (15-27 s). Two independent campaigns agree. |
+| `opencode-go/kimi-k2.7-code` | L2 fallback | **5/5** | 26 / 42 / 59 s | |
+| `opencode-go/kimi-k3` | L3 primary | **5/5** | 45 / 99 / 266 s | **Slowest and most variable cell by far.** A 266 s trial would have been killed under the old 300 s transport timeout with almost no margin; it passes only because `timeouts.default_s` was raised to 600 s in the same change. Do not lower that timeout while k3 leads level 3. |
+| `opencode-go/grok-4.6` | L3 fallback | **5/5** | 19 / 24 / 29 s | |
+
+Two things this campaign is evidence FOR, and one it is not. It IS evidence that all eight `model_arg` values are correct (stage 1) and that all eight cells can carry a two-file M task agentically and reliably. It is NOT evidence about capability on a real `{high, L}` feature — the same limit as every earlier campaign — nor about behaviour under a saturated subscription, which no synthetic run can exercise.
+
+Evidence policy for this rebuild (human decision, "rutear las 8 igual, smoke solo informativo"): the ladder was routed **before** stage 2 finished, so stage 2 DOCUMENTS rather than gates. This is a deliberate, recorded exception to the proven-before-new rule — the second one in two days.
+
+#### Annex — the superseded 2026-09-08 ladder (historical)
+
+Kept as the causal record of the 24-hour-old ladder the rebuild above replaced. Nothing here is current: `qwen3.7-plus` and `gpt-5.6-luna` are in the catalog but UNROUTED, and Antigravity/OpenRouter are no longer reroute targets because those transports are `active: false`.
+
+That day's decision promoted the Go cells to `primary` of every level — `deepseek-v4-flash` L0, `qwen3.7-plus` L1, `minimax-m3` L2, `deepseek-v4-pro` L3 (fallback `gpt-5.6-luna`) — shifting the former primary/fallback down one slot each (L0 nemotron-super → north-mini; L1 sonnet → opus → nemotron-super; L2 3.6-flash-high → 3.7-flash-medium; L3 3.7-flash-high), on the rationale that the Antigravity subscription was exhausted while OpenCode Go was live. Only one row of its evidence table survives as current data:
 
 | Model ID | model_arg | pass@10 | Notes |
 |----------|-----------|---------|-------|
-| `opencode-go/deepseek-v4-flash` | `opencode-go/deepseek-v4-flash` | not yet smoked | PRIMARY of level 0 since 2026-09-08 (human decision, no evidence). |
-| `opencode-go/deepseek-v4-pro` | `opencode-go/deepseek-v4-pro` | **10/10** | 15/15 hidden subtests every trial; 15-27 s/trial; 0 extra files; 0 timeouts. Level-3 PRIMARY since 2026-09-08. |
-| `opencode-go/qwen3.7-plus` | `opencode-go/qwen3.7-plus` | not yet smoked | PRIMARY of level 1 since 2026-09-08 (human decision, no evidence). |
-| `opencode-go/minimax-m3` | `opencode-go/minimax-m3` | not yet smoked | PRIMARY of level 2 since 2026-09-08 (human decision, no evidence). |
-| `opencode-go/gpt-5.6-luna` | `opencode-go/gpt-5.6-luna` | not yet smoked | Fallback of level 3 since 2026-09-08 (human decision, no evidence). |
+| `opencode-go/deepseek-v4-pro` | `opencode-go/deepseek-v4-pro` | **10/10** | 2026-09-07 campaign: 15/15 hidden subtests every trial; 15-27 s/trial; 0 extra files; 0 timeouts. Independently re-confirmed at 5/5 on 2026-09-09. |
+| `opencode-go/qwen3.7-plus` | `opencode-go/qwen3.7-plus` | never smoked | Was L1 primary 2026-09-08 → 2026-09-09. Catalog only, UNROUTED. |
+| `opencode-go/gpt-5.6-luna` | `opencode-go/gpt-5.6-luna` | never smoked | Was L3 fallback 2026-09-08 → 2026-09-09. Catalog only, UNROUTED. |
 
-Per the proven-before-new rule (AGENTS.md, 2026-08-26 ladder rebalance), no cell may be routed before its row is filled in with empirical smoke evidence. Caveat on record: this smoke measures agentic consistency on a synthetic M task, not capability on a real `{high, L}` feature — the same limit as every earlier campaign.
+Per the proven-before-new rule (AGENTS.md, 2026-08-26 ladder rebalance), no cell should be routed before its row is filled in with empirical smoke evidence. That rule was consciously suspended on 2026-09-08 and again on 2026-09-09 (see above); both suspensions are human decisions on record, not drift.

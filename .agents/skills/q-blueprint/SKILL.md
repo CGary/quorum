@@ -114,15 +114,25 @@ generation.
    The helper consumes `retrievers.ast_neighbors` and `retrievers.import_graph`; its output MUST be considered before finalizing `affected_files` and `dependencies` in YAML.
 5. The union of `{seed, AST neighbors, import-graph files, failure matches}` becomes Phase 1a's file set.
 
-### Phase 1b: Blind External Bounded Summarization
+### Phase 1b: External Bounded Summarization
 1. Bundle Phase 1a's file set into one scratch file via shell redirection (`cat <files> > $(mktemp)` or an equivalent transient path outside the repo tree — never a tracked file).
-2. Run `quorum fleet run`: launch a blind one-shot summarization cell using:
+2. Run `quorum fleet run`: launch a bounded summarization cell in a scratch dir using:
 
    ```bash
-   quorum fleet run --agent agy --model google/gemini-3.6-flash-medium --cwd <repo-root> --input <bundle> --no-input --json
+   # Transport and model are read LIVE, never hardcoded: the catalog changes
+   # (agy retired 2026-09-09 with the Antigravity subscription). Pick a cheap
+   # cell from `quorum fleet run --agent opencode_go --schema`.
+   #
+   # --cwd is an EMPTY SCRATCH DIR, never <repo-root>. This step used to run on
+   # a one-shot transport that was blind to the filesystem, so pointing it at the
+   # repo was harmless. No one-shot transport exists since 2026-09-09; the only
+   # live transport EDITS its --cwd in place. Pointing it at <repo-root> would
+   # let a summarization step write to the repo. The bundle already contains
+   # every file the cell needs to read, so it has no reason to see the repo.
+   quorum fleet run --agent opencode_go --model <cheap cell from --schema> --cwd "$(mktemp -d)" --input <bundle> --no-input --json
    ```
 
-   Specify `<repo-root>` as the `cwd` (since `q-blueprint` runs before `quorum task start` creates the worktree). Embed an explicit bounded question in the prompt: for each file, answer in <=80 words covering purpose, public symbols, and tests covering it, and do not exceed this cap per file.
+   The scratch dir replaces the old `<repo-root>` cwd (this phase runs before `quorum task start` creates the worktree, so there was never a worktree to point at either). After the run, `git status --porcelain` in the repo MUST be clean. Embed an explicit bounded question in the prompt: for each file, answer in <=80 words covering purpose, public symbols, and tests covering it, and do not exceed this cap per file.
 3. Context boundary invariant: full file contents of Phase 1a's set must NEVER enter the blueprint agent's own context window; only the bounded summary text returned in the JSON envelope's `data` field does.
 
 > [!IMPORTANT]

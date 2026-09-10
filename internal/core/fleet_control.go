@@ -69,8 +69,21 @@ type fleetControlAgentsFile struct {
 	} `yaml:"transports"`
 }
 
+// FleetAgentsPath resolves the agents.yaml location for control-state
+// validation: QUORUM_FLEET_AGENTS first, falling back to
+// <projectRoot>/.agents/fleet/agents.yaml. It mirrors cmd.fleetAgentsPath so a
+// consumer project that shares Quorum's catalog through the env var (and has no
+// .agents/fleet/ of its own) can still use the kill-switch CLI; without this,
+// `quorum fleet disable` failed there while `route`/`dispatch` resolved fine.
+func FleetAgentsPath(projectRoot string) string {
+	if env := os.Getenv("QUORUM_FLEET_AGENTS"); env != "" {
+		return env
+	}
+	return filepath.Join(projectRoot, ".agents", "fleet", "agents.yaml")
+}
+
 func ValidateFleetTarget(projectRoot, target string) error {
-	agentsPath := filepath.Join(projectRoot, ".agents", "fleet", "agents.yaml")
+	agentsPath := FleetAgentsPath(projectRoot)
 	b, err := os.ReadFile(agentsPath)
 	if err != nil {
 		return fmt.Errorf("read agents.yaml: %w", err)

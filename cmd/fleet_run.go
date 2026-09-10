@@ -42,6 +42,11 @@ type fleetRunParams struct {
 	Stdin       io.Reader
 }
 
+// defaultFleetRunAgent is the transport `quorum fleet run` uses when --agent
+// is omitted. It is a TRANSPORT name (agents.yaml key), not a model, so it is
+// not covered by the G1 no-hardcoded-model-names rule.
+const defaultFleetRunAgent = "opencode_go"
+
 // runFleetRun is the testable core: it returns a process exit code and writes
 // exactly one result envelope to stdout (logs to stderr). It never touches
 // .ai/tasks, git, a worktree, a forensic ref, 07-trace, or result.json.
@@ -49,7 +54,11 @@ func runFleetRun(p fleetRunParams, stdout, stderr io.Writer) int {
 	emit := fleetEmit{JSON: p.JSON, Plain: p.Plain, Quiet: p.Quiet}
 	agent := p.Agent
 	if agent == "" {
-		agent = "agy"
+		// 2026-09-09: default flipped agy -> opencode_go. The agy transports
+		// are retired (dead Antigravity subscription) and `fleet run` does NOT
+		// honor .ai/fleet-control.json, so an agy default here was the one
+		// remaining path that could still reach a dead provider.
+		agent = defaultFleetRunAgent
 	}
 	fail := func(env fleetErrorEnvelope) int {
 		emit.failure(stdout, stderr, env)
@@ -67,6 +76,20 @@ func runFleetRun(p fleetRunParams, stdout, stderr io.Writer) int {
 	if terr != nil {
 		return fail(fleetAgentError(fleetRunCommand, errCodeInvalidArgument,
 			fmt.Sprintf("cannot load transport %q: %v", agent, terr), "agent", agent, false, ""))
+	}
+	// A retired transport must be unreachable from EVERY entry point. `fleet
+	// dispatch` has refused active:false since FLEET-018, but `fleet run` did
+	// not, and it also does not honor .ai/fleet-control.json -- so until
+	// 2026-09-09 a skill with a hardcoded `--agent agy` could still exec a dead
+	// provider after the transport had been retired in every policy file. The
+	// kill-switch stays per-project and dispatch-only by design; active:false is
+	// the global "this transport does not exist any more" switch, and this is
+	// where `run` honors it.
+	if !transport.Active {
+		return fail(fleetAgentError(fleetRunCommand, errCodeInvalidArgument,
+			fmt.Sprintf("fleet transport %q is inactive (active:false in agents.yaml); not runnable", agent),
+			"agent", agent, false,
+			"quorum fleet run --agent "+defaultFleetRunAgent+" --model <name> --cwd <dir> --input <file> --json"))
 	}
 	applyFleetTransportEnv(transport.Env)
 
@@ -227,7 +250,7 @@ func fleetRunSchema(transport fleetTransport) map[string]any {
 		"input": map[string]any{
 			"required": []string{"model", "cwd", "input"},
 			"properties": map[string]any{
-				"agent":   map[string]any{"type": "string", "default": "agy", "description": "transport name from .agents/fleet/agents.yaml"},
+				"agent":   map[string]any{"type": "string", "default": defaultFleetRunAgent, "description": "transport name from .agents/fleet/agents.yaml"},
 				"model":   map[string]any{"type": "string", "enum": sortedKeys(transport.Models), "description": "closed enum of canonical model names for the transport"},
 				"cwd":     map[string]any{"type": "string", "description": "working directory the delegate runs in"},
 				"input":   map[string]any{"type": "string", "description": "prompt file path, or - for stdin (never an inline prompt flag)"},
@@ -379,7 +402,7 @@ closed enum derived from the transport's models map; run with --schema to see it
 
 func init() {
 	f := fleetRunCmd.Flags()
-	f.StringVar(&fleetRunAgent, "agent", "agy", "transport name from .agents/fleet/agents.yaml")
+	f.StringVar(&fleetRunAgent, "agent", defaultFleetRunAgent, "transport name from .agents/fleet/agents.yaml")
 	f.StringVar(&fleetRunModel, "model", "", "canonical model name (closed enum; see --schema)")
 	f.StringVar(&fleetRunCwd, "cwd", "", "working directory the delegate runs in")
 	f.StringVar(&fleetRunInput, "input", "", "prompt file path, or - for stdin")

@@ -123,7 +123,12 @@ transports:
     # gpt-5.6-terra / gpt-5.6-luna / gpt-5.5 / gpt-5.4-mini. Credits are
     # LIMITED and non-renewing: prefer the $0 transports (agy/opencode) for
     # routine dispatches and keep real codex runs scarce and deliberate.
-    active: true
+    # 2026-09-09 (human decision): retired. Kill-switched 2026-07-27 when the
+    # ChatGPT subscription lapsed; deactivated here so `quorum fleet run`
+    # -- which does NOT honor .ai/fleet-control.json -- cannot reach it either.
+    # Block kept intact: the argv contract and effort whitelists were verified
+    # against a real account and would have to be re-derived from scratch.
+    active: false
 
   agy:
     # No -C/--cd flag exists for agy (Fase 0a §3): the wrapper MUST launch
@@ -205,7 +210,13 @@ transports:
     # Blind one-shot --print output: cannot edit files, so `quorum fleet route`
     # never picks base agy for implement-phase candidates.
     mode: oneshot
-    active: true
+    # 2026-09-09 (human decision): retired. The Antigravity/Gemini subscription
+    # no longer exists -- same situation as codex 2026-07-27. Kill-switched in
+    # .ai/fleet-control.json (quorum and hexcell) AND deactivated here, because
+    # `quorum fleet run` does not honor the kill-switch and several skills used
+    # to hardcode --agent agy. Block kept intact (verified argv, model_args and
+    # wrapper_signatures) in case the subscription ever returns.
+    active: false
 
   agy_edit:
     # Agentic-editing variant of agy: accepts edits, skips permissions, runs in
@@ -274,7 +285,10 @@ transports:
     contract_test: .agents/fleet/contract_tests/agy.yaml
     # Edits the worktree in place via accept-edits + --sandbox --add-dir.
     mode: agentic
-    active: true
+    # 2026-09-09 (human decision): retired with `agy` -- same binary, same dead
+    # subscription. This also retires anthropic/claude-sonnet-4-6 and
+    # claude-opus-4-6, which were exposed ONLY here.
+    active: false
 
   aider:
     # Operational intent (NOT enforced by core.Route): aider is de-prioritized
@@ -348,7 +362,9 @@ transports:
     contract_test: .agents/fleet/contract_tests/aider.yaml
     # Applies edits directly to the files listed in {files}.
     mode: agentic
-    active: true
+    # 2026-09-09 (human decision, "quitar los modelos free"): deactivated with
+    # `opencode` -- same OpenRouter free cells, plus nemotron-nano-9b-v2.
+    active: false
 
   opencode:
     # Wired transport (FLEET-020). Implement-only, mirrors the aider adapter
@@ -443,13 +459,20 @@ transports:
     contract_test: .agents/fleet/contract_tests/opencode.yaml
     # Agentic tool-use loop editing inside --dir {cwd}.
     mode: agentic
-    active: true
+    # 2026-09-09 (human decision, "quitar los modelos free"): deactivated. The
+    # $0 OpenRouter cells are out of every route slot and the transport is off,
+    # so nothing can reach them -- including `quorum fleet run`. This removes
+    # fleet-delegate's Tier A (USD 0) and think-cheap's rung-0 `--quota api`
+    # tier; both skills are updated to match. Block kept intact.
+    active: false
 
   opencode_go:
     # Wired transport (FLEET-038). Distinct subscription-quota transport block
     # sharing the opencode binary, env, argv_template, input_channel, and
     # output_format with opencode. Never folded into the api-quota opencode block.
-    # Provisional default timeout; opencode_go has no independent measurement yet.
+    # timeouts.default_s raised 300 -> 600 on 2026-09-09: HEX-063 killed
+    # minimax-m3 at exactly 300.06s mid-work and rerouted to Gemini. Same
+    # evidence and same value as the agy transports (2026-07-31).
     binary: opencode
     env:
       OPENCODE_DISABLE_AUTOUPDATE: "true"
@@ -465,7 +488,7 @@ transports:
     input_channel: stdin
     output_format: json
     timeouts:
-      default_s: 300
+      default_s: 600
     failure_signatures: []
     wrapper_signatures:
       - "Unexpected server error"
@@ -486,6 +509,21 @@ transports:
       opencode-go/gpt-5.6-luna:
         provider: opencode-go-openai
         model_arg: opencode-go/gpt-5.6-luna
+      opencode-go/qwen3.8-flash:
+        provider: opencode-go-alibaba
+        model_arg: opencode-go/qwen3.8-flash
+      opencode-go/hy3:
+        provider: opencode-go-tencent
+        model_arg: opencode-go/hy3
+      opencode-go/kimi-k2.7-code:
+        provider: opencode-go-moonshot
+        model_arg: opencode-go/kimi-k2.7-code
+      opencode-go/kimi-k3:
+        provider: opencode-go-moonshot
+        model_arg: opencode-go/kimi-k3
+      opencode-go/grok-4.6:
+        provider: opencode-go-xai
+        model_arg: opencode-go/grok-4.6
     contract_test: .agents/fleet/contract_tests/opencode_go.yaml
     mode: agentic
     active: true

@@ -234,6 +234,82 @@ cells carry NONE and their first real dispatches are the evidence — watch `quo
 `nemotron-3-ultra-550b`, `laguna-xs-2.1` and `nemotron-3-nano-omni` were removed from the
 catalog for latency; level 0 is now `super-120b → north-mini-code` with no secondary.
 
+**2026-09-09 (human decision): Gemini/Antigravity retired, free cells dropped, ladder rebuilt on
+OpenCode Go.** The Antigravity subscription no longer exists — the same situation that retired
+codex on 2026-07-27 — and the human additionally dropped the $0 OpenRouter cells. Applied in one
+pass:
+(1) **Kill-switch + deactivation.** `agy` and `agy_edit` are disabled in `.ai/fleet-control.json`
+(quorum AND hexcell) and set `active: false` in `agents.yaml`; `codex`, `opencode` and `aider` are
+`active: false` too. Blocks are kept intact (verified argv, model_args, effort whitelists,
+`wrapper_signatures`) so a returning subscription is a one-line change — the `claude` precedent.
+`opencode_go` is the ONLY active transport. Retiring `agy_edit` also retires
+`anthropic/claude-sonnet-4-6` and `claude-opus-4-6`, which existed only there.
+Both mechanisms are needed, and closing the second one required a code change. The kill-switch is
+per-project and honored only by `route`/`dispatch`; `quorum fleet run` honors neither it nor —
+until this change — `active:`. So a skill with a hardcoded `--agent agy` could still exec a dead
+provider after every policy file had retired it (verified: `fleet run --agent agy_edit --dry-run`
+returned `ok:true` and would have exec'd `agy`). `cmd/fleet_run.go` now refuses an inactive
+transport with `INVALID_ARGUMENT`, mirroring the check `fleet dispatch` has had since FLEET-018.
+`active: false` is now genuinely the global "this transport does not exist any more" switch.
+(2) **A kill-switch bug fixed on the way.** `core.ValidateFleetTarget` resolved `agents.yaml` as
+`<projectRoot>/.agents/fleet/agents.yaml` only, while `cmd.fleetAgentsPath` honors
+`QUORUM_FLEET_AGENTS` first. In a consumer project that shares Quorum's catalog through the env
+var and has no `.agents/fleet/` of its own (hexcell), `quorum fleet disable` therefore failed
+while `route`/`dispatch` worked. `core.FleetAgentsPath` now mirrors the dispatch resolver
+(`TestFleetAgentsPathEnvOverride`).
+(3) **The ladder is now eight OpenCode Go cells, two per level, no secondary anywhere** (human's
+own ordering): level 0 `deepseek-v4-flash` → `qwen3.8-flash`; level 1 `minimax-m3` → `hy3`;
+level 2 `deepseek-v4-pro` → `kimi-k2.7-code`; level 3 `kimi-k3` → `grok-4.6`. Five cells were new
+to the catalog and required three new `provider` enum values (`opencode-go-tencent`,
+`opencode-go-moonshot`, `opencode-go-xai`). `fleet_transport_order` is `[opencode_go, claude]`.
+`opencode_go`'s `timeouts.default_s` went 300 → 600: HEX-063 killed `minimax-m3` at exactly
+300.06 s mid-work and rerouted to Gemini — the same evidence that raised agy's timeout in July.
+`quorum fleet run`'s default `--agent` flipped `agy` → `opencode_go`.
+(4) **The level-3 human gate is GONE** (`human_gate_required: false` on `{high,L}`, the catch-all
+and both `type_overrides`). Two reasons, one a defect: the human wants uniform behaviour across
+levels, AND the flag was never enforced — `cmd/fleet_route.go` documents
+`reviewer_required`/`human_gate_required`/`type_overrides`/`routes` as silently ignored, and
+`q-dispatch` gates only on a codex candidate. Declaring a control the system does not implement is
+worse than not having it; rebuilding it means code first, data second.
+(5) **ACCEPTED RISK, recorded.** Every routed cell now hangs off ONE subscription. Each level is
+still cross-FAMILY (deepseek→alibaba, minimax→tencent, deepseek→moonshot, moonshot→xai), which is
+what the G1 test asserts, but there is no independent quota class anywhere: an exhausted OpenCode
+Go quota blocks the whole fleet. AC-4 (`TestFleetRouteLevel1DegradesWhenCodexDisabled`) was
+rewritten to assert what the fleet can actually guarantee — disabling a primary CELL degrades to
+the fallback — and its final step now PINS the transport-level block as observed behaviour, so
+reintroducing a second live transport fails the test and forces the stronger assertion back.
+(6) **Smoke, two stages, informative not gating.** Stage 1 (name verification) is the answer to
+"is the model_arg right?" — `quorum fleet catalog opencode_go` cannot answer it (`status:
+"unknown"`; opencode prints no parseable "Available models:" block), so each cell got one trivial
+probe: **8/8**, 4-7 s, no rejection signature, nothing written. Stage 2 is the section 7.1 M-layer
+pass@5 campaign; per human decision ("rutear las 8 igual, smoke solo informativo") the ladder was
+routed BEFORE it finished, so it documented rather than gated — a second deliberate suspension of
+the proven-before-new rule in two days. It came back **39/40**: seven cells 5/5, and
+`deepseek-v4-flash` 4/5 (one 300 s TIMEOUT with zero bytes on trial 1, then 15-25 s passes on
+trials 2-5 — a transient provider hang, but it is the level-0 primary, so watch it). Every passing
+trial scored 15/15 hidden subtests and wrote exactly the two requested files. Two operational
+facts worth carrying: `kimi-k3` (level-3 primary) is the slowest and most variable cell
+(45/99/266 s min/median/max) and only fits because `timeouts.default_s` was raised to 600 s in
+this same change — do NOT lower it while k3 leads level 3; and all 40 trials are now in the shared
+ledger, so `rung0-cells.py` reports real evidence for every routed cell instead of `0/0`. Full
+tables: `docs/fleet-run-for-agents.md` section 7.8.
+(7) **Skills updated with the fleet** (the ladder is written down in several of them):
+`.agents/skills/{fleet-cli-usage,q-blueprint,q-dispatch}`, and globally
+`~/.claude/skills/{think-cheap,fleet-delegate,q-orchestrate}` plus think-cheap's
+`references/capability.yaml`. fleet-delegate's ladder collapsed from five rungs to two (the USD-0
+rungs and the one-shot `agy` rung are gone); **no one-shot external cell exists any more**, since
+`agy` was the only `mode: oneshot` transport — one-shot work now runs agentically in a scratch
+`--cwd` with a `git status --porcelain` check, or goes internal. The hexcell
+copies were handled as follows, because the note has been wrong in both directions before: its
+`.ai/fleet-control.json` (kill-switch), `.agents/config.yaml` and `.agents/policies/routing.yaml`
+WERE updated in place on 2026-09-09 and now carry the 8-cell ladder and the gate removal — do not
+re-apply them. hexcell has no `.agents/fleet/agents.yaml` of its own (it reads Quorum's through
+`QUORUM_FLEET_AGENTS`), so the catalog needs nothing. What DOES need propagating on every future
+change is hexcell's own `.agents/skills/` copies: they are a separate tree from this repo's, they
+are what `/q-*` actually loads there (`.claude/skills` symlinks to them), and on 2026-09-09
+`q-blueprint`, `fleet-cli-usage` and `q-dispatch` had to be copied over by hand after the quorum
+originals were fixed.
+
 **Tooling shipped with the retirement (FLEET-036 / FLEET-037, merged 2026-09-04).**
 (1) `wrapper_signatures` — a per-transport list in `agents.yaml` (validated by
 `agents.schema.json`, sibling of `failure_signatures`) of case-sensitive substrings matched
@@ -258,7 +334,8 @@ unimplemented); those errors are noise until the check mirrors the router's `one
 #### Agent usage (`quorum fleet run`, mk-cli contract)
 
 `quorum fleet run` is the agent-friendly, **non-lifecycle** standalone runner. It executes an
-agent transport (default `agy`) in an explicit `--cwd` and returns the delegate result. It is
+agent transport (default `opencode_go`; `agy` until 2026-09-09) in an explicit `--cwd` and returns
+the delegate result. Since 2026-09-09 it REFUSES a transport with `active: false`. It is
 NOT `quorum fleet dispatch`: `run` is task-less and produces no SDC artifact, forensic ref, or
 git side effect; `dispatch` is task-bound and runs the full forensic pipeline against a worktree.
 
@@ -279,16 +356,19 @@ Default agent flags:
 
 ```bash
 quorum fleet run --schema
-quorum fleet run --agent agy --model anthropic/claude-sonnet-4-6 --cwd . --input - --no-input --json
-quorum fleet run --agent agy --model anthropic/claude-opus-4-6 --cwd /repo --input prompt.txt --dry-run --json
+# --model is a closed enum and the catalog churns: read the name from --schema,
+# never from a literal written in this file.
+quorum fleet run --agent opencode_go --schema
+quorum fleet run --agent opencode_go --model <key from --schema> --cwd . --input - --no-input --json
+quorum fleet run --agent opencode_go --model <key from --schema> --cwd /repo --input prompt.txt --dry-run --json
 ```
 
-For $0 delegate runs, the `opencode` transport pins five OpenRouter free models plus the
-`openrouter/free` auto-router as the availability fallback; the `aider` transport pins six
-models — the same five plus `nvidia/nemotron-nano-9b-v2-free` (aider-only; no auto-router).
-Canonical keys substitute `-free` for OpenRouter's `:free` suffix (the agents.schema.json key
-pattern forbids `:`), the authoritative list is `quorum fleet run --agent opencode --schema`
-(or `--agent aider --schema`). A 2026-07-15/16 pass@10 campaign (N=10/cell, hidden test, 21
+HISTORICAL (both transports are `active: false` since 2026-09-09 and `fleet run` refuses them;
+kept for the measured evidence below and for a possible future $0 tier). The `opencode` transport
+pinned five OpenRouter free models plus the `openrouter/free` auto-router as the availability
+fallback; `aider` pinned six — the same five plus `nvidia/nemotron-nano-9b-v2-free` (aider-only;
+no auto-router). Canonical keys substitute `-free` for OpenRouter's `:free` suffix (the
+agents.schema.json key pattern forbids `:`). A 2026-07-15/16 pass@10 campaign (N=10/cell, hidden test, 21
 cells) found `nano-9b-v2` reliable under aider's edit harness (9/10) but unreliable agentically
 (3/10, why it was dropped from opencode) — full evidence in `docs/fleet-run-for-agents.md` §7.
 A second, harder M-difficulty layer of that campaign (2026-07-16, same N=10/cell methodology)
@@ -298,12 +378,14 @@ trivial single-file edits (§7.2/§4.1). That M layer also surfaced a `quorum fl
 bug (since fixed): its placeholder guard used to false-positive when the prompt itself
 contained literal braces (e.g. Go code); the guard now scans only the raw argv template
 before substitution, so prompt content with `{`/`}` passes through untouched (§4.1).
-OpenRouter free-tier limits bind every `:free` call: 20 req/min shared account-wide, 1000
-req/day on this account (≥ $10 lifetime purchased credits; 50/day otherwise), and 429s COUNT
-against the daily quota — space probes, never retry-loop a 429, and avoid concurrent agentic
-runs on free models.
+OpenRouter free-tier limits bound every `:free` call while those transports were live: 20 req/min
+shared account-wide, 1000 req/day on this account (≥ $10 lifetime purchased credits; 50/day
+otherwise), and 429s COUNT against the daily quota. Moot since 2026-09-09; the live constraint is
+now a single OpenCode Go subscription shared by every routed cell, so a quota 429 there takes the
+whole external fleet down at once and the correct reaction is to fall internal, not to walk the
+catalog.
 
-`opencode_go` (FLEET-038) is a second, distinct transport sharing the `opencode` binary, env, argv_template, input_channel, and output_format but with `quota_class: subscription` and its own five vendor-branded models (`opencode-go/deepseek-v4-flash`, `opencode-go/deepseek-v4-pro`, `opencode-go/qwen3.7-plus`, `opencode-go/minimax-m3`, `opencode-go/gpt-5.6-luna`), never folded into the api-quota `opencode` block. It is declared as policy data only and stays unrouted — reachable only via explicit `--agent opencode_go` until a future smoke-gated commit adds real `quorum fleet smoke opencode_go` evidence (`docs/fleet-run-for-agents.md` section 7.8, currently an empty placeholder).
+`opencode_go` (FLEET-038) is a distinct transport sharing the `opencode` binary, env, argv_template, input_channel, and output_format but with `quota_class: subscription` and its own vendor-branded models, never folded into the api-quota `opencode` block. Since 2026-09-09 it is the ONLY active transport and it backs all four routing levels; it declares TEN models (`deepseek-v4-flash`, `deepseek-v4-pro`, `qwen3.7-plus`, `qwen3.8-flash`, `minimax-m3`, `hy3`, `kimi-k2.7-code`, `kimi-k3`, `grok-4.6`, `gpt-5.6-luna`), of which eight are routed and two (`qwen3.7-plus`, `gpt-5.6-luna`) are catalog-only. `timeouts.default_s` is 600. Evidence: stage-1 name verification 8/8 and stage-2 pass@5 39/40, `docs/fleet-run-for-agents.md` section 7.8. (Superseded: this paragraph used to say five models, "declared as policy data only", and "stays unrouted" — all three were true on 2026-09-04 and false after 2026-09-08.)
 
 ## High-level architecture
 

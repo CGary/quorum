@@ -11,12 +11,20 @@ rules:
   - match: {phase: implement, risk: low, band: S}
     executor_level: 0
     reviewer_required: true
-    # 2026-08-26 (human decision): N-1 jumps so the WHOLE level-0 chain is
-    # reachable (5 cells -> 4 jumps). max_attempts is the reroute BUDGET (jumps),
-    # not the attempt count: budget B reaches B+1 cells. Depth is spent here
-    # because level 0 is the only level on an independent quota (OpenRouter
-    # free) and its cells cost nothing but latency (opencode timeout 300s ->
-    # ~25 min worst case before the level blocks).
+    # max_attempts is the reroute BUDGET (jumps), not the attempt count: budget
+    # B reaches B+1 cells.
+    # >>> SUPERSEDED 2026-09-09. The original rationale was "N-1 jumps so the
+    # >>> WHOLE level-0 chain is reachable (5 cells -> 4 jumps)... level 0 is the
+    # >>> only level on an independent quota (OpenRouter free)". Both premises
+    # >>> are gone: level 0 now has exactly TWO cells (config.yaml), and there is
+    # >>> no independent quota class anywhere — every routed cell is on the one
+    # >>> OpenCode Go subscription.
+    # The value is deliberately LEFT at 4 rather than lowered to 1, following the
+    # same precedent recorded for level 2 on 2026-08-27: a surplus jump is inert
+    # (the router simply returns no_viable_candidate once the chain is exhausted)
+    # and it leaves room to add a third or fourth cell without touching this
+    # file. What it is NOT any more is a claim that four cells exist here.
+    # Worst case before the level blocks: 2 real attempts at 600s = ~20 min.
     max_attempts: 4
 
   # medium-or-M cells -> level 1.
@@ -58,31 +66,42 @@ rules:
     reviewer_required: true
     max_attempts: 2
     human_gate_required: false
-# 2026-08-26 (human ladder rebalance): {high, L} promotes to the new level 3
-  # (critical tier: 3.7-flash-high -> opencode-go/deepseek-v4-pro), WITH a human gate — critical
-  # dispatches are confirmed, not just displayed (exception to v2
-  # auto-dispatch, human decision 2026-08-26).
+# {high, L} promotes to level 3 (critical tier).
+  # 2026-08-26 put a human gate on every rule that reaches level 3 — critical
+  # dispatches confirmed, not just displayed. 2026-09-09 (human decision)
+  # REMOVES it: level 3 now behaves exactly like levels 0-2.
+  # Two reasons, one of them a defect: (1) the human asked for uniform
+  # behaviour across levels; (2) the gate was never enforced anywhere.
+  # cmd/fleet_route.go states that reviewer_required / human_gate_required /
+  # type_overrides / routes are silently ignored by the router, and
+  # q-dispatch/SKILL.md gates only on a codex candidate, never on this flag.
+  # Leaving it true documented a control the system did not implement, which
+  # is worse than not having it. If a gate is wanted again it has to be built
+  # in core.Route + q-dispatch first, and only then declared here.
   - match: {phase: implement, risk: high, band: L}
     executor_level: 3
     reviewer_required: true
     max_attempts: 2
-    human_gate_required: true
+    human_gate_required: false
 
   # Catch-all safe default (any non-implement phase or unanticipated value).
   # 2026-08-26: promoted to level 3 with the ladder rebalance.
+  # 2026-09-09: gate removed (see the note on {high, L} above).
   - match: {}
     executor_level: 3
     reviewer_required: true
     max_attempts: 2
-    human_gate_required: true
+    human_gate_required: false
 
+# 2026-09-09: gates removed here too (see the note on {high, L} above). These
+# overrides still carry reviewer_required, which IS honored downstream.
 type_overrides:
   migration:
     reviewer_required: true
-    human_gate_required: true
+    human_gate_required: false
   security:
     reviewer_required: true
-    human_gate_required: true
+    human_gate_required: false
 
 routes:
   default: [context, executor_L0, verify, reviewer_L1, before_merge]

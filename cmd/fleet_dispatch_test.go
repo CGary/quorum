@@ -522,8 +522,12 @@ func TestRealOpencodeTransportLoadsExpectedShape(t *testing.T) {
 	if transport.Binary != "opencode" {
 		t.Fatalf("want binary opencode, got %q", transport.Binary)
 	}
-	if !transport.Active {
-		t.Fatal("want opencode active:true")
+	// 2026-09-09 (human decision, "quitar los modelos free"): the $0 OpenRouter
+	// transports are deactivated. AC-1 still pins the invocation RECIPE (binary,
+	// env, argv, input channel, model_arg shape) so reactivating the block is a
+	// one-line change; what it no longer claims is that the block is live.
+	if transport.Active {
+		t.Fatal("want opencode active:false (free OpenRouter cells retired 2026-09-09)")
 	}
 	if transport.Env["OPENCODE_DISABLE_AUTOUPDATE"] != "true" {
 		t.Fatalf("want env OPENCODE_DISABLE_AUTOUPDATE=true, got %v", transport.Env)

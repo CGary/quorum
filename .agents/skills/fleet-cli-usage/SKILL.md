@@ -1,11 +1,11 @@
 ---
 name: fleet-cli-usage
-description: Use when an agent must run an external model transport (agy) standalone through `quorum fleet run` — a NON-LIFECYCLE runner in an explicit --cwd. Do not use for the task-bound SDC dispatch (`quorum fleet dispatch`) or for any q-* lifecycle phase.
+description: Use when an agent must run an external model transport (opencode_go) standalone through `quorum fleet run` — a NON-LIFECYCLE runner in an explicit --cwd. Do not use for the task-bound SDC dispatch (`quorum fleet dispatch`) or for any q-* lifecycle phase.
 ---
 
 # fleet-cli-usage
 
-`quorum fleet run` runs an agent transport (default `agy`) in an explicit `--cwd`
+`quorum fleet run` runs an agent transport (default `opencode_go`) in an explicit `--cwd`
 via the policy-free `core.RunDelegate` primitive. It is agent-friendly (mk-cli
 contract) and **non-lifecycle**.
 
@@ -31,12 +31,19 @@ contract) and **non-lifecycle**.
 
 ## Common commands
 
+> 2026-09-09: the default transport is `opencode_go` (OpenCode Go subscription).
+> `agy`/`agy_edit` are retired with the Antigravity subscription and the $0
+> OpenRouter transports (`opencode`, `aider`) are deactivated, so the model
+> names that used to appear here are gone. Read the live enum, never a literal.
+
 ```bash
 quorum fleet run --schema
-quorum fleet run --agent agy --model anthropic/claude-sonnet-4-6 --cwd . --input prompt.txt --no-input --json
-cat prompt.txt | quorum fleet run --model anthropic/claude-opus-4-6 --cwd /repo --input - --no-input --json
-quorum fleet run --model anthropic/claude-sonnet-4-6 --cwd . --input prompt.txt --dry-run --json
-quorum fleet run --model anthropic/claude-sonnet-4-6 --cwd . --input prompt.txt --output out.txt --json
+# Never hardcode a model name: --model is a closed enum read from agents.yaml
+# and the catalog changes. `--schema` prints the live enum for the transport.
+quorum fleet run --agent opencode_go --model <from --schema> --cwd . --input prompt.txt --no-input --json
+cat prompt.txt | quorum fleet run --model <from --schema> --cwd /repo --input - --no-input --json
+quorum fleet run --model <from --schema> --cwd . --input prompt.txt --dry-run --json
+quorum fleet run --model <from --schema> --cwd . --input prompt.txt --output out.txt --json
 ```
 
 ## JSON contract

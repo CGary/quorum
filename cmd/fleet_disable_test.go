@@ -10,6 +10,10 @@ import (
 
 func TestFleetDisable(t *testing.T) {
 	root := t.TempDir()
+	// core.FleetAgentsPath honors QUORUM_FLEET_AGENTS (2026-09-09). Without this
+	// the fixture below is shadowed by whatever catalog the invoking shell
+	// exports, and the test silently validates against the real repo instead.
+	t.Setenv("QUORUM_FLEET_AGENTS", "")
 	content := `
 transports:
   agy:
