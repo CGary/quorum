@@ -37,6 +37,14 @@
 # decisions among cells that no longer exist. They remain recoverable in git
 # (commit aab5927 and earlier) and the dated narrative survives in AGENTS.md /
 # CLAUDE.md.
+#
+# 2026-09-13 (human decision) -- LADDER REBUILT AGAIN, three new catalog cells.
+# New chain: 0 mimo-v2.5 -> deepseek-v4-flash-vision-exp; 1 deepseek-v4-flash ->
+# longcat-2.0; 2 qwen3.7-plus -> minimax-m3; 3 gpt-5.6-luna -> deepseek-v4-pro.
+# Still cross-FAMILY per level (xiaomi->deepseek, deepseek->meituan,
+# alibaba->minimax, openai->deepseek). Retired cells (qwen3.8-flash, hy3,
+# kimi-k2.7-code, kimi-k3, grok-4.6) stay in agents.yaml as catalog-only. See
+# CLAUDE.md for the full evidence-status note.
 levels:
   0:
     use_for:
@@ -44,8 +52,8 @@ levels:
       - tests
       - docs
       - mechanical_refactor
-    primary: opencode-go/deepseek-v4-flash
-    fallback: opencode-go/qwen3.8-flash
+    primary: opencode-go/mimo-v2.5
+    fallback: opencode-go/deepseek-v4-flash-vision-exp
     # max_cost_per_call_usd only binds transports with quota_class: api
     # (ADR-A). Every routed cell is now quota_class: subscription, so this
     # bound is inert -- kept so re-introducing an api transport is a one-line
@@ -57,8 +65,8 @@ levels:
       - review
       - diagnose_verify_failure
       - small_corrections
-    primary: opencode-go/minimax-m3
-    fallback: opencode-go/hy3
+    primary: opencode-go/deepseek-v4-flash
+    fallback: opencode-go/longcat-2.0
     max_cost_per_call_usd: 0.50
 
   2:
@@ -66,8 +74,8 @@ levels:
       - surgical_cartography
       - high_risk_arch
       - ambiguous_features
-    primary: opencode-go/deepseek-v4-pro
-    fallback: opencode-go/kimi-k2.7-code
+    primary: opencode-go/qwen3.7-plus
+    fallback: opencode-go/minimax-m3
     max_cost_per_call_usd: 3.00
     requires_human_gate: false
 
@@ -76,8 +84,8 @@ levels:
       - migrations
       - security
       - critical_high_risk_large
-    primary: opencode-go/kimi-k3
-    fallback: opencode-go/grok-4.6
+    primary: opencode-go/gpt-5.6-luna
+    fallback: opencode-go/deepseek-v4-pro
     max_cost_per_call_usd: 3.00
     # 2026-09-09 (human decision): level 3 behaves exactly like the others.
     # The matching human_gate_required flags in routing.yaml were flipped to

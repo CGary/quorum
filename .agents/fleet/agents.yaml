@@ -524,6 +524,15 @@ transports:
       opencode-go/grok-4.6:
         provider: opencode-go-xai
         model_arg: opencode-go/grok-4.6
+      opencode-go/mimo-v2.5:
+        provider: opencode-go-xiaomi
+        model_arg: opencode-go/mimo-v2.5
+      opencode-go/deepseek-v4-flash-vision-exp:
+        provider: opencode-go-deepseek
+        model_arg: opencode-go/deepseek-v4-flash-vision-exp
+      opencode-go/longcat-2.0:
+        provider: opencode-go-meituan
+        model_arg: opencode-go/longcat-2.0
     contract_test: .agents/fleet/contract_tests/opencode_go.yaml
     mode: agentic
     active: true

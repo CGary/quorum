@@ -310,6 +310,19 @@ are what `/q-*` actually loads there (`.claude/skills` symlinks to them), and on
 `q-blueprint`, `fleet-cli-usage` and `q-dispatch` had to be copied over by hand after the quorum
 originals were fixed.
 
+**2026-09-13 (human decision): ladder rebuilt, three new cells, no smoke.** New chains: level 0
+`mimo-v2.5` → `deepseek-v4-flash-vision-exp`; level 1 `deepseek-v4-flash` → `longcat-2.0`; level 2
+`qwen3.7-plus` → `minimax-m3`; level 3 `gpt-5.6-luna` → `deepseek-v4-pro`. Three new catalog cells
+(`opencode-go/mimo-v2.5`, `opencode-go/deepseek-v4-flash-vision-exp`, `opencode-go/longcat-2.0`)
+and two new provider enum values (`opencode-go-xiaomi`, `opencode-go-meituan`) were added to
+`agents.yaml`/`agents.schema.json`. Cells leaving the routes (`qwen3.8-flash`, `hy3`,
+`kimi-k2.7-code`, `kimi-k3`, `grok-4.6`) stay catalog-only, not deleted. NO smoke evidence exists
+for `mimo-v2.5`, `deepseek-v4-flash-vision-exp`, `longcat-2.0`, `gpt-5.6-luna`, or `qwen3.7-plus` —
+the OpenCode Go quota was exhausted at decision time, so their first real dispatches are the
+evidence; watch `quorum fleet stats`. This is a third suspension of the proven-before-new rule
+(after 2026-09-08 and 2026-09-09). Each level stays cross-family: xiaomi → deepseek, deepseek →
+meituan, alibaba → minimax, openai → deepseek.
+
 **Tooling shipped with the retirement (FLEET-036 / FLEET-037, merged 2026-09-04).**
 (1) `wrapper_signatures` — a per-transport list in `agents.yaml` (validated by
 `agents.schema.json`, sibling of `failure_signatures`) of case-sensitive substrings matched
@@ -385,7 +398,7 @@ now a single OpenCode Go subscription shared by every routed cell, so a quota 42
 whole external fleet down at once and the correct reaction is to fall internal, not to walk the
 catalog.
 
-`opencode_go` (FLEET-038) is a distinct transport sharing the `opencode` binary, env, argv_template, input_channel, and output_format but with `quota_class: subscription` and its own vendor-branded models, never folded into the api-quota `opencode` block. Since 2026-09-09 it is the ONLY active transport and it backs all four routing levels; it declares TEN models (`deepseek-v4-flash`, `deepseek-v4-pro`, `qwen3.7-plus`, `qwen3.8-flash`, `minimax-m3`, `hy3`, `kimi-k2.7-code`, `kimi-k3`, `grok-4.6`, `gpt-5.6-luna`), of which eight are routed and two (`qwen3.7-plus`, `gpt-5.6-luna`) are catalog-only. `timeouts.default_s` is 600. Evidence: stage-1 name verification 8/8 and stage-2 pass@5 39/40, `docs/fleet-run-for-agents.md` section 7.8. (Superseded: this paragraph used to say five models, "declared as policy data only", and "stays unrouted" — all three were true on 2026-09-04 and false after 2026-09-08.)
+`opencode_go` (FLEET-038) is a distinct transport sharing the `opencode` binary, env, argv_template, input_channel, and output_format but with `quota_class: subscription` and its own vendor-branded models, never folded into the api-quota `opencode` block. Since 2026-09-09 it is the ONLY active transport and it backs all four routing levels; since the 2026-09-13 ladder rebuild it declares THIRTEEN models (`deepseek-v4-flash`, `deepseek-v4-pro`, `qwen3.7-plus`, `qwen3.8-flash`, `minimax-m3`, `hy3`, `kimi-k2.7-code`, `kimi-k3`, `grok-4.6`, `gpt-5.6-luna`, `mimo-v2.5`, `deepseek-v4-flash-vision-exp`, `longcat-2.0`), of which eight are routed (`mimo-v2.5`, `deepseek-v4-flash-vision-exp`, `deepseek-v4-flash`, `longcat-2.0`, `qwen3.7-plus`, `minimax-m3`, `gpt-5.6-luna`, `deepseek-v4-pro`) and five (`qwen3.8-flash`, `hy3`, `kimi-k2.7-code`, `kimi-k3`, `grok-4.6`) are catalog-only. `timeouts.default_s` is 600. Evidence: stage-1 name verification 8/8 and stage-2 pass@5 39/40, `docs/fleet-run-for-agents.md` section 7.8 (the three 2026-09-13 cells and `qwen3.7-plus`/`gpt-5.6-luna` carry no smoke evidence yet). (Superseded: this paragraph used to say five/ten models and different routed/catalog-only splits — see the 2026-09-13 dated note above for the current split.)
 
 ## High-level architecture
 
