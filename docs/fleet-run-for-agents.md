@@ -615,6 +615,41 @@ Two things this campaign is evidence FOR, and one it is not. It IS evidence that
 
 Evidence policy for this rebuild (human decision, "rutear las 8 igual, smoke solo informativo"): the ladder was routed **before** stage 2 finished, so stage 2 DOCUMENTS rather than gates. This is a deliberate, recorded exception to the proven-before-new rule — the second one in two days.
 
+#### 2026-09-13 — ladder rebuilt again, five new cells smoked after routing
+
+Human decision: the ladder was rebuilt on eight OpenCode Go cells, two per level, no secondary. Three cells were new to `agents.yaml` (`mimo-v2.5`, `deepseek-v4-flash-vision-exp`, `longcat-2.0`; two new `provider` values, `opencode-go-xiaomi` and `opencode-go-meituan`) and two were catalog-only until now (`qwen3.7-plus`, `gpt-5.6-luna`). Cells leaving the routes (`qwen3.8-flash`, `hy3`, `kimi-k2.7-code`, `kimi-k3`, `grok-4.6`) stay catalog-only.
+
+| Level | Primary | Fallback |
+|-------|---------|----------|
+| 0 | `opencode-go/mimo-v2.5` | `opencode-go/deepseek-v4-flash-vision-exp` |
+| 1 | `opencode-go/deepseek-v4-flash` | `opencode-go/longcat-2.0` |
+| 2 | `opencode-go/qwen3.7-plus` | `opencode-go/minimax-m3` |
+| 3 | `opencode-go/gpt-5.6-luna` | `opencode-go/deepseek-v4-pro` |
+
+The OpenCode Go quota was exhausted at decision time, so the ladder was routed and committed WITHOUT smoke (third recorded suspension of proven-before-new, after 2026-09-08 and 2026-09-09). The smoke ran the same day once quota returned, on the five cells with no prior evidence only — `deepseek-v4-flash`, `minimax-m3` and `deepseek-v4-pro` keep their 2026-09-09 evidence above. Same two stages, same runner.
+
+Stage 1 result: **5/5**. Every cell answered exactly `OK` in 4-10 s, no rejection signature, nothing written.
+
+| Cell | Stage 1 | Latency |
+|------|---------|---------|
+| `mimo-v2.5` | OK | 7 s |
+| `deepseek-v4-flash-vision-exp` | OK | 6 s |
+| `longcat-2.0` | OK | 10 s |
+| `qwen3.7-plus` | OK | 5 s |
+| `gpt-5.6-luna` | OK | 4 s |
+
+Stage 2 result: **25/25 trials**. Every trial scored 15/15 hidden subtests and wrote exactly the two requested files; no timeouts, no quota errors.
+
+| Cell | Level / slot | pass@5 | Latency min / median / max | Notes |
+|------|--------------|--------|----------------------------|-------|
+| `opencode-go/mimo-v2.5` | L0 primary | **5/5** | 18 / 22 / 38 s | |
+| `opencode-go/deepseek-v4-flash-vision-exp` | L0 fallback | **5/5** | 10 / 11 / 13 s | Fastest cell of this campaign; experimental tag on the provider side, so watch `quorum fleet stats` for silent retirement. |
+| `opencode-go/longcat-2.0` | L1 fallback | **5/5** | 23 / 30 / 34 s | |
+| `opencode-go/qwen3.7-plus` | L2 primary | **5/5** | 19 / 21 / 32 s | First evidence for this cell (catalog-only since 2026-09-04). |
+| `opencode-go/gpt-5.6-luna` | L3 primary | **5/5** | 20 / 27 / 32 s | First evidence for this cell. |
+
+With `kimi-k3` out of the routes, the slowest routed cell is now `longcat-2.0` at 34 s max; `timeouts.default_s: 600` carries a wide margin, but it is left as is until real `{high, L}` dispatches give a latency distribution. Same evidence limits as 2026-09-09: this proves the `model_arg` values and a two-file M task, not capability on a real large feature nor behaviour under a saturated subscription. All 30 trials are in the shared ledger.
+
 #### Annex — the superseded 2026-09-08 ladder (historical)
 
 Kept as the causal record of the 24-hour-old ladder the rebuild above replaced. Nothing here is current: `qwen3.7-plus` and `gpt-5.6-luna` are in the catalog but UNROUTED, and Antigravity/OpenRouter are no longer reroute targets because those transports are `active: false`.
