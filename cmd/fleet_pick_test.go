@@ -708,3 +708,263 @@ func TestFleetPickCeilingApplied(t *testing.T) {
 		t.Fatalf("want ceiling_applied true, got %v", data["ceiling_applied"])
 	}
 }
+
+// writePickPolicyFallback writes a policy whose primary provider
+// (openrouter_decisions) points at primaryURL and whose fallback provider
+// (typesafe) points at fallbackURL, with distinct API key env vars so a test can
+// leave one empty.
+func writePickPolicyFallback(t *testing.T, root, primaryURL, fallbackURL string) string {
+	t.Helper()
+	policy := "version: 1\n" +
+		"provider: openrouter_decisions\n" +
+		"fallback_provider: typesafe\n" +
+		"providers:\n" +
+		"  openrouter_decisions:\n" +
+		"    url: \"" + primaryURL + "\"\n" +
+		"    model: jev-model\n" +
+		"    api_key_env: TEST_JEV_KEY\n" +
+		"  typesafe:\n" +
+		"    url: \"" + fallbackURL + "\"\n" +
+		"    model: ts-model\n" +
+		"    api_key_env: TEST_JEV_KEY2\n" +
+		"timeout_s: 30\n" +
+		"max_state_tokens: 100000\n" +
+		"transport: opencode_go\n" +
+		"instructions: pick the best model for the task\n" +
+		"difficulty_instructions: pick the difficulty\n" +
+		"candidates:\n" +
+		"  - key: A\n" +
+		"    model: opencode-go/model-a\n" +
+		"    what: handles small fast tasks\n" +
+		"    max_difficulty: hard\n" +
+		"  - key: B\n" +
+		"    model: opencode-go/model-b\n" +
+		"    what: handles large reasoning tasks\n" +
+		"    max_difficulty: hard\n" +
+		"  - key: C\n" +
+		"    model: opencode-go/model-c\n" +
+		"    what: handles everything\n" +
+		"    max_difficulty: hard\n" +
+		"difficulty:\n" +
+		"  - key: easy\n" +
+		"    description: simple change\n" +
+		"    claude_model: haiku\n" +
+		"  - key: hard\n" +
+		"    description: complex change\n" +
+		"    claude_model: opus\n" +
+		"default_difficulty: easy\n" +
+		"fallback_pair: [A, B]\n"
+	p := filepath.Join(root, "jev-router.yaml")
+	if err := os.WriteFile(p, []byte(policy), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+// pickTestGetenvTwo wires the policy/catalog paths plus two independent Jev API
+// key env vars (TEST_JEV_KEY for the primary, TEST_JEV_KEY2 for the fallback).
+func pickTestGetenvTwo(policyPath, agentsPath, primaryKey, fallbackKey string) func(string) string {
+	return func(k string) string {
+		switch k {
+		case "QUORUM_JEV_POLICY":
+			return policyPath
+		case "QUORUM_FLEET_AGENTS":
+			return agentsPath
+		case "TEST_JEV_KEY":
+			return primaryKey
+		case "TEST_JEV_KEY2":
+			return fallbackKey
+		}
+		return ""
+	}
+}
+
+func TestFleetPickFallbackProviderUsed(t *testing.T) {
+	primarySrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, `{"error":{"message":"boom"}}`, http.StatusInternalServerError)
+	}))
+	t.Cleanup(primarySrv.Close)
+	fallbackSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"model":"ts-model","answers":{"target_model":{"type":"choice","choice":"B","probabilities":{"A":0.3,"B":0.7}},"difficulty":{"type":"choice","choice":"easy"}}}`)
+	}))
+	t.Cleanup(fallbackSrv.Close)
+
+	root := t.TempDir()
+	policyPath := writePickPolicyFallback(t, root, primarySrv.URL, fallbackSrv.URL)
+	agentsPath := writePickAgents(t, root)
+	inputPath := writePickInput(t, root, "implement feature X")
+
+	var out, errW bytes.Buffer
+	code := runFleetPick(fleetPickParams{
+		Input: inputPath, JSON: true, ProjectRoot: root,
+		Getenv: pickTestGetenvTwo(policyPath, agentsPath, "secret", "secret2"),
+	}, &out, &errW)
+	if code != 0 {
+		t.Fatalf("want exit 0, got %d\nstdout=%s\nstderr=%s", code, out.String(), errW.String())
+	}
+	data := decodeEnvelope(t, out.Bytes())["data"].(map[string]any)
+	if data["reason"] != "jev" {
+		t.Fatalf("want reason jev, got %v", data["reason"])
+	}
+	if data["provider"] != "typesafe" {
+		t.Fatalf("want data.provider typesafe, got %v", data["provider"])
+	}
+	attempts := data["provider_attempts"].([]any)
+	if len(attempts) != 1 {
+		t.Fatalf("want 1 provider attempt, got %d", len(attempts))
+	}
+	a := attempts[0].(map[string]any)
+	if a["provider"] != "openrouter_decisions" || a["status"] != float64(500) {
+		t.Fatalf("want primary attempt openrouter_decisions/500, got %v", a)
+	}
+}
+
+func TestFleetPickFallbackNotUsedOn422(t *testing.T) {
+	var fallbackCalls int
+	primarySrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, `{"error":{"message":"bad request"}}`, http.StatusUnprocessableEntity)
+	}))
+	t.Cleanup(primarySrv.Close)
+	fallbackSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fallbackCalls++
+		fmt.Fprint(w, `{}`)
+	}))
+	t.Cleanup(fallbackSrv.Close)
+
+	root := t.TempDir()
+	policyPath := writePickPolicyFallback(t, root, primarySrv.URL, fallbackSrv.URL)
+	agentsPath := writePickAgents(t, root)
+	inputPath := writePickInput(t, root, "implement feature X")
+
+	var out, errW bytes.Buffer
+	code := runFleetPick(fleetPickParams{
+		Input: inputPath, JSON: true, ProjectRoot: root,
+		Getenv: pickTestGetenvTwo(policyPath, agentsPath, "secret", "secret2"),
+	}, &out, &errW)
+	if code != 0 {
+		t.Fatalf("422 must fail open (exit 0), got %d\nstdout=%s\nstderr=%s", code, out.String(), errW.String())
+	}
+	if fallbackCalls != 0 {
+		t.Fatalf("fallback must receive zero requests on a 422, got %d", fallbackCalls)
+	}
+	data := decodeEnvelope(t, out.Bytes())["data"].(map[string]any)
+	if data["reason"] != "error" {
+		t.Fatalf("want reason error, got %v", data["reason"])
+	}
+}
+
+func TestFleetPickFallbackOnMissingPrimaryKey(t *testing.T) {
+	primarySrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("primary must not be reached when its key env is missing")
+	}))
+	t.Cleanup(primarySrv.Close)
+	fallbackSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"model":"ts-model","answers":{"target_model":{"type":"choice","choice":"A"}}}`)
+	}))
+	t.Cleanup(fallbackSrv.Close)
+
+	root := t.TempDir()
+	policyPath := writePickPolicyFallback(t, root, primarySrv.URL, fallbackSrv.URL)
+	agentsPath := writePickAgents(t, root)
+	inputPath := writePickInput(t, root, "implement feature X")
+
+	var out, errW bytes.Buffer
+	code := runFleetPick(fleetPickParams{
+		Input: inputPath, JSON: true, ProjectRoot: root,
+		Getenv: pickTestGetenvTwo(policyPath, agentsPath, "", "secret2"),
+	}, &out, &errW)
+	if code != 0 {
+		t.Fatalf("want exit 0, got %d\nstdout=%s\nstderr=%s", code, out.String(), errW.String())
+	}
+	data := decodeEnvelope(t, out.Bytes())["data"].(map[string]any)
+	if data["provider"] != "typesafe" {
+		t.Fatalf("want data.provider typesafe, got %v", data["provider"])
+	}
+	attempts := data["provider_attempts"].([]any)
+	if len(attempts) != 1 {
+		t.Fatalf("want 1 provider attempt, got %d", len(attempts))
+	}
+	msg, _ := attempts[0].(map[string]any)["message"].(string)
+	if !strings.Contains(msg, "TEST_JEV_KEY") {
+		t.Fatalf("want the attempt message to name TEST_JEV_KEY, got %q", msg)
+	}
+}
+
+func TestFleetPickFallbackBothFail(t *testing.T) {
+	primarySrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, `{"error":{"message":"boom"}}`, http.StatusInternalServerError)
+	}))
+	t.Cleanup(primarySrv.Close)
+	fallbackSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, `{"error":{"message":"boom"}}`, http.StatusBadGateway)
+	}))
+	t.Cleanup(fallbackSrv.Close)
+
+	root := t.TempDir()
+	policyPath := writePickPolicyFallback(t, root, primarySrv.URL, fallbackSrv.URL)
+	agentsPath := writePickAgents(t, root)
+	inputPath := writePickInput(t, root, "implement feature X")
+
+	var out, errW bytes.Buffer
+	code := runFleetPick(fleetPickParams{
+		Input: inputPath, JSON: true, ProjectRoot: root,
+		Getenv: pickTestGetenvTwo(policyPath, agentsPath, "secret", "secret2"),
+	}, &out, &errW)
+	if code != 0 {
+		t.Fatalf("want exit 0, got %d\nstdout=%s\nstderr=%s", code, out.String(), errW.String())
+	}
+	data := decodeEnvelope(t, out.Bytes())["data"].(map[string]any)
+	if data["reason"] != "error" {
+		t.Fatalf("want reason error, got %v", data["reason"])
+	}
+	attempts := data["provider_attempts"].([]any)
+	if len(attempts) != 2 {
+		t.Fatalf("want 2 provider attempts, got %d", len(attempts))
+	}
+}
+
+func TestFleetPickNoFallbackProviderAttemptsEmpty(t *testing.T) {
+	inputPath, getenv := setupPickServerAndFiles(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"model":"jev-model","answers":{"target_model":{"type":"choice","choice":"A"}}}`)
+	})
+
+	var out, errW bytes.Buffer
+	code := runFleetPick(fleetPickParams{
+		Input: inputPath, JSON: true, ProjectRoot: t.TempDir(), Getenv: getenv,
+	}, &out, &errW)
+	if code != 0 {
+		t.Fatalf("want exit 0, got %d\nstdout=%s\nstderr=%s", code, out.String(), errW.String())
+	}
+	data := decodeEnvelope(t, out.Bytes())["data"].(map[string]any)
+	if data["reason"] != "jev" {
+		t.Fatalf("want reason jev, got %v", data["reason"])
+	}
+	if _, ok := data["provider_attempts"]; ok {
+		t.Fatalf("provider_attempts must be empty when no fallback is configured, got %v", data["provider_attempts"])
+	}
+}
+
+func TestFleetPickUpstreamProviderEchoed(t *testing.T) {
+	inputPath, getenv := setupPickServerAndFiles(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"model":"jev-model","provider":"TypeSafe","answers":{"target_model":{"type":"choice","choice":"A"}}}`)
+	})
+
+	var out, errW bytes.Buffer
+	code := runFleetPick(fleetPickParams{
+		Input: inputPath, JSON: true, ProjectRoot: t.TempDir(), Getenv: getenv,
+	}, &out, &errW)
+	if code != 0 {
+		t.Fatalf("want exit 0, got %d\nstdout=%s\nstderr=%s", code, out.String(), errW.String())
+	}
+	data := decodeEnvelope(t, out.Bytes())["data"].(map[string]any)
+	if data["provider"] != "openrouter_decisions" {
+		t.Fatalf("want data.provider openrouter_decisions, got %v", data["provider"])
+	}
+	if data["upstream_provider"] != "TypeSafe" {
+		t.Fatalf("want upstream_provider TypeSafe, got %v", data["upstream_provider"])
+	}
+}

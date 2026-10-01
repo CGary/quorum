@@ -25,6 +25,7 @@ var knownJevProviders = map[string]bool{
 type JevRouterPolicy struct {
 	Version                int                          `json:"version" yaml:"version"`
 	Provider               string                       `json:"provider" yaml:"provider"`
+	FallbackProvider       string                       `json:"fallback_provider" yaml:"fallback_provider"`
 	Providers              map[string]JevProviderConfig `json:"providers" yaml:"providers"`
 	TimeoutS               int                          `json:"timeout_s" yaml:"timeout_s"`
 	MaxStateTokens         int                          `json:"max_state_tokens" yaml:"max_state_tokens"`
@@ -101,6 +102,27 @@ func ValidateJevRouterPolicy(p JevRouterPolicy) error {
 	}
 	if cfg.APIKeyEnv == "" {
 		return fmt.Errorf("providers.%s.api_key_env: must not be empty", p.Provider)
+	}
+	if p.FallbackProvider != "" {
+		if p.FallbackProvider == p.Provider {
+			return fmt.Errorf("fallback_provider: must differ from provider")
+		}
+		if !knownJevProviders[p.FallbackProvider] {
+			return fmt.Errorf("fallback_provider: %q is not a known Jev provider", p.FallbackProvider)
+		}
+		fcfg, ok := p.Providers[p.FallbackProvider]
+		if !ok {
+			return fmt.Errorf("fallback_provider: provider %q has no entry", p.FallbackProvider)
+		}
+		if fcfg.URL == "" {
+			return fmt.Errorf("fallback_provider: providers.%s.url must not be empty", p.FallbackProvider)
+		}
+		if fcfg.Model == "" {
+			return fmt.Errorf("fallback_provider: providers.%s.model must not be empty", p.FallbackProvider)
+		}
+		if fcfg.APIKeyEnv == "" {
+			return fmt.Errorf("fallback_provider: providers.%s.api_key_env must not be empty", p.FallbackProvider)
+		}
 	}
 	if p.TimeoutS <= 0 {
 		return fmt.Errorf("timeout_s: must be > 0")
@@ -464,12 +486,38 @@ func (e *JevError) Error() string {
 	return e.Message
 }
 
+// JevErrorFallsBack reports whether a Jev error should trigger the fallback
+// provider. Request-shaped problems that would fail identically on another
+// provider (HTTP 400, 413, 422) do NOT fall back; every other failure —
+// transport errors, timeouts, 401/402/403/404, 429, 5xx, and unparseable 200
+// bodies — does.
+func JevErrorFallsBack(e *JevError) bool {
+	if e == nil {
+		return false
+	}
+	switch e.Status {
+	case 400, 413, 422:
+		return false
+	default:
+		return true
+	}
+}
+
 // PickCell is one resolved executor cell: the candidate key, its model, and
 // optionally the classifier-assigned probability.
 type PickCell struct {
 	Key         string   `json:"key"`
 	Model       string   `json:"model"`
 	Probability *float64 `json:"probability,omitempty"`
+}
+
+// ProviderAttempt records one provider in the ordered chain that failed before
+// an answer was obtained (or before the pick failed open).
+type ProviderAttempt struct {
+	Provider  string `json:"provider"`
+	Status    int    `json:"status,omitempty"`
+	Message   string `json:"message"`
+	LatencyMS int64  `json:"latency_ms"`
 }
 
 // PickDecision is the final routing decision derived from a classifier answer.
@@ -492,6 +540,8 @@ type PickDecision struct {
 	JevModel                string             `json:"jev_model,omitempty"`
 	JevID                   string             `json:"jev_id,omitempty"`
 	Provider                string             `json:"provider,omitempty"`
+	UpstreamProvider        string             `json:"upstream_provider,omitempty"`
+	ProviderAttempts        []ProviderAttempt  `json:"provider_attempts,omitempty"`
 	Usage                   *JevUsage          `json:"usage,omitempty"`
 	LatencyMS               int64              `json:"latency_ms"`
 	Error                   *JevError          `json:"error,omitempty"`
@@ -537,7 +587,7 @@ func DecidePick(p JevRouterPolicy, live []JevCandidate, resp *JevResponse, jevEr
 	if resp != nil {
 		dec.JevModel = resp.Model
 		dec.JevID = resp.ID
-		dec.Provider = resp.Provider
+		dec.UpstreamProvider = resp.Provider
 		if resp.Usage.InputTokens > 0 || resp.Usage.OutputTokens > 0 || resp.Usage.Cost != nil {
 			u := resp.Usage
 			dec.Usage = &u

@@ -127,6 +127,11 @@ func runFleetPick(p fleetPickParams, stdout, stderr io.Writer) int {
 			"provider", provider, false, ""))
 	}
 
+	chain := []string{provider}
+	if policy.FallbackProvider != "" && policy.FallbackProvider != provider {
+		chain = append(chain, policy.FallbackProvider)
+	}
+
 	transport, terr := loadPickTransport(root, getenv, policy.Transport)
 	if terr != nil {
 		return fail(fleetAgentError(fleetPickCommand, errCodeInvalidArgument,
@@ -152,21 +157,21 @@ func runFleetPick(p fleetPickParams, stdout, stderr io.Writer) int {
 	req, trimmed, est, berr := core.BuildJevRequest(policy, provider, live, prompt, ctxStr)
 	if errors.Is(berr, core.ErrJevStateTooLarge) {
 		return emitPickFailOpen(emit, stdout, stderr, policy, provider, live, dropped, trimmed, est,
-			root, p.Input, &core.JevError{Status: 413, Message: berr.Error()})
-	}
-
-	url := policy.Providers[provider].URL
-	if override := getenv("QUORUM_JEV_URL"); override != "" {
-		url = override
+			root, p.Input, nil, &core.JevError{Status: 413, Message: berr.Error()})
 	}
 
 	if p.DryRun {
+		url := policy.Providers[provider].URL
+		if override := getenv("QUORUM_JEV_URL"); override != "" {
+			url = override
+		}
 		emit.success(stdout, stderr, fleetSuccessEnvelope{
 			OK:      true,
 			Command: fleetPickCommand,
 			Summary: fmt.Sprintf("dry-run: jev request for provider %s (no HTTP call)", provider),
 			Data: map[string]any{
 				"provider":         provider,
+				"provider_chain":   chain,
 				"url":              url,
 				"request":          req,
 				"candidates":       liveKeys(live),
@@ -179,26 +184,79 @@ func runFleetPick(p fleetPickParams, stdout, stderr io.Writer) int {
 		return 0
 	}
 
-	client, nerr := core.NewJevClient(policy, provider, getenv("QUORUM_JEV_URL"), getenv)
-	if nerr != nil {
-		return emitPickFailOpen(emit, stdout, stderr, policy, provider, live, dropped, trimmed, est,
-			root, p.Input, &core.JevError{Message: nerr.Error()})
-	}
-
 	timeoutS := p.TimeoutS
 	if timeoutS <= 0 {
 		timeoutS = policy.TimeoutS
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutS)*time.Second)
-	defer cancel()
-	start := now()
-	resp, jerr := client.Decide(ctx, req)
-	latency := now().Sub(start).Milliseconds()
 
-	decision := core.DecidePick(policy, live, resp, jerr)
-	decision = finalizePickDecision(decision, provider, dropped, trimmed, est, latency)
+	var attempts []core.ProviderAttempt
+	var (
+		successProvider string
+		successResp     *core.JevResponse
+		successClient   core.JevClient
+		successTrimmed  bool
+		successEst      int
+		successLatency  int64
+		lastErr         *core.JevError
+	)
 
-	secondCall := resolvePickBackup(&decision, live, policy, provider, prompt, ctxStr, timeoutS, client, now)
+	for _, prov := range chain {
+		preq, ptrimmed, pest, berr := core.BuildJevRequest(policy, prov, live, prompt, ctxStr)
+		if errors.Is(berr, core.ErrJevStateTooLarge) {
+			lastErr = &core.JevError{Status: 413, Message: berr.Error()}
+			attempts = append(attempts, core.ProviderAttempt{Provider: prov, Status: 413, Message: lastErr.Message})
+			break
+		}
+
+		urlOverride := getenv("QUORUM_JEV_FALLBACK_URL")
+		if prov == provider {
+			urlOverride = getenv("QUORUM_JEV_URL")
+		}
+		client, nerr := core.NewJevClient(policy, prov, urlOverride, getenv)
+		if nerr != nil {
+			lastErr = &core.JevError{Message: nerr.Error()}
+			attempts = append(attempts, core.ProviderAttempt{Provider: prov, Message: nerr.Error()})
+			continue
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutS)*time.Second)
+		start := now()
+		resp, jerr := client.Decide(ctx, preq)
+		latency := now().Sub(start).Milliseconds()
+		cancel()
+
+		if jerr != nil {
+			lastErr = jerr
+			attempts = append(attempts, core.ProviderAttempt{
+				Provider:  prov,
+				Status:    jerr.Status,
+				Message:   jerr.Message,
+				LatencyMS: latency,
+			})
+			if !core.JevErrorFallsBack(jerr) {
+				break
+			}
+			continue
+		}
+
+		successProvider = prov
+		successResp = resp
+		successClient = client
+		successTrimmed = ptrimmed
+		successEst = pest
+		successLatency = latency
+		break
+	}
+
+	if successProvider == "" {
+		return emitPickFailOpen(emit, stdout, stderr, policy, provider, live, dropped, trimmed, est,
+			root, p.Input, attempts, lastErr)
+	}
+
+	decision := core.DecidePick(policy, live, successResp, nil)
+	decision = finalizePickDecision(decision, successProvider, attempts, dropped, successTrimmed, successEst, successLatency)
+
+	secondCall := resolvePickBackup(&decision, live, policy, successProvider, prompt, ctxStr, timeoutS, successClient, now)
 
 	emit.success(stdout, stderr, fleetSuccessEnvelope{
 		OK:      true,
@@ -216,8 +274,8 @@ func runFleetPick(p fleetPickParams, stdout, stderr io.Writer) int {
 // emitPickFailOpen emits an ok:true decision for a Jev error. Jev errors are
 // never command errors: an unreachable/oversized/bad classifier degrades to the
 // fallback pair, and the human is still told which model would run.
-func emitPickFailOpen(emit fleetEmit, stdout, stderr io.Writer, policy core.JevRouterPolicy, provider string, live []core.JevCandidate, dropped []core.DroppedCandidate, trimmed bool, est int, dir, inputPath string, jerr *core.JevError) int {
-	decision := finalizePickDecision(core.DecidePick(policy, live, nil, jerr), provider, dropped, trimmed, est, 0)
+func emitPickFailOpen(emit fleetEmit, stdout, stderr io.Writer, policy core.JevRouterPolicy, provider string, live []core.JevCandidate, dropped []core.DroppedCandidate, trimmed bool, est int, dir, inputPath string, attempts []core.ProviderAttempt, jerr *core.JevError) int {
+	decision := finalizePickDecision(core.DecidePick(policy, live, nil, jerr), provider, attempts, dropped, trimmed, est, 0)
 	emit.success(stdout, stderr, fleetSuccessEnvelope{
 		OK:      true,
 		Command: fleetPickCommand,
@@ -232,16 +290,16 @@ func emitPickFailOpen(emit fleetEmit, stdout, stderr io.Writer, policy core.JevR
 
 // finalizePickDecision attaches the surrounding request-lifecycle fields that
 // core.DecidePick does not know about (dropped candidates, trimming, token
-// estimate, latency) and fills Provider from the policy when the classifier did
-// not echo one.
-func finalizePickDecision(decision core.PickDecision, provider string, dropped []core.DroppedCandidate, trimmed bool, est int, latencyMS int64) core.PickDecision {
+// estimate, latency, provider attempts) and pins Provider to the policy
+// provider NAME that produced the answer (the classifier's own echoed provider
+// string lives in UpstreamProvider, set by core.DecidePick).
+func finalizePickDecision(decision core.PickDecision, provider string, attempts []core.ProviderAttempt, dropped []core.DroppedCandidate, trimmed bool, est int, latencyMS int64) core.PickDecision {
+	decision.Provider = provider
+	decision.ProviderAttempts = attempts
 	decision.Dropped = dropped
 	decision.StateTrimmed = trimmed
 	decision.EstimatedTokens = est
 	decision.LatencyMS = latencyMS
-	if decision.Provider == "" {
-		decision.Provider = provider
-	}
 	return decision
 }
 
@@ -483,7 +541,7 @@ func fleetPickSchema() map[string]any {
 				"provider": map[string]any{
 					"type":        "string",
 					"enum":        []string{"typesafe", "openrouter_decisions", "openrouter_systemone"},
-					"description": "override policy.provider",
+					"description": "override policy.provider; on failure the policy's fallback_provider (if set) is tried",
 				},
 				"timeout": map[string]any{
 					"type":        "integer",
@@ -494,21 +552,23 @@ func fleetPickSchema() map[string]any {
 		"output": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"primary":          map[string]any{"type": "object", "description": "primary PickCell {key, model, probability}"},
-				"backup":           map[string]any{"type": "object", "description": "backup PickCell {key, model, probability}"},
-				"claude_fallback":  map[string]any{"type": "string"},
-				"difficulty":       map[string]any{"type": "string"},
-				"reason":           map[string]any{"type": "string", "enum": []string{"jev", "error", "invalid_response"}},
-				"candidates":       map[string]any{"type": "array"},
-				"dropped":          map[string]any{"type": "array"},
-				"state_trimmed":    map[string]any{"type": "boolean"},
-				"estimated_tokens": map[string]any{"type": "integer"},
-				"latency_ms":       map[string]any{"type": "integer"},
-				"provider":         map[string]any{"type": "string"},
-				"error":            map[string]any{"type": "object"},
-				"usage":            map[string]any{"type": "object"},
-				"backup_source":    map[string]any{"type": "string", "enum": []string{"paired", "rank2", "second_call", "rank2_tiebreak", "fallback_pair", "none"}, "description": "how the backup was decided"},
-				"second_call":      map[string]any{"type": "object", "description": "present only when a degenerate first answer forced a second Jev call; {choice, probabilities, confidence, usage, latency_ms, error}"},
+				"primary":           map[string]any{"type": "object", "description": "primary PickCell {key, model, probability}"},
+				"backup":            map[string]any{"type": "object", "description": "backup PickCell {key, model, probability}"},
+				"claude_fallback":   map[string]any{"type": "string"},
+				"difficulty":        map[string]any{"type": "string"},
+				"reason":            map[string]any{"type": "string", "enum": []string{"jev", "error", "invalid_response"}},
+				"candidates":        map[string]any{"type": "array"},
+				"dropped":           map[string]any{"type": "array"},
+				"state_trimmed":     map[string]any{"type": "boolean"},
+				"estimated_tokens":  map[string]any{"type": "integer"},
+				"latency_ms":        map[string]any{"type": "integer"},
+				"provider":          map[string]any{"type": "string", "description": "the policy provider name that produced the answer"},
+				"upstream_provider": map[string]any{"type": "string", "description": "the provider string the classifier echoed in its response body"},
+				"provider_attempts": map[string]any{"type": "array", "description": "each provider that failed before an answer was obtained; {provider, status, message, latency_ms}"},
+				"error":             map[string]any{"type": "object"},
+				"usage":             map[string]any{"type": "object"},
+				"backup_source":     map[string]any{"type": "string", "enum": []string{"paired", "rank2", "second_call", "rank2_tiebreak", "fallback_pair", "none"}, "description": "how the backup was decided"},
+				"second_call":       map[string]any{"type": "object", "description": "present only when a degenerate first answer forced a second Jev call; {choice, probabilities, confidence, usage, latency_ms, error}"},
 			},
 		},
 		"errors": []string{errCodeMissingRequired, errCodeFileNotFound, errCodeInvalidArgument, errCodeInvalidEnum, errCodeInternal},

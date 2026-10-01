@@ -158,6 +158,74 @@ func TestValidateJevRouterPolicyBackupRules(t *testing.T) {
 	}
 }
 
+// validJevPolicyWithFallback returns a valid policy that also declares a
+// fallback provider, so tests can exercise fallback_provider validation.
+func validJevPolicyWithFallback() JevRouterPolicy {
+	p := validJevPolicy()
+	p.Providers["openrouter_decisions"] = JevProviderConfig{URL: "https://or.example/decide", Model: "or-model", APIKeyEnv: "OR_JEV_KEY"}
+	return p
+}
+
+func TestValidateJevRouterPolicyFallbackProvider(t *testing.T) {
+	cases := []struct {
+		name    string
+		mutate  func(*JevRouterPolicy)
+		wantSub string
+	}{
+		{"fallback_valid", func(p *JevRouterPolicy) { p.FallbackProvider = "openrouter_decisions" }, ""},
+		{"fallback_unknown", func(p *JevRouterPolicy) { p.FallbackProvider = "mystery" }, "fallback_provider"},
+		{"fallback_equal_to_provider", func(p *JevRouterPolicy) { p.FallbackProvider = "typesafe" }, "fallback_provider"},
+		{"fallback_missing_key_env", func(p *JevRouterPolicy) {
+			cfg := p.Providers["openrouter_decisions"]
+			cfg.APIKeyEnv = ""
+			p.Providers["openrouter_decisions"] = cfg
+			p.FallbackProvider = "openrouter_decisions"
+		}, "fallback_provider"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			p := validJevPolicyWithFallback()
+			tc.mutate(&p)
+			err := ValidateJevRouterPolicy(p)
+			if tc.wantSub == "" {
+				if err != nil {
+					t.Fatalf("expected valid, got %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !strings.Contains(err.Error(), tc.wantSub) {
+				t.Fatalf("error %q does not contain %q", err.Error(), tc.wantSub)
+			}
+		})
+	}
+}
+
+func TestJevErrorFallsBack(t *testing.T) {
+	cases := []struct {
+		status int
+		want   bool
+	}{
+		{0, true},
+		{401, true},
+		{403, true},
+		{429, true},
+		{500, true},
+		{529, true},
+		{400, false},
+		{413, false},
+		{422, false},
+	}
+	for _, tc := range cases {
+		e := &JevError{Status: tc.status, Message: "x"}
+		if got := JevErrorFallsBack(e); got != tc.want {
+			t.Fatalf("status %d: got %v want %v", tc.status, got, tc.want)
+		}
+	}
+}
+
 func TestFilterLiveCandidates(t *testing.T) {
 	p := validJevPolicy()
 	allModels := map[string]bool{
@@ -453,7 +521,7 @@ func TestDecidePickNormalRanking(t *testing.T) {
 	if dec.Primary.Probability == nil || *dec.Primary.Probability != 0.7 {
 		t.Fatalf("primary probability %v want 0.7", dec.Primary.Probability)
 	}
-	if dec.JevModel != "classifier-v1" || dec.JevID != "resp-1" || dec.Provider != "typesafe" {
+	if dec.JevModel != "classifier-v1" || dec.JevID != "resp-1" || dec.UpstreamProvider != "typesafe" {
 		t.Fatalf("meta not copied: %+v", dec)
 	}
 	if dec.Usage == nil || dec.Usage.InputTokens != 10 {
@@ -584,7 +652,7 @@ func TestDecidePickInvalidResponseKeepsBilling(t *testing.T) {
 	if dec.Reason != "invalid_response" {
 		t.Fatalf("reason %q want invalid_response", dec.Reason)
 	}
-	if dec.JevModel != "classifier-v1" || dec.JevID != "resp-9" || dec.Provider != "typesafe" {
+	if dec.JevModel != "classifier-v1" || dec.JevID != "resp-9" || dec.UpstreamProvider != "typesafe" {
 		t.Fatalf("billing meta not kept: %+v", dec)
 	}
 	if dec.Usage == nil || dec.Usage.InputTokens != 5 {

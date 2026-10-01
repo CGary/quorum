@@ -43,6 +43,9 @@
 version: 2
 transport: opencode_go
 provider: typesafe
+# Used when the primary fails for any reason except a bad request (400/413/422):
+# outage, timeout, 429, 5xx, auth/credits, or a missing key. Verified live 2026-10-01.
+fallback_provider: openrouter_decisions
 providers:
   typesafe:
     url: https://api.typesafe.ai/v1/systemone
