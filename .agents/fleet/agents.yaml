@@ -544,6 +544,27 @@ transports:
       opencode-go/longcat-2.0:
         provider: opencode-go-meituan
         model_arg: opencode-go/longcat-2.0
+      opencode-go/mimo-v2.6-flash:
+        provider: opencode-go-xiaomi
+        model_arg: opencode-go/mimo-v2.6-flash
+      opencode-go/mimo-v2.6-pro:
+        provider: opencode-go-xiaomi
+        model_arg: opencode-go/mimo-v2.6-pro
+      opencode-go/glm-5.3-flash:
+        provider: opencode-go-zhipu
+        model_arg: opencode-go/glm-5.3-flash
+      opencode-go/glm-5.3:
+        provider: opencode-go-zhipu
+        model_arg: opencode-go/glm-5.3
+      opencode-go/deepseek-v4.1-flash:
+        provider: opencode-go-deepseek
+        model_arg: opencode-go/deepseek-v4.1-flash
+      opencode-go/grok-4.7:
+        provider: opencode-go-xai
+        model_arg: opencode-go/grok-4.7
+      opencode-go/gpt-6-luna:
+        provider: opencode-go-openai
+        model_arg: opencode-go/gpt-6-luna
     contract_test: .agents/fleet/contract_tests/opencode_go.yaml
     mode: agentic
     active: true

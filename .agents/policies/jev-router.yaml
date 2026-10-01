@@ -1,0 +1,208 @@
+# Jev model-pick policy for `quorum fleet pick` (advisory, non-lifecycle).
+#
+# Jev (TypeSafe "System One" classifier) reads a software-development task and
+# answers two typed questions: which candidate MODEL should run it, and how
+# DIFFICULT it is (the difficulty picks the Claude fallback tier). The skill
+# /fleet-auto then runs: Jev's pick -> that pick's paired backup -> Claude by
+# difficulty. Never consulted by `quorum fleet route` / q-dispatch /
+# q-orchestrate (ADR 0014).
+#
+# HOW THIS LIST IS BUILT (v2, 2026-10-01, human decision "idea A + paired
+# backups"):
+#   1. Candidates = the PARETO FRONTIER of the OpenCode Go catalog: a model is
+#      a candidate only if NO other model is both cheaper and at least as good
+#      on the same metric. The frontier is computed per metric, comparing only
+#      the same benchmark version: Artificial Analysis Intelligence Index
+#      (current leaderboard), Terminal-Bench 2.1, SWE-bench Verified, SWE-bench
+#      Pro, LiveCodeBench. Differences of about 1 point count as ties (the
+#      cheaper model wins). Cost = Go list price, blended 3:1 input:output,
+#      $/Mtok (DeepSeek off-peak; x2 at peak 01-04 and 06-10 UTC weekdays).
+#   2. Each candidate gets ONE paired backup: the best non-candidate model on
+#      the metric that put the candidate on the frontier, within a similar cost
+#      tier, preferring another vendor family (7 candidates + 7 backups = 14). Backups are never shown to Jev (a dominated model must
+#      never win as primary); they run only after the candidate fails.
+#   3. Profiles state ONLY what the evidence supports. Where a model has no
+#      task-specific benchmark, the profile says so and describes its general
+#      level. `cost` (low <= 0.30 < medium <= 1.00 < high $/Mtok) is sent to
+#      Jev; the instructions ask it to prefer the lowest cost among suitable
+#      candidates. `evidence` is for humans and is NEVER sent.
+#   4. max_difficulty is enforced IN CODE: if Jev's choice has a ceiling
+#      below Jev's own difficulty answer, the most probable eligible
+#      candidate wins instead (`ceiling_applied: true`).
+#   5. ORDER = cost ascending; it is the tie-break when Jev returns equal
+#      probabilities (Jev's own `choice` always wins a tie).
+# Out of the table (dominated, no task-specific evidence, or unavailable):
+# qwen3.8-max (tied with cheaper glm-5.3 on Terminal-Bench 2.1, no SWE-bench
+# Verified), gpt-5.6-luna (deprecated by AA, 403 on 2026-10-01), hy3,
+# longcat-2.0, kimi-k2.7-code, deepseek-v4-flash (403), and models with no
+# public score. `meta` blocks are structured data for humans and for future
+# recomputation (cost per solved task); they are NEVER sent to Jev. Catalog churn is
+# a data edit here (+ the model entry in .agents/fleet/agents.yaml); candidates
+# or backups missing from the live transport or kill-switched are dropped
+# automatically before Jev is asked.
+version: 2
+transport: opencode_go
+provider: typesafe
+providers:
+  typesafe:
+    url: https://api.typesafe.ai/v1/systemone
+    model: jev-1.13.0
+    api_key_env: TYPESAFE_API_KEY
+  openrouter_decisions:
+    url: https://openrouter.ai/api/alpha/decisions
+    model: typesafe/jev-1.13
+    api_key_env: OPENROUTER_API_KEY
+  openrouter_systemone:
+    url: https://openrouter.ai/api/v1/systemone
+    model: jev-1.13
+    api_key_env: OPENROUTER_API_KEY
+timeout_s: 15
+# Conservative cap below the 32k OpenRouter window (state + both questions).
+max_state_tokens: 30000
+instructions: >-
+  Which candidate model should perform the software development task described
+  in `prompt` (using `context` if present)? A candidate is suitable only if its
+  description covers both the kind of task and its difficulty. Among suitable
+  candidates, choose the one with the lowest `cost`.
+difficulty_instructions: >-
+  How difficult is the software development task described in `prompt`?
+default_difficulty: moderate
+difficulty:
+  - key: trivial
+    description: >-
+      One-step or boilerplate work: renames, formatting, small config tweaks,
+      one-line fixes, short summaries of a given file.
+    claude_model: haiku
+  - key: moderate
+    description: >-
+      Normal engineering work: a feature or bug fix within one area, writing or
+      analyzing tests, explaining a module, well-specified multi-file changes,
+      routine shell/Docker/CI changes.
+    claude_model: sonnet
+  - key: hard
+    description: >-
+      Deep reasoning or high stakes: novel algorithms, cryptography,
+      concurrency, security-sensitive code, architecture across many files,
+      designing agent orchestration, ambiguous debugging with no clear lead.
+    claude_model: opus
+# Used when Jev errors or answers invalidly: two capable low-cost candidates
+# from different vendors.
+fallback_pair: [glm-5.3-flash, deepseek-v4.1-flash]
+candidates:
+  - key: mimo-v2.6-flash
+    model: opencode-go/mimo-v2.6-flash
+    max_difficulty: moderate
+    cost_tier: low
+    what: >-
+      General-purpose model for trivial and moderate tasks of any kind. No
+      public coding-specific benchmark; general level similar to other
+      low-cost models.
+    not_for: Hard reasoning, security-critical code, large multi-file refactors.
+    examples: ["Add a --verbose flag to this CLI", "Summarize what this package exports"]
+    evidence: ["Pareto frontier on AA Intelligence (38 at the lowest price)"]
+    meta: {vendor: xiaomi, aa_intelligence: 38, price_in: 0.14, price_out: 0.28, blended: 0.175, monthly_cap_usd: 60, ledger: "0/0", probe: "2026-10-01 OK"}
+    backup:
+      key: deepseek-v4-flash-vision-exp
+      model: opencode-go/deepseek-v4-flash-vision-exp
+      evidence: ["next AA among low-cost non-candidates", "experimental tag"]
+      meta: {vendor: deepseek, aa_intelligence: 35, price_in: 0.15, price_out: 0.60, blended: 0.263, monthly_cap_usd: 15, ledger: "11/11"}
+  - key: mimo-v2.5
+    model: opencode-go/mimo-v2.5
+    max_difficulty: moderate
+    cost_tier: low
+    what: >-
+      Low-cost coding model with public coding results: moderate bug fixes in a
+      repository and competitive-programming style problems.
+    not_for: Hard multi-file work; infrastructure and long terminal sessions.
+    examples: ["Fix the off-by-one error in this pagination helper", "Write a function that merges overlapping intervals"]
+    evidence: ["Pareto frontier on SWE-bench (Vals) and LiveCodeBench at the lowest price"]
+    meta: {vendor: xiaomi, aa_intelligence: null, swe_bench_vals: 71.0, swe_bench_pro: 56.1, livecodebench: 81.5, terminal_bench_2_0: 65.8, price_in: 0.14, price_out: 0.28, blended: 0.175, monthly_cap_usd: 60, ledger: "7/7"}
+    backup:
+      key: qwen3.8-flash
+      model: opencode-go/qwen3.8-flash
+      evidence: ["SWE-bench Pro 62.5 (snippet)", "AA unknown: 'Qwen3.8-Flash-Next' (40) is a different model"]
+      meta: {vendor: alibaba, aa_intelligence: null, swe_bench_pro: 62.5, price_in: 0.15, price_out: 0.47, blended: 0.230, monthly_cap_usd: 30, ledger: "21/21"}
+  - key: glm-5.3-flash
+    model: opencode-go/glm-5.3-flash
+    max_difficulty: moderate
+    cost_tier: low
+    what: >-
+      Strongest general reasoning among the low-cost models: moderate tasks of
+      any kind, including features, debugging, tests, code analysis and
+      technical writing. No public coding-specific benchmark.
+    not_for: The hardest tasks (novel algorithms, cryptography, large refactors).
+    examples: ["Explain why this goroutine leaks and fix it", "Write table-driven tests for this parser"]
+    evidence: ["Pareto frontier on AA Intelligence (42, highest low-cost)"]
+    meta: {vendor: zhipu, aa_intelligence: 42, price_in: 0.15, price_out: 0.50, blended: 0.238, monthly_cap_usd: 60, ledger: "0/0", probe: "2026-10-01 OK"}
+    backup:
+      key: gpt-6-luna
+      model: opencode-go/gpt-6-luna
+      evidence: ["AA 37 at max effort (34 xhigh, 32 high, 29 medium); routed effort is opencode's default", "successor of gpt-5.6-luna"]
+      meta: {vendor: openai, aa_intelligence: 37, price_in: 0.10, price_out: 0.50, blended: 0.200, monthly_cap_usd: 15, ledger: "0/0", probe: "2026-10-01 OK"}
+  - key: deepseek-v4.1-flash
+    model: opencode-go/deepseek-v4.1-flash
+    max_difficulty: hard
+    cost_tier: low
+    what: >-
+      Agentic command-line work up to hard difficulty: shell scripting, build
+      systems, Docker, CI pipelines and multi-step terminal tasks; also
+      general coding up to moderate difficulty.
+    not_for: Hard algorithm design; security-critical code.
+    examples: ["Make this Dockerfile build reproducibly and fix the CI job", "Write a script that bisects which commit broke the build"]
+    evidence: ["Pareto frontier on Terminal-Bench 2.1 (90.6, highest of all; benchlm)", "price doubles at DeepSeek peak hours"]
+    meta: {vendor: deepseek, aa_intelligence: 39, terminal_bench_2_1: 90.6, deepswe: 74.2, price_in: 0.15, price_out: 0.60, blended: 0.263, blended_peak: 0.525, monthly_cap_usd: 60, ledger: "0/0", probe: "2026-10-01 OK"}
+    backup:
+      key: qwen3.7-plus
+      model: opencode-go/qwen3.7-plus
+      evidence: ["rule's runner-up on TB 2.1 is gpt-5.6-luna (84.7) but it is deprecated and 403 today; qwen3.7-plus has TB 2.0 only"]
+      meta: {vendor: alibaba, aa_intelligence: 25, swe_bench_verified: 77.7, terminal_bench_2_0: 70.3, price_in: 0.40, price_out: 1.60, blended: 0.700, monthly_cap_usd: 60, ledger: "69/72"}
+  - key: minimax-m3
+    model: opencode-go/minimax-m3
+    max_difficulty: moderate
+    cost_tier: medium
+    what: >-
+      Patching an existing repository at moderate difficulty: implementing a
+      described fix or a well-specified change across several files.
+    not_for: Hard tasks; shell or infrastructure-heavy tasks; open-ended design.
+    examples: ["Apply this API rename across all call sites and update the tests", "Implement the change described in this issue"]
+    evidence: ["Pareto frontier on SWE-bench Verified (80.5; attribution UNVERIFIED)", "weak Terminal-Bench 2.1 (53.6)"]
+    meta: {vendor: minimax, aa_intelligence: 29, swe_bench_verified: 80.5, terminal_bench_2_1: 53.6, livecodebench: 82.2, price_in: 0.30, price_out: 1.20, blended: 0.525, monthly_cap_usd: 60, ledger: "13/13"}
+    backup:
+      key: deepseek-v4-pro
+      model: opencode-go/deepseek-v4-pro
+      evidence: ["SWE-bench Verified 80.6 and LiveCodeBench 93.5 are vendor-reported"]
+      meta: {vendor: deepseek, aa_intelligence: 36, swe_bench_verified: 80.6, livecodebench: 93.5, price_in: 0.66, price_out: 1.98, blended: 0.990, monthly_cap_usd: 15, ledger: "30/37 (+5 runs 2026-10-01)"}
+  - key: mimo-v2.6-pro
+    model: opencode-go/mimo-v2.6-pro
+    max_difficulty: hard
+    cost_tier: medium
+    what: >-
+      Highest general intelligence at medium cost: hard tasks of any kind,
+      including difficult bugs, complex features, design analysis and
+      terminal work.
+    not_for: Trivial tasks.
+    examples: ["Find the root cause of this intermittent test failure", "Propose and implement a cleaner design for this module"]
+    evidence: ["Pareto frontier on AA Intelligence (46, highest, tied)", "Terminal-Bench 2.1 89.9 (benchlm)"]
+    meta: {vendor: xiaomi, aa_intelligence: 46, terminal_bench_2_1: 89.9, price_in: 0.435, price_out: 0.87, blended: 0.544, monthly_cap_usd: 15, ledger: "0/0", probe: "2026-10-01 OK"}
+    backup:
+      key: grok-4.7
+      model: opencode-go/grok-4.7
+      evidence: ["ties AA 46 at 5.5x the price", "no coding benchmark found"]
+      meta: {vendor: xai, aa_intelligence: 46, price_in: 2.00, price_out: 6.00, blended: 3.000, monthly_cap_usd: 15, ledger: "0/0", probe: "2026-10-01 OK"}
+  - key: glm-5.3
+    model: opencode-go/glm-5.3
+    max_difficulty: hard
+    cost_tier: high
+    what: >-
+      The hardest repository-level software engineering: complex multi-file
+      features and fixes, agentic coding in large codebases, difficult
+      algorithms.
+    not_for: Trivial or moderate tasks.
+    examples: ["Add multi-tenant isolation across the data layer and its tests", "Migrate this service from callbacks to async/await end to end"]
+    evidence: ["Pareto frontier on SWE-bench Verified (94.2, highest; friendli.ai)", "Terminal-Bench 2.1 86.5"]
+    meta: {vendor: zhipu, aa_intelligence: 45, swe_bench_verified: 94.2, terminal_bench_2_1: 86.5, price_in: 1.40, price_out: 4.40, blended: 2.150, monthly_cap_usd: 15, ledger: "0/0", probe: "2026-10-01 OK"}
+    backup:
+      key: kimi-k3
+      model: opencode-go/kimi-k3
+      evidence: ["SWE-bench Verified 93.8 (runner-up)", "slow: 45/99/266 s min/median/max in the 2026-09-09 smoke"]
+      meta: {vendor: moonshot, aa_intelligence: 44, swe_bench_verified: 93.8, terminal_bench_2_1: 80.9, livecodebench: 87.2, price_in: 3.00, price_out: 15.00, blended: 6.000, monthly_cap_usd: 15, ledger: "8/10"}
