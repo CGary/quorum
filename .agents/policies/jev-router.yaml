@@ -116,12 +116,12 @@ candidates:
     not_for: Hard multi-file work; infrastructure and long terminal sessions.
     examples: ["Fix the off-by-one error in this pagination helper", "Write a function that merges overlapping intervals"]
     evidence: ["Pareto frontier on SWE-bench (Vals) and LiveCodeBench at the lowest price"]
-    meta: {vendor: xiaomi, aa_intelligence: null, swe_bench_vals: 71.0, swe_bench_pro: 56.1, livecodebench: 81.5, terminal_bench_2_0: 65.8, price_in: 0.14, price_out: 0.28, blended: 0.175, monthly_cap_usd: 60, ledger: "7/7"}
+    meta: {vendor: xiaomi, aa_intelligence: null, aa_estimate: "~30? (range 25-35; SWE-Pro 56.1 ~ hy3 57.9 = AA 25; predecessor of mimo-v2.6-flash = 38; not on the AA leaderboard, model page 404)", swe_bench_vals: 71.0, swe_bench_pro: 56.1, livecodebench: 81.5, terminal_bench_2_0: 65.8, price_in: 0.14, price_out: 0.28, blended: 0.175, monthly_cap_usd: 60, ledger: "7/7"}
     backup:
       key: qwen3.8-flash
       model: opencode-go/qwen3.8-flash
       evidence: ["SWE-bench Pro 62.5 (snippet)", "AA unknown: 'Qwen3.8-Flash-Next' (40) is a different model"]
-      meta: {vendor: alibaba, aa_intelligence: null, swe_bench_pro: 62.5, price_in: 0.15, price_out: 0.47, blended: 0.230, monthly_cap_usd: 30, ledger: "21/21"}
+      meta: {vendor: alibaba, aa_intelligence: null, aa_estimate: "~38? (range 36-40; SWE-Pro 62.5 ~ gpt-5.6-luna 62.7 = AA 37; sibling Flash-Next = 40 with the same SWE-Pro; model page 404)", swe_bench_pro: 62.5, price_in: 0.15, price_out: 0.47, blended: 0.230, monthly_cap_usd: 30, ledger: "21/21"}
   - key: glm-5.3-flash
     model: opencode-go/glm-5.3-flash
     max_difficulty: moderate
