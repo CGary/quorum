@@ -152,10 +152,10 @@ candidates:
     evidence: ["Pareto frontier on Terminal-Bench 2.1 (90.6, highest of all; benchlm)", "price doubles at DeepSeek peak hours"]
     meta: {vendor: deepseek, aa_intelligence: 39, terminal_bench_2_1: 90.6, deepswe: 74.2, price_in: 0.15, price_out: 0.60, blended: 0.263, blended_peak: 0.525, monthly_cap_usd: 60, ledger: "0/0", probe: "2026-10-01 OK"}
     backup:
-      key: qwen3.7-plus
-      model: opencode-go/qwen3.7-plus
-      evidence: ["rule's runner-up on TB 2.1 is gpt-5.6-luna (84.7) but it is deprecated and 403 today; qwen3.7-plus has TB 2.0 only"]
-      meta: {vendor: alibaba, aa_intelligence: 25, swe_bench_verified: 77.7, terminal_bench_2_0: 70.3, price_in: 0.40, price_out: 1.60, blended: 0.700, monthly_cap_usd: 60, ledger: "69/72"}
+      key: gpt-5.6-luna
+      model: opencode-go/gpt-5.6-luna
+      evidence: ["Terminal-Bench 2.1 84.7 (benchlm, Luna-specific): runner-up on the candidate's metric", "AA 37 (max), deprecated by AA in favour of GPT-6 Luna: may be retired soon", "the 403 seen on 2026-10-01 was a workspace setting, not the model"]
+      meta: {vendor: openai, aa_intelligence: 37, terminal_bench_2_1: 84.7, swe_bench_pro: 62.7, price_in: 0.20, price_out: 1.20, blended: 0.450, monthly_cap_usd: 15, ledger: "8/9"}
   - key: minimax-m3
     model: opencode-go/minimax-m3
     max_difficulty: moderate
