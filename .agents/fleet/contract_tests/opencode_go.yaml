@@ -21,3 +21,9 @@ checks:
   - name: auto_flag
     probe_args: ["run", "--help"]
     expect_substring: "--auto"
+  - name: pure_flag
+    probe_args: ["run", "--help"]
+    expect_substring: "--pure"
+  - name: title_flag
+    probe_args: ["run", "--help"]
+    expect_substring: "--title"

@@ -473,9 +473,17 @@ transports:
     # timeouts.default_s raised 300 -> 600 on 2026-09-09: HEX-063 killed
     # minimax-m3 at exactly 300.06s mid-work and rerouted to Gemini. Same
     # evidence and same value as the agy transports (2026-07-31).
+    # 2026-10-01 (cache + isolation): delegates used to inherit the user's
+    # global ~/.config/opencode/opencode.json (default_agent "gary", MCP
+    # hsme/context7, plugin background-agents.ts, small_model muse-spark that
+    # received every prompt for title generation). OPENCODE_CONFIG_CONTENT is
+    # merged on top of the global config; --pure drops external plugins;
+    # --title skips the small-model title call. Measured first-turn
+    # cross-session prompt cache: 56% before, 92% after (mimo-v2.5, n=2).
     binary: opencode
     env:
       OPENCODE_DISABLE_AUTOUPDATE: "true"
+      OPENCODE_CONFIG_CONTENT: '{"default_agent":"build","small_model":"opencode-go/mimo-v2.5","mcp":{"hsme":{"enabled":false},"context7":{"enabled":false}}}'
     argv_template:
       - run
       - -m
@@ -485,6 +493,9 @@ transports:
       - --dir
       - "{cwd}"
       - --auto
+      - --pure
+      - --title
+      - quorum-fleet
     input_channel: stdin
     output_format: json
     timeouts:
