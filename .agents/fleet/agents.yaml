@@ -503,6 +503,12 @@ transports:
     failure_signatures: []
     wrapper_signatures:
       - "Unexpected server error"
+      # 2026-10-01: HTTP 403 when the model is not enabled in the user's
+      # opencode.ai workspace console (verified: enabling it fixed both
+      # deepseek-v4-flash and gpt-5.6-luna). Configuration, not reasoning:
+      # reroute without counting it against the model. A usage limit is a
+      # different error (429 "usage limit reached ... resets in").
+      - "Model access is disabled"
     quota_class: subscription
     models:
       opencode-go/deepseek-v4-flash:
