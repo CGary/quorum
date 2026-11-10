@@ -69,6 +69,19 @@ instructions: >-
   candidates, choose the one with the lowest `cost`.
 difficulty_instructions: >-
   How difficult is the software development task described in `prompt`?
+reasoning_instructions: >-
+  How much reasoning, investigation or comparison does the task described in
+  `prompt` need, independent of its risk or stakes?
+reasoning:
+  - key: low
+    description: >-
+      Follow given steps, mechanical edits, collect or report known facts.
+  - key: medium
+    description: >-
+      Understand a module and decide within it, routine debugging with a lead.
+  - key: high
+    description: >-
+      Investigate unknowns, compare alternatives, design, ambiguous debugging.
 default_difficulty: moderate
 difficulty:
   - key: trivial

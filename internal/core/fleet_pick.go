@@ -32,10 +32,14 @@ type JevRouterPolicy struct {
 	Transport              string                       `json:"transport" yaml:"transport"`
 	Instructions           string                       `json:"instructions" yaml:"instructions"`
 	DifficultyInstructions string                       `json:"difficulty_instructions" yaml:"difficulty_instructions"`
-	Candidates             []JevCandidate               `json:"candidates" yaml:"candidates"`
-	Difficulty             []JevDifficultyLevel         `json:"difficulty" yaml:"difficulty"`
-	DefaultDifficulty      string                       `json:"default_difficulty" yaml:"default_difficulty"`
-	FallbackPair           []string                     `json:"fallback_pair" yaml:"fallback_pair"`
+	// ReasoningInstructions and Reasoning are optional: when Reasoning is empty
+	// the third `reasoning` question is not sent (backward compatible).
+	ReasoningInstructions string               `json:"reasoning_instructions" yaml:"reasoning_instructions"`
+	Reasoning             []JevReasoningLevel  `json:"reasoning" yaml:"reasoning"`
+	Candidates            []JevCandidate       `json:"candidates" yaml:"candidates"`
+	Difficulty            []JevDifficultyLevel `json:"difficulty" yaml:"difficulty"`
+	DefaultDifficulty     string               `json:"default_difficulty" yaml:"default_difficulty"`
+	FallbackPair          []string             `json:"fallback_pair" yaml:"fallback_pair"`
 }
 
 // JevProviderConfig is the connection settings for one classifier backend.
@@ -81,6 +85,12 @@ type JevDifficultyLevel struct {
 	Key         string `json:"key" yaml:"key"`
 	Description string `json:"description" yaml:"description"`
 	ClaudeModel string `json:"claude_model" yaml:"claude_model"`
+}
+
+// JevReasoningLevel is one reasoning-effort choice offered to the classifier.
+type JevReasoningLevel struct {
+	Key         string `json:"key" yaml:"key"`
+	Description string `json:"description" yaml:"description"`
 }
 
 // ValidateJevRouterPolicy checks the structural invariants of a Jev policy and
@@ -221,6 +231,18 @@ func ValidateJevRouterPolicy(p JevRouterPolicy) error {
 			return fmt.Errorf("candidates[%d].max_difficulty: %q is not a difficulty key", i, c.MaxDifficulty)
 		}
 	}
+	if len(p.Reasoning) > 0 {
+		seenReason := make(map[string]bool, len(p.Reasoning))
+		for i, r := range p.Reasoning {
+			if r.Key == "" {
+				return fmt.Errorf("reasoning[%d].key: must not be empty", i)
+			}
+			if seenReason[r.Key] {
+				return fmt.Errorf("reasoning[%d].key: duplicate key %q", i, r.Key)
+			}
+			seenReason[r.Key] = true
+		}
+	}
 	if !seenDiff[p.DefaultDifficulty] {
 		return fmt.Errorf("default_difficulty: %q is not a difficulty key", p.DefaultDifficulty)
 	}
@@ -346,6 +368,13 @@ func BuildJevRequest(p JevRouterPolicy, provider string, live []JevCandidate, pr
 			},
 		},
 	}
+	if len(p.Reasoning) > 0 {
+		req.Questions["reasoning"] = JevQuestion{
+			Type:         "choice",
+			Instructions: p.ReasoningInstructions,
+			Criteria:     buildReasoningCriteria(p.Reasoning),
+		}
+	}
 	if context != "" {
 		req.State["context"] = context
 	}
@@ -411,6 +440,15 @@ func buildTargetModelCriteria(live []JevCandidate) map[string]any {
 // buildDifficultyCriteria maps each difficulty key to its plain-text
 // description.
 func buildDifficultyCriteria(levels []JevDifficultyLevel) map[string]any {
+	crit := make(map[string]any, len(levels))
+	for _, l := range levels {
+		crit[l.Key] = l.Description
+	}
+	return crit
+}
+
+// buildReasoningCriteria maps each reasoning key to its plain-text description.
+func buildReasoningCriteria(levels []JevReasoningLevel) map[string]any {
 	crit := make(map[string]any, len(levels))
 	for _, l := range levels {
 		crit[l.Key] = l.Description
@@ -536,6 +574,9 @@ type PickDecision struct {
 	Probabilities           map[string]float64 `json:"probabilities,omitempty"`
 	DifficultyConfidence    *float64           `json:"difficulty_confidence,omitempty"`
 	DifficultyProbabilities map[string]float64 `json:"difficulty_probabilities,omitempty"`
+	Reasoning               string             `json:"reasoning"`
+	ReasoningConfidence     float64            `json:"reasoning_confidence"`
+	ReasoningProbabilities  map[string]float64 `json:"reasoning_probabilities,omitempty"`
 	BackupSource            string             `json:"backup_source"`
 	JevModel                string             `json:"jev_model,omitempty"`
 	JevID                   string             `json:"jev_id,omitempty"`
@@ -583,6 +624,16 @@ func DecidePick(p JevRouterPolicy, live []JevCandidate, resp *JevResponse, jevEr
 	dec.ClaudeFallback = claudeModelForDifficulty(p, difficultyKey)
 	dec.DifficultyConfidence = diffConf
 	dec.DifficultyProbabilities = diffProbs
+
+	if resp != nil && len(p.Reasoning) > 0 {
+		if a, ok := resp.Answers["reasoning"]; ok && a.Type == "choice" && isJevReasoningKey(p, a.Choice) {
+			dec.Reasoning = a.Choice
+			if a.Confidence != nil {
+				dec.ReasoningConfidence = *a.Confidence
+			}
+			dec.ReasoningProbabilities = a.Probabilities
+		}
+	}
 
 	if resp != nil {
 		dec.JevModel = resp.Model
@@ -698,6 +749,16 @@ func resolveJevBackup(primary JevCandidate, rank2 *PickCell) (*PickCell, string)
 func isJevDifficultyKey(p JevRouterPolicy, key string) bool {
 	for _, d := range p.Difficulty {
 		if d.Key == key {
+			return true
+		}
+	}
+	return false
+}
+
+// isJevReasoningKey reports whether key is a declared reasoning level.
+func isJevReasoningKey(p JevRouterPolicy, key string) bool {
+	for _, r := range p.Reasoning {
+		if r.Key == key {
 			return true
 		}
 	}

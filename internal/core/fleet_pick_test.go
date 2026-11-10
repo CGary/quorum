@@ -839,3 +839,80 @@ func TestDecidePickCeilingAllBelowNoFilter(t *testing.T) {
 		t.Fatalf("eligible %v want all 3 candidates", dec.Eligible)
 	}
 }
+
+func reasoningPolicy() JevRouterPolicy {
+	p := validJevPolicy()
+	p.ReasoningInstructions = "How much reasoning?"
+	p.Reasoning = []JevReasoningLevel{
+		{Key: "low", Description: "mechanical"},
+		{Key: "high", Description: "investigate"},
+	}
+	return p
+}
+
+func TestBuildJevRequestReasoningQuestion(t *testing.T) {
+	p := reasoningPolicy()
+	req, _, _, err := BuildJevRequest(p, "typesafe", p.Candidates, "x", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	q, ok := req.Questions["reasoning"]
+	if !ok || q.Type != "choice" || q.Instructions != "How much reasoning?" || len(q.Criteria) != 2 {
+		t.Fatalf("reasoning question missing or malformed: %+v", q)
+	}
+	p2 := validJevPolicy()
+	req2, _, _, err := BuildJevRequest(p2, "typesafe", p2.Candidates, "x", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := req2.Questions["reasoning"]; ok {
+		t.Fatal("reasoning question must be absent when policy has none")
+	}
+}
+
+func TestValidateJevRouterPolicyReasoningKeys(t *testing.T) {
+	p := reasoningPolicy()
+	p.Reasoning = append(p.Reasoning, JevReasoningLevel{Key: "low"})
+	if err := ValidateJevRouterPolicy(p); err == nil {
+		t.Fatal("duplicate reasoning key must fail")
+	}
+	p = reasoningPolicy()
+	p.Reasoning[0].Key = ""
+	if err := ValidateJevRouterPolicy(p); err == nil {
+		t.Fatal("empty reasoning key must fail")
+	}
+}
+
+func TestDecidePickReasoning(t *testing.T) {
+	p := reasoningPolicy()
+	conf := 0.8
+	mk := func(r *JevChoiceAnswer) *JevResponse {
+		ans := map[string]JevChoiceAnswer{
+			"target_model": choiceAnswer("b", map[string]float64{"a": 0.2, "b": 0.7, "c": 0.1}),
+			"difficulty":   choiceAnswer("easy", nil),
+		}
+		if r != nil {
+			ans["reasoning"] = *r
+		}
+		return &JevResponse{Model: "m", Answers: ans}
+	}
+	good := JevChoiceAnswer{Type: "choice", Choice: "high", Confidence: &conf}
+	dec := DecidePick(p, p.Candidates, mk(&good), nil)
+	if dec.Reasoning != "high" || dec.ReasoningConfidence != 0.8 {
+		t.Fatalf("reasoning %q/%v want high/0.8", dec.Reasoning, dec.ReasoningConfidence)
+	}
+	dec = DecidePick(p, p.Candidates, mk(nil), nil)
+	if dec.Reasoning != "" || dec.ReasoningConfidence != 0 {
+		t.Fatalf("missing answer: %q/%v", dec.Reasoning, dec.ReasoningConfidence)
+	}
+	bad := JevChoiceAnswer{Type: "choice", Choice: "bogus", Confidence: &conf}
+	dec = DecidePick(p, p.Candidates, mk(&bad), nil)
+	if dec.Reasoning != "" || dec.ReasoningConfidence != 0 {
+		t.Fatalf("invalid answer: %q/%v", dec.Reasoning, dec.ReasoningConfidence)
+	}
+	// Policy without reasoning ignores the answer.
+	dec = DecidePick(validJevPolicy(), p.Candidates, mk(&good), nil)
+	if dec.Reasoning != "" {
+		t.Fatalf("no-policy reasoning %q want empty", dec.Reasoning)
+	}
+}

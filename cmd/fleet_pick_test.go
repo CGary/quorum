@@ -11,6 +11,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"quorum/internal/core"
 )
 
 // writePickPolicy writes a Jev router policy with two difficulty levels and
@@ -966,5 +968,29 @@ func TestFleetPickUpstreamProviderEchoed(t *testing.T) {
 	}
 	if data["upstream_provider"] != "TypeSafe" {
 		t.Fatalf("want upstream_provider TypeSafe, got %v", data["upstream_provider"])
+	}
+}
+
+func TestReasoningLabelAndSummary(t *testing.T) {
+	if reasoningLabel("") != "absent" || reasoningLabel("high") != "high" {
+		t.Fatal("reasoningLabel mismatch")
+	}
+	d := core.PickDecision{Reason: "jev", Primary: core.PickCell{Key: "a"}, Difficulty: "hard", Reasoning: "high"}
+	if got := pickSummary(d); !strings.Contains(got, "reasoning high") {
+		t.Fatalf("summary %q lacks reasoning", got)
+	}
+	d.Reasoning = ""
+	if got := pickSummary(d); !strings.Contains(got, "reasoning absent") {
+		t.Fatalf("summary %q lacks reasoning absent", got)
+	}
+}
+
+func TestFleetPickSchemaHasReasoning(t *testing.T) {
+	out := fleetPickSchema()["output"].(map[string]any)["properties"].(map[string]any)
+	if _, ok := out["reasoning"]; !ok {
+		t.Fatal("schema lacks reasoning")
+	}
+	if _, ok := out["reasoning_confidence"]; !ok {
+		t.Fatal("schema lacks reasoning_confidence")
 	}
 }

@@ -394,6 +394,14 @@ func liveWithout(live []core.JevCandidate, key string) []core.JevCandidate {
 	return out
 }
 
+// reasoningLabel renders an empty reasoning answer as "absent".
+func reasoningLabel(r string) string {
+	if r == "" {
+		return "absent"
+	}
+	return r
+}
+
 // pickSummary renders the one-line human summary. On a classifier hit it names
 // the picked pair; on a Jev error it reports the fallback and why.
 func pickSummary(d core.PickDecision) string {
@@ -402,7 +410,7 @@ func pickSummary(d core.PickDecision) string {
 		backup = d.Backup.Key
 	}
 	if d.Reason == "jev" {
-		return fmt.Sprintf("jev picked %s (backup %s), difficulty %s", d.Primary.Key, backup, d.Difficulty)
+		return fmt.Sprintf("jev picked %s (backup %s), difficulty %s, reasoning %s", d.Primary.Key, backup, d.Difficulty, reasoningLabel(d.Reasoning))
 	}
 	reason := d.Reason
 	if d.Error != nil && d.Error.Message != "" {
@@ -552,23 +560,25 @@ func fleetPickSchema() map[string]any {
 		"output": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"primary":           map[string]any{"type": "object", "description": "primary PickCell {key, model, probability}"},
-				"backup":            map[string]any{"type": "object", "description": "backup PickCell {key, model, probability}"},
-				"claude_fallback":   map[string]any{"type": "string"},
-				"difficulty":        map[string]any{"type": "string"},
-				"reason":            map[string]any{"type": "string", "enum": []string{"jev", "error", "invalid_response"}},
-				"candidates":        map[string]any{"type": "array"},
-				"dropped":           map[string]any{"type": "array"},
-				"state_trimmed":     map[string]any{"type": "boolean"},
-				"estimated_tokens":  map[string]any{"type": "integer"},
-				"latency_ms":        map[string]any{"type": "integer"},
-				"provider":          map[string]any{"type": "string", "description": "the policy provider name that produced the answer"},
-				"upstream_provider": map[string]any{"type": "string", "description": "the provider string the classifier echoed in its response body"},
-				"provider_attempts": map[string]any{"type": "array", "description": "each provider that failed before an answer was obtained; {provider, status, message, latency_ms}"},
-				"error":             map[string]any{"type": "object"},
-				"usage":             map[string]any{"type": "object"},
-				"backup_source":     map[string]any{"type": "string", "enum": []string{"paired", "rank2", "second_call", "rank2_tiebreak", "fallback_pair", "none"}, "description": "how the backup was decided"},
-				"second_call":       map[string]any{"type": "object", "description": "present only when a degenerate first answer forced a second Jev call; {choice, probabilities, confidence, usage, latency_ms, error}"},
+				"primary":              map[string]any{"type": "object", "description": "primary PickCell {key, model, probability}"},
+				"backup":               map[string]any{"type": "object", "description": "backup PickCell {key, model, probability}"},
+				"claude_fallback":      map[string]any{"type": "string"},
+				"difficulty":           map[string]any{"type": "string"},
+				"reasoning":            map[string]any{"type": "string", "description": "classifier reasoning level (policy-defined, e.g. low|medium|high); empty string when the policy has no reasoning question or the answer was missing/invalid"},
+				"reasoning_confidence": map[string]any{"type": "number", "description": "confidence of the reasoning answer; 0 when absent"},
+				"reason":               map[string]any{"type": "string", "enum": []string{"jev", "error", "invalid_response"}},
+				"candidates":           map[string]any{"type": "array"},
+				"dropped":              map[string]any{"type": "array"},
+				"state_trimmed":        map[string]any{"type": "boolean"},
+				"estimated_tokens":     map[string]any{"type": "integer"},
+				"latency_ms":           map[string]any{"type": "integer"},
+				"provider":             map[string]any{"type": "string", "description": "the policy provider name that produced the answer"},
+				"upstream_provider":    map[string]any{"type": "string", "description": "the provider string the classifier echoed in its response body"},
+				"provider_attempts":    map[string]any{"type": "array", "description": "each provider that failed before an answer was obtained; {provider, status, message, latency_ms}"},
+				"error":                map[string]any{"type": "object"},
+				"usage":                map[string]any{"type": "object"},
+				"backup_source":        map[string]any{"type": "string", "enum": []string{"paired", "rank2", "second_call", "rank2_tiebreak", "fallback_pair", "none"}, "description": "how the backup was decided"},
+				"second_call":          map[string]any{"type": "object", "description": "present only when a degenerate first answer forced a second Jev call; {choice, probabilities, confidence, usage, latency_ms, error}"},
 			},
 		},
 		"errors": []string{errCodeMissingRequired, errCodeFileNotFound, errCodeInvalidArgument, errCodeInvalidEnum, errCodeInternal},

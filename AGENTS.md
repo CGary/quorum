@@ -410,6 +410,8 @@ catalog.
 
 **2026-10-06 (rule change, claude-skills): `/fleet-auto` may run the four mechanical SDC phases.** Under the q-orchestrate carve-out it may run analyze, verify, accept and memory, `/llano` rewrites and `/q-review`'s fallback when the router resolves nothing, but it is NEVER the implement-phase router — `/q-dispatch` and `quorum fleet route` stay deterministic (ADRs 0014); those callers never pick an implement candidate.
 
+**2026-11-10 (Jev `reasoning` question): `quorum fleet pick` gains an optional third `choice` question, `reasoning` (low|medium|high), sent in the SAME single Jev request (no extra call).** Policy-driven in `.agents/policies/jev-router.yaml` (`reasoning_instructions` + `reasoning` list; absent policy = question not sent, decision carries `reasoning: ""` and `reasoning_confidence: 0`); a missing or invalid answer degrades to the same empty default. It is consumed by `/fleet-claude`'s `resolve.py` behind `policy.use_reasoning` (enabled 2026-11-10 in its ladder.yaml). The `hard` difficulty description is unchanged pending phase 3 (owner-labelled prompts).
+
 ## High-level architecture
 
 ### Lifecycle artifacts (`00`→`07`)
